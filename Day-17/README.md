@@ -1,11 +1,11 @@
-﻿# ðŸ“– Day-17 - Monitoring with Prometheus and Grafana
-### ðŸ·ï¸ PHASE 3 - OBSERVABILITY AND PRODUCTION OPERATIONS
+# 📖 Day-17 - Monitoring with Prometheus and Grafana
+### 🏷️ PHASE 3 - OBSERVABILITY AND PRODUCTION OPERATIONS
 
 > **TL;DR:** Metrics collection, ServiceMonitors, Grafana dashboards, Prometheus Rules, alerting.
 
 ---
 
-## ðŸŽ¯ Learning Objectives
+## 🎯 Learning Objectives
 By the end of this day, you will be able to:
 1. Explain the architectural concepts of **Monitoring with Prometheus and Grafana**.
 2. Troubleshoot and solve primary issues related to this domain.
@@ -14,7 +14,7 @@ By the end of this day, you will be able to:
 
 ---
 
-## ðŸ“ Core Concepts
+## 📝 Core Concepts
 *Theoretical deep dives, diagrams, and reference guides can be found in the [notes/](notes/) directory.*
 
 * **Key Topic 1:** Core definition and architectural positioning.
@@ -23,7 +23,7 @@ By the end of this day, you will be able to:
 
 ---
 
-## ðŸ› ï¸ Hands-On Lab Walkthrough
+## 🛠️ Hands-On Lab Walkthrough
 *Step-by-step guides can be found in the [labs/](labs/) directory.*
 
 ### Prerequisites
@@ -46,7 +46,7 @@ By the end of this day, you will be able to:
 
 ---
 
-## âš¡ Production Considerations and Hardening
+## ⚡ Production Considerations and Hardening
 *Deep operational notes are located in the [production-notes/](production-notes/) directory.*
 
 * **Security:** Pod security, RBAC scope limits, and resource quotas.
@@ -55,7 +55,7 @@ By the end of this day, you will be able to:
 
 ---
 
-## ðŸš¨ Troubleshooting and Debugging Playbook
+## 🚨 Troubleshooting and Debugging Playbook
 *Comprehensive troubleshooting runbooks can be found in the [troubleshooting/](troubleshooting/) directory.*
 
 | Common Error | Likely Cause | Solution & Diagnostics Command |
@@ -65,14 +65,14 @@ By the end of this day, you will be able to:
 
 ---
 
-## ðŸ† Daily Assignment and Challenge
+## 🏆 Daily Assignment and Challenge
 *Details and code challenges can be found in the [exercises/](exercises/) directory.*
 
 * **Challenge:** Implement the scenario details inside the exercise manifest, verify using local kind cluster and capture logs demonstrating deployment success.
 
 ---
 
-## ðŸ“š References and Recommended Reading
+## 📚 References and Recommended Reading
 *See details in [resources/](resources/) directory.*
 
 * [Kubernetes Documentation](https://kubernetes.io/docs/)
