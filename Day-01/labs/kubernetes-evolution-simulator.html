@@ -1195,6 +1195,9 @@
                 statusText.innerText = "HEALTHY";
                 statusText.style.color = "var(--accent-green)";
             }
+            
+            // Sync control plane state visuals
+            updateControlPlaneVisuals();
         }
 
         // Kubernetes Control Plane & Reconciliation Loop Loop
