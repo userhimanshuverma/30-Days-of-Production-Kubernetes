@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>30 Days of Production K8s - Infrastructure Evolution Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #080b11;
+            --panel-bg: rgba(17, 25, 40, 0.75);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+            --accent-red: #ef4444;
+            --accent-orange: #f59e0b;
+            --glass-blur: blur(12px);
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 10% 10%, rgba(59, 130, 246, 0.08) 0px, transparent 50%),
+                radial-gradient(at 90% 90%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            background: rgba(8, 11, 17, 0.8);
+            backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-title h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .badge-k8s {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .status-dot.warning {
+            background-color: var(--accent-orange);
+            box-shadow: 0 0 8px var(--accent-orange);
+        }
+
+        .status-dot.danger {
+            background-color: var(--accent-red);
+            box-shadow: 0 0 8px var(--accent-red);
+            animation: pulse-red 1s infinite alternate;
+        }
+
+        @keyframes pulse-red {
+            0% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 280px 1fr 340px;
+            gap: 1.5rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .btn-mode {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-mode:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-mode.active {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+        }
+
+        .btn-mode.active::after {
+            content: "ACTIVE";
+            margin-left: auto;
+            font-size: 0.65rem;
+            font-weight: 800;
+            background: var(--accent-blue);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            color: #fff;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+
+        .btn-action {
+            padding: 0.65rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: transparent;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-warning {
+            background: var(--accent-orange);
+            border-color: var(--accent-orange);
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .metric-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .metric-progress {
+            height: 100%;
+            background: var(--accent-blue);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .metric-progress.green { background: var(--accent-green); }
+        .metric-progress.orange { background: var(--accent-orange); }
+        .metric-progress.red { background: var(--accent-red); }
+
+        .topo-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: 100%;
+        }
+
+        .topology-view {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            align-items: center;
+            gap: 1.5rem;
+            position: relative;
+            min-height: 450px;
+        }
+
+        .node-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            position: relative;
+            transition: all var(--transition-speed) ease;
+        }
+
+        .node-box.healthy {
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+        }
+
+        .node-box.crashed {
+            border-color: rgba(239, 68, 68, 0.6);
+            background: rgba(239, 68, 68, 0.05);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        .node-badge {
+            font-size: 0.6rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 800;
+        }
+
+        .node-badge.healthy {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .node-badge.crashed {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .pod-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            min-height: 40px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+
+        .pod-cell {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px dashed var(--border-color);
+            position: relative;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pod-active {
+            background: var(--accent-blue);
+            border-style: solid;
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+            animation: spawn 0.3s ease-out;
+        }
+
+        .pod-active.purple {
+            background: var(--accent-purple);
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+        }
+
+        .pod-cell.crashed-pod {
+            background: var(--accent-red);
+            box-shadow: 0 0 10px var(--accent-red);
+            animation: blink 0.5s infinite alternate;
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes spawn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .resource-usage {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        .log-panel {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .log-output {
+            flex: 1;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: #a7f3d0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .log-row {
+            line-height: 1.4;
+        }
+
+        .log-time {
+            color: #6ee7b7;
+            margin-right: 0.5rem;
+        }
+
+        .log-error { color: var(--accent-red); }
+        .log-warning { color: var(--accent-orange); }
+        .log-info { color: var(--accent-blue); }
+
+        .explanation-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .explanation-card h3 {
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .explanation-card strong {
+            color: var(--accent-blue);
+        }
+
+        .reconciliation-loop {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .loop-step {
+            width: 100%;
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .loop-step.active-step {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--accent-blue);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+        }
+
+        .arrow {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .control-plane-view {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .cp-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+
+        .cp-box {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .cp-box.active {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.1);
+            color: #fff;
+            animation: pulse-purple 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-purple {
+            0% { border-color: rgba(139, 92, 246, 0.3); }
+            100% { border-color: rgba(139, 92, 246, 1); }
+        }
+
+        .overlay-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.15);
+            pointer-events: none;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>Infrastructure Evolution Simulator</h1>
+            <span class="badge-k8s" id="infra-mode-badge">Bare Metal Era</span>
+        </div>
+        <div class="header-status">
+            <div class="status-item">
+                <span>Cluster State:</span>
+                <div class="status-dot" id="global-status-dot"></div>
+                <span id="global-status-text">Operational</span>
+            </div>
+            <div class="status-item" id="reconciliation-state-container" style="display:none;">
+                <span>Reconciling:</span>
+                <span id="reconciliation-time-val" style="font-weight: 700; color: var(--accent-green); margin-left: 4px;">SECURE</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- LEFT PANEL: Era Selection & Actions -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Select Infrastructure Era</h2>
+            </div>
+            <div class="btn-mode active" onclick="switchEra('bare-metal')" id="btn-bare-metal">
+                📦 Bare Metal
+            </div>
+            <div class="btn-mode" onclick="switchEra('vm')" id="btn-vm">
+                💻 Virtualization (VMs)
+            </div>
+            <div class="btn-mode" onclick="switchEra('docker')" id="btn-docker">
+                🐳 Docker Containers
+            </div>
+            <div class="btn-mode" onclick="switchEra('k8s')" id="btn-k8s">
+                ☸️ Kubernetes Orchestration
+            </div>
+
+            <div class="panel-header" style="margin-top: 1rem;">
+                <h2>Control Panel</h2>
+            </div>
+            <div class="controls-grid">
+                <button class="btn-action btn-primary" id="btn-scale-up" onclick="scaleUp()">
+                    ➕ Scale Workload (+1 Pod)
+                </button>
+                <button class="btn-action btn-primary" id="btn-scale-down" onclick="scaleDown()">
+                    ➖ Scale Workload (-1 Pod)
+                </button>
+                <button class="btn-action btn-danger" id="btn-kill-node" onclick="killNode()">
+                    ⚡ Crash Server Node
+                </button>
+                <button class="btn-action btn-warning" id="btn-traffic-spike" onclick="trafficSpike()">
+                    📈 Simulate Traffic Spike
+                </button>
+                <button class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff;" onclick="resetSimulator()">
+                    🔄 Reset Infrastructure
+                </button>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL: Live Topology & Logs -->
+        <div class="panel" style="gap: 1.5rem;">
+            <div class="topo-container">
+                <div class="panel-header">
+                    <h2 id="topology-title">Physical Bare Metal Topology</h2>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);" id="provisioning-delay-indicator">Provisioning: Manual (Slow)</span>
+                </div>
+                
+                <div class="topology-view" id="topology-view">
+                    <div class="overlay-text" id="topology-overlay">Bare Metal</div>
+                    <!-- Nodes will be rendered dynamically -->
+                </div>
+
+                <div class="log-panel">
+                    <div class="log-header">
+                        <span>Event Log Stream</span>
+                        <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-secondary);">STDOUT / DEV_SYS</span>
+                    </div>
+                    <div class="log-output" id="log-output">
+                        <div class="log-row"><span class="log-time">[22:49:00]</span><span class="log-info">System initialized in Bare Metal mode. Ready for manual deployments.</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Metrics & Concept Visualizer -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Telemetry & Metrics</h2>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span>Provisioning Overhead</span>
+                    <span id="metric-prov-val">100%</span>
+                </div>
+                <div class="metric-value" id="metric-prov-text">Manual</div>
+                <div class="metric-bar">
+                    <div class="metric-progress red" id="metric-prov-bar" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span>Active Compute Load</span>
+                    <span id="metric-load-val">0%</span>
+                </div>
+                <div class="metric-value" id="metric-load-text">0 / 12 units</div>
+                <div class="metric-bar">
+                    <div class="metric-progress green" id="metric-load-bar" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span>Resource Fragmentation</span>
+                    <span id="metric-frag-val">Low</span>
+                </div>
+                <div class="metric-value" id="metric-frag-text">0.0%</div>
+                <div class="metric-bar">
+                    <div class="metric-progress green" id="metric-frag-bar" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Contextual Concepts Panel -->
+            <div class="panel-header" style="margin-top: 1rem;">
+                <h2 id="concept-panel-title">Infrastructure Realities</h2>
+            </div>
+
+            <!-- Dynamic Concept Cards -->
+            <div class="explanation-card" id="explanation-card">
+                <h3>Manual Ops Bottleneck</h3>
+                In the **Bare Metal era**, scaling required manually buying, racking, and installing Linux OS. Provisions took **weeks**. If a server died, the service stayed offline until replacement hardware arrived.
+            </div>
+
+            <!-- Kubernetes Reconciliation Loop Visualizer (Hidden for others) -->
+            <div class="control-plane-view" id="k8s-control-plane-visualizer" style="display: none;">
+                <h3>Kubernetes Control Plane</h3>
+                <div class="cp-grid">
+                    <div class="cp-box" id="cp-apiserver">kube-apiserver</div>
+                    <div class="cp-box" id="cp-etcd">etcd (Desired: 3)</div>
+                    <div class="cp-box" id="cp-scheduler">kube-scheduler</div>
+                    <div class="cp-box" id="cp-controllermanager">controller-mgr</div>
+                </div>
+                <div class="reconciliation-loop" style="margin-top: 0.5rem;">
+                    <div class="loop-step" id="loop-step-1">1. Observe State</div>
+                    <div class="arrow">↓</div>
+                    <div class="loop-step" id="loop-step-2">2. Analyze Diff</div>
+                    <div class="arrow">↓</div>
+                    <div class="loop-step" id="loop-step-3">3. Act to Reconcile</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Simulator State Configuration
+        let currentEra = 'bare-metal';
+        let nodes = [];
+        let workloadUnits = 0; // Number of tasks/pods desired
+        let maxNodes = 3;
+        let maxPodsPerNode = 4;
+        let trafficSpikeActive = false;
+        let reconciliationInterval = null;
+        let loopStepIndex = 1;
+        let loopInterval = null;
+
+        // Initialize Simulator
+        function initSimulator() {
+            nodes = [];
+            workloadUnits = 0;
+            trafficSpikeActive = false;
+            if (reconciliationInterval) clearInterval(reconciliationInterval);
+            if (loopInterval) clearInterval(loopInterval);
+
+            // Create initial nodes
+            for (let i = 1; i <= maxNodes; i++) {
+                nodes.push({
+                    id: i,
+                    name: currentEra === 'bare-metal' ? `Hardware Server-${i}` : (currentEra === 'vm' ? `Hypervisor-${i}` : `Node-${i}`),
+                    type: currentEra === 'bare-metal' ? 'Server' : (currentEra === 'vm' ? 'VMHost' : 'K8sNode'),
+                    crashed: false,
+                    pods: []
+                });
+            }
+            renderTopology();
+            updateMetrics();
+            updateControlPlaneVisuals();
+        }
+
+        // Switch Infrastructure Eras
+        function switchEra(era) {
+            currentEra = era;
+            
+            // Remove active classes
+            document.querySelectorAll('.btn-mode').forEach(btn => btn.classList.remove('active'));
+            
+            // Set active class
+            document.getElementById(`btn-${era}`).classList.add('active');
+            
+            const badge = document.getElementById('infra-mode-badge');
+            const topoTitle = document.getElementById('topology-title');
+            const overlayText = document.getElementById('topology-overlay');
+            const provIndicator = document.getElementById('provisioning-delay-indicator');
+            const explCard = document.getElementById('explanation-card');
+            const cpVisualizer = document.getElementById('k8s-control-plane-visualizer');
+            const reconcStateContainer = document.getElementById('reconciliation-state-container');
+
+            // Hide/Show Controls based on Era
+            cpVisualizer.style.display = 'none';
+            reconcStateContainer.style.display = 'none';
+            if (reconciliationInterval) clearInterval(reconciliationInterval);
+            if (loopInterval) clearInterval(loopInterval);
+
+            if (era === 'bare-metal') {
+                badge.innerText = 'Bare Metal Era';
+                badge.style.borderColor = 'var(--accent-orange)';
+                badge.style.color = 'var(--accent-orange)';
+                topoTitle.innerText = 'Physical Bare Metal Topology';
+                overlayText.innerText = 'Bare Metal';
+                provIndicator.innerText = 'Provisioning: Manual (Days/Weeks)';
+                explCard.innerHTML = `
+                    <h3>Manual Ops Bottleneck</h3>
+                    In the **Bare Metal era**, scaling required manually buying, racking, and installing Linux OS. Provisions took **weeks**. If a server died, the service stayed offline until replacement hardware arrived.
+                `;
+                logEvent("Switched to Bare Metal era infrastructure. Provisioning is manual.", "info");
+            } else if (era === 'vm') {
+                badge.innerText = 'VM Era';
+                badge.style.borderColor = 'var(--accent-purple)';
+                badge.style.color = 'var(--accent-purple)';
+                topoTitle.innerText = 'Virtual Machine Infrastructure';
+                overlayText.innerText = 'Hypervisor VMs';
+                provIndicator.innerText = 'Provisioning: Hypervisor (Minutes)';
+                explCard.innerHTML = `
+                    <h3>Virtualization & Resource Waste</h3>
+                    Virtual Machines added a hypervisor layer, enabling partition of a single server. Provisioning fell from weeks to **minutes**. However, every VM runs a **full guest OS** (bloat), wasting massive memory and CPU (known as the guest OS tax).
+                `;
+                logEvent("Switched to VM hypervisor infrastructure. Boot times improved, but overhead is high.", "info");
+            } else if (era === 'docker') {
+                badge.innerText = 'Docker Era';
+                badge.style.borderColor = 'var(--accent-blue)';
+                badge.style.color = 'var(--accent-blue)';
+                topoTitle.innerText = 'Docker Containerized Cluster';
+                overlayText.innerText = 'Containers';
+                provIndicator.innerText = 'Provisioning: Docker CLI (Seconds)';
+                explCard.innerHTML = `
+                    <h3>Containerization Without Orchestration</h3>
+                    Containers share the host OS kernel, booting in **milliseconds**. They solve packaging issues (dependency hell). But who monitors them? If a Docker daemon crashes or a host dies, containers remain dead. **Manual scaling is still needed**.
+                `;
+                logEvent("Switched to Docker Containers. Quick boot, but orchestration and recovery are missing.", "info");
+            } else if (era === 'k8s') {
+                badge.innerText = 'Kubernetes Era';
+                badge.style.borderColor = 'var(--accent-green)';
+                badge.style.color = 'var(--accent-green)';
+                topoTitle.innerText = 'Production Kubernetes Cluster';
+                overlayText.innerText = 'Kubernetes';
+                provIndicator.innerText = 'Provisioning: API-Driven Declarative (Automated)';
+                explCard.innerHTML = `
+                    <h3>Self-Healing, Desired State</h3>
+                    Kubernetes introduces **Declarative Reconciliation**. You declare *what* you want (e.g., '3 replicas of my API'), and the Control Plane maintains that state. If a node fails, K8s automatically schedules containers elsewhere.
+                `;
+                cpVisualizer.style.display = 'flex';
+                reconcStateContainer.style.display = 'block';
+                logEvent("Switched to Kubernetes Orchestration. Automated self-healing is active.", "info");
+                
+                // Start reconciliation loop
+                startK8sReconciliationLoop();
+            }
+
+            initSimulator();
+        }
+
+        // Add Log Entry
+        function logEvent(message, type = "info") {
+            const output = document.getElementById('log-output');
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            
+            let classStr = "";
+            if (type === "error") classStr = "log-error";
+            else if (type === "warning") classStr = "log-warning";
+            else if (type === "info") classStr = "log-info";
+
+            output.innerHTML += `<div class="log-row"><span class="log-time">[${timeStr}]</span><span class="${classStr}">${message}</span></div>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Render Topology to UI
+        function renderTopology() {
+            const container = document.getElementById('topology-view');
+            
+            // Retain the overlay text
+            const overlayText = document.getElementById('topology-overlay');
+            container.innerHTML = "";
+            container.appendChild(overlayText);
+
+            nodes.forEach(node => {
+                const nodeEl = document.createElement('div');
+                nodeEl.className = `node-box ${node.crashed ? 'crashed' : 'healthy'}`;
+                
+                const resources = calculateNodeResources(node);
+
+                nodeEl.innerHTML = `
+                    <div class="node-header">
+                        <span>${node.name}</span>
+                        <span class="node-badge ${node.crashed ? 'crashed' : 'healthy'}">
+                            ${node.crashed ? 'DOWN' : (currentEra === 'k8s' ? 'READY' : 'ONLINE')}
+                        </span>
+                    </div>
+                    <div class="pod-grid" id="node-grid-${node.id}">
+                        <!-- Workloads/Pods will be appended -->
+                    </div>
+                    <div class="resource-usage">
+                        <span>CPU: ${resources.cpu}%</span>
+                        <span>Mem: ${resources.mem}%</span>
+                    </div>
+                `;
+
+                container.appendChild(nodeEl);
+
+                // Add Workloads/Pods
+                const grid = document.getElementById(`node-grid-${node.id}`);
+                for (let cell = 0; cell < maxPodsPerNode; cell++) {
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'pod-cell';
+                    if (!node.crashed && node.pods[cell]) {
+                        const podColorClass = node.pods[cell].type === 'primary' ? 'pod-active' : 'pod-active purple';
+                        cellEl.className = `pod-cell ${podColorClass}`;
+                    } else if (node.crashed && node.pods[cell]) {
+                        cellEl.className = 'pod-cell crashed-pod';
+                    }
+                    grid.appendChild(cellEl);
+                }
+            });
+        }
+
+        // Calculate Node CPU/Memory resource consumption based on Era
+        function calculateNodeResources(node) {
+            if (node.crashed) return { cpu: 0, mem: 0 };
+            
+            // Base Overhead
+            let cpu = 5;
+            let mem = 5;
+
+            if (currentEra === 'vm') {
+                cpu = 15; // Hypervisor cost
+                mem = 30; // Guest OS bloat per host VM allocation
+            } else if (currentEra === 'k8s') {
+                cpu = 8; // Kubelet and Kube-proxy cost
+                mem = 12;
+            }
+
+            // Load per container/process
+            node.pods.forEach(pod => {
+                if (currentEra === 'bare-metal') {
+                    cpu += 20;
+                    mem += 20;
+                } else if (currentEra === 'vm') {
+                    cpu += 15;
+                    mem += 25; // Large overhead due to OS runtimes
+                } else { // docker & k8s
+                    cpu += 10;
+                    mem += 8;  // Highly efficient shared kernel
+                }
+            });
+
+            return {
+                cpu: Math.min(cpu, 100),
+                mem: Math.min(mem, 100)
+            };
+        }
+
+        // Scale Up Workload
+        function scaleUp() {
+            if (currentEra === 'bare-metal' || currentEra === 'vm') {
+                // Manual deployment placement logic
+                // Find node with capacity
+                let placed = false;
+                for (let i = 0; i < nodes.length; i++) {
+                    if (!nodes[i].crashed && nodes[i].pods.length < maxPodsPerNode) {
+                        nodes[i].pods.push({ id: Date.now(), type: 'primary' });
+                        workloadUnits++;
+                        placed = true;
+                        logEvent(`Manual provision request successful: Workload deployed to ${nodes[i].name}.`, "info");
+                        break;
+                    }
+                }
+                if (!placed) {
+                    logEvent("Deployment failed: No server capacity or all nodes are crashed!", "error");
+                }
+            } else if (currentEra === 'docker') {
+                // Find node with capacity
+                let placed = false;
+                for (let i = 0; i < nodes.length; i++) {
+                    if (!nodes[i].crashed && nodes[i].pods.length < maxPodsPerNode) {
+                        nodes[i].pods.push({ id: Date.now(), type: 'primary' });
+                        workloadUnits++;
+                        placed = true;
+                        logEvent(`Docker CLI command run: Container spun up on ${nodes[i].name}.`, "info");
+                        break;
+                    }
+                }
+                if (!placed) {
+                    logEvent("Docker container launch failed: Out of resources or Daemon unreachable on dead hosts.", "error");
+                }
+            } else if (currentEra === 'k8s') {
+                // Declaratively increase workload target
+                workloadUnits++;
+                logEvent(`Declarative scale request: Desired state updated to ${workloadUnits} replicas.`, "info");
+            }
+
+            renderTopology();
+            updateMetrics();
+        }
+
+        // Scale Down Workload
+        function scaleDown() {
+            if (workloadUnits <= 0) return;
+
+            if (currentEra === 'k8s') {
+                workloadUnits--;
+                logEvent(`Declarative scale request: Desired replicas decreased to ${workloadUnits}.`, "info");
+            } else {
+                // Manual removal
+                let removed = false;
+                for (let i = nodes.length - 1; i >= 0; i--) {
+                    if (nodes[i].pods.length > 0) {
+                        nodes[i].pods.pop();
+                        workloadUnits--;
+                        removed = true;
+                        logEvent(`Workload manually removed from ${nodes[i].name}.`, "info");
+                        break;
+                    }
+                }
+            }
+
+            renderTopology();
+            updateMetrics();
+        }
+
+        // Trigger Node Crash
+        function killNode() {
+            // Find active healthy node
+            let healthyNodes = nodes.filter(n => !n.crashed);
+            if (healthyNodes.length === 0) {
+                logEvent("All nodes are already down!", "warning");
+                return;
+            }
+
+            const targetNode = healthyNodes[Math.floor(Math.random() * healthyNodes.length)];
+            targetNode.crashed = true;
+            
+            const podsLost = targetNode.pods.length;
+            
+            logEvent(`⚡ HIGH ALERT: ${targetNode.name} experienced power failure / Kernel Panic!`, "error");
+            
+            if (currentEra !== 'k8s') {
+                // In non-K8s, workload is lost
+                workloadUnits -= podsLost;
+                logEvent(`CRITICAL: Lost ${podsLost} services due to node crash. Manual recovery required.`, "error");
+            } else {
+                // In K8s, Desired State is maintained, but active state is temporarily affected
+                logEvent(`Alert: lost ${podsLost} pods. Node transition to NotReady. Rescheduling scheduled.`, "warning");
+            }
+
+            renderTopology();
+            updateMetrics();
+        }
+
+        // Simulate Traffic Spike
+        function trafficSpike() {
+            if (trafficSpikeActive) {
+                logEvent("Traffic spike simulation already active.", "warning");
+                return;
+            }
+            trafficSpikeActive = true;
+            logEvent("⚠️ INCOMING TRAFFIC SPIKE: Resource usage skyrocketing!", "warning");
+
+            if (currentEra === 'k8s') {
+                logEvent("Kubernetes HPA (Horizontal Pod Autoscaler) detected traffic spike. Scaling replicas.", "info");
+                // HPA automatically scales desired replicas
+                workloadUnits = Math.min(workloadUnits + 5, maxNodes * maxPodsPerNode - 2);
+            } else {
+                logEvent("Manual scale intervention required to handle traffic overload!", "warning");
+            }
+
+            updateMetrics();
+            
+            setTimeout(() => {
+                trafficSpikeActive = false;
+                logEvent("Traffic volume normalized to baseline levels.", "info");
+                updateMetrics();
+            }, 6000);
+        }
+
+        // Reset Infrastructure Era State
+        function resetSimulator() {
+            logEvent("Resetting cluster infrastructure to initial baseline.", "info");
+            initSimulator();
+        }
+
+        // Update Dashboard Telemetry and Metrics
+        function updateMetrics() {
+            const provText = document.getElementById('metric-prov-text');
+            const provVal = document.getElementById('metric-prov-val');
+            const provBar = document.getElementById('metric-prov-bar');
+            
+            const loadText = document.getElementById('metric-load-text');
+            const loadVal = document.getElementById('metric-load-val');
+            const loadBar = document.getElementById('metric-load-bar');
+
+            const fragText = document.getElementById('metric-frag-text');
+            const fragVal = document.getElementById('metric-frag-val');
+            const fragBar = document.getElementById('metric-frag-bar');
+
+            const statusDot = document.getElementById('global-status-dot');
+            const statusText = document.getElementById('global-status-text');
+
+            // 1. Provisioning overhead
+            if (currentEra === 'bare-metal') {
+                provText.innerText = "Manual (Weeks)";
+                provVal.innerText = "100%";
+                provBar.className = "metric-progress red";
+                provBar.style.width = "100%";
+            } else if (currentEra === 'vm') {
+                provText.innerText = "Hypervisor (Mins)";
+                provVal.innerText = "60%";
+                provBar.className = "metric-progress orange";
+                provBar.style.width = "60%";
+            } else if (currentEra === 'docker') {
+                provText.innerText = "Docker CLI (Secs)";
+                provVal.innerText = "20%";
+                provBar.className = "metric-progress blue";
+                provBar.style.width = "20%";
+            } else if (currentEra === 'k8s') {
+                provText.innerText = "Automated (Instant)";
+                provVal.innerText = "2%";
+                provBar.className = "metric-progress green";
+                provBar.style.width = "2%";
+            }
+
+            // 2. Active Load calculation
+            let totalPodsActive = 0;
+            let healthyCap = 0;
+            nodes.forEach(n => {
+                if (!n.crashed) {
+                    totalPodsActive += n.pods.length;
+                    healthyCap += maxPodsPerNode;
+                }
+            });
+
+            loadText.innerText = `${totalPodsActive} / ${maxNodes * maxPodsPerNode} units`;
+            let loadPercent = Math.min(Math.round((totalPodsActive / (maxNodes * maxPodsPerNode)) * 100), 100);
+            loadVal.innerText = `${loadPercent}%`;
+            loadBar.style.width = `${loadPercent}%`;
+
+            if (loadPercent > 80 || trafficSpikeActive) {
+                loadBar.className = "metric-progress red";
+            } else if (loadPercent > 50) {
+                loadBar.className = "metric-progress orange";
+            } else {
+                loadBar.className = "metric-progress green";
+            }
+
+            // 3. Resource Fragmentation
+            if (currentEra === 'bare-metal') {
+                fragText.innerText = "0.0% (Dedicated)";
+                fragVal.innerText = "Low";
+                fragBar.className = "metric-progress green";
+                fragBar.style.width = "5%";
+            } else if (currentEra === 'vm') {
+                // High fragmentation because of guest OS partition limits
+                fragText.innerText = "42.5% (Reserved Waste)";
+                fragVal.innerText = "High";
+                fragBar.className = "metric-progress red";
+                fragBar.style.width = "75%";
+            } else if (currentEra === 'docker') {
+                fragText.innerText = "18.0% (Manual Bin Pack)";
+                fragVal.innerText = "Medium";
+                fragBar.className = "metric-progress orange";
+                fragBar.style.width = "40%";
+            } else if (currentEra === 'k8s') {
+                fragText.innerText = "4.2% (Auto Bin Pack)";
+                fragVal.innerText = "Optimized";
+                fragBar.className = "metric-progress green";
+                fragBar.style.width = "10%";
+            }
+
+            // 4. Global Status
+            const downNodesCount = nodes.filter(n => n.crashed).length;
+            if (downNodesCount === maxNodes) {
+                statusDot.className = "status-dot danger";
+                statusText.innerText = "CRITICAL FAILURE";
+                statusText.style.color = "var(--accent-red)";
+            } else if (downNodesCount > 0) {
+                statusDot.className = "status-dot warning";
+                statusText.innerText = "DEGRADED STATE";
+                statusText.style.color = "var(--accent-orange)";
+            } else {
+                statusDot.className = "status-dot";
+                statusText.innerText = "HEALTHY";
+                statusText.style.color = "var(--accent-green)";
+            }
+        }
+
+        // Kubernetes Control Plane & Reconciliation Loop Loop
+        function startK8sReconciliationLoop() {
+            const timeContainer = document.getElementById('reconciliation-time-val');
+            
+            // Loop Step visualization interval
+            loopInterval = setInterval(() => {
+                document.querySelectorAll('.loop-step').forEach(step => step.classList.remove('active-step'));
+                document.getElementById(`loop-step-${loopStepIndex}`).classList.add('active-step');
+                
+                // Highlight corresponding control plane components
+                document.querySelectorAll('.cp-box').forEach(box => box.classList.remove('active'));
+                if (loopStepIndex === 1) {
+                    document.getElementById('cp-apiserver').classList.add('active');
+                    document.getElementById('cp-etcd').classList.add('active');
+                } else if (loopStepIndex === 2) {
+                    document.getElementById('cp-controllermanager').classList.add('active');
+                } else if (loopStepIndex === 3) {
+                    document.getElementById('cp-scheduler').classList.add('active');
+                }
+
+                loopStepIndex = (loopStepIndex % 3) + 1;
+            }, 1000);
+
+            // Reconcile logic interval
+            reconciliationInterval = setInterval(() => {
+                let healthyNodes = nodes.filter(n => !n.crashed);
+                
+                // Get list of all actual active pods across healthy nodes
+                let activePods = [];
+                nodes.forEach(n => {
+                    if (!n.crashed) {
+                        activePods.push(...n.pods);
+                    }
+                });
+
+                let activeReplicaCount = activePods.length;
+                
+                if (activeReplicaCount === workloadUnits && healthyNodes.length === nodes.length) {
+                    timeContainer.innerText = "SECURED";
+                    timeContainer.style.color = "var(--accent-green)";
+                    return;
+                }
+
+                timeContainer.innerText = "RECONCILING...";
+                timeContainer.style.color = "var(--accent-orange)";
+
+                // Step 1: Handle nodes crashed, reschedule pods that were on dead nodes
+                // If a node is down, empty its pod list immediately to simulate death
+                nodes.forEach(n => {
+                    if (n.crashed && n.pods.length > 0) {
+                        n.pods = [];
+                    }
+                });
+
+                // Step 2: Scale up if active pods < desired (workloadUnits)
+                if (activeReplicaCount < workloadUnits) {
+                    // Try to schedule pod on node with space
+                    let scheduled = false;
+                    for (let i = 0; i < nodes.length; i++) {
+                        if (!nodes[i].crashed && nodes[i].pods.length < maxPodsPerNode) {
+                            nodes[i].pods.push({ id: Date.now(), type: 'primary' });
+                            logEvent(`Self-Healing: Recreated pod on Node-${nodes[i].id} to reconcile state.`, "warning");
+                            scheduled = true;
+                            break;
+                        }
+                    }
+                    if (!scheduled) {
+                        logEvent("Reschedule failed: Insufficient resources/nodes in cluster!", "error");
+                    }
+                }
+                
+                // Step 3: Scale down if active pods > desired
+                else if (activeReplicaCount > workloadUnits) {
+                    // Remove extra pod
+                    for (let i = nodes.length - 1; i >= 0; i--) {
+                        if (nodes[i].pods.length > 0) {
+                            nodes[i].pods.pop();
+                            logEvent(`Autoscaler: Terminating excess pod on Node-${nodes[i].id}.`, "info");
+                            break;
+                        }
+                    }
+                }
+
+                renderTopology();
+                updateMetrics();
+            }, 2500);
+        }
+
+        function updateControlPlaneVisuals() {
+            const etcdText = document.getElementById('cp-etcd');
+            if (etcdText) {
+                etcdText.innerText = `etcd (Desired: ${workloadUnits})`;
+            }
+        }
+
+        // Run Simulator Initially
+        initSimulator();
+
+    </script>
+</body>
+</html>
