@@ -4,20 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>30 Days of Production K8s - Infrastructure Evolution Simulator</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #080b11;
-            --panel-bg: rgba(17, 25, 40, 0.75);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --accent-blue: #3b82f6;
-            --accent-green: #10b981;
-            --accent-purple: #8b5cf6;
-            --accent-red: #ef4444;
-            --accent-orange: #f59e0b;
-            --glass-blur: blur(12px);
+            --bg-light: #f8fafc;
+            --panel-bg: rgba(255, 255, 255, 0.85);
+            --border-color: rgba(15, 23, 42, 0.08);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --accent-blue: #2563eb;
+            --accent-blue-light: #eff6ff;
+            --accent-green: #059669;
+            --accent-green-light: #ecfdf5;
+            --accent-purple: #7d3cff;
+            --accent-purple-light: #f5f3ff;
+            --accent-red: #dc2626;
+            --accent-red-light: #fef2f2;
+            --accent-orange: #d97706;
+            --accent-orange-light: #fffbeb;
+            --glass-blur: blur(16px);
+            --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
             --transition-speed: 0.3s;
         }
 
@@ -29,28 +38,31 @@
 
         body {
             font-family: 'Outfit', sans-serif;
-            background-color: var(--bg-dark);
+            background-color: var(--bg-light);
             color: var(--text-primary);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
             background-image: 
-                radial-gradient(at 10% 10%, rgba(59, 130, 246, 0.08) 0px, transparent 50%),
-                radial-gradient(at 90% 90%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(125, 60, 255, 0.05) 0px, transparent 50%),
+                radial-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 24px 24px;
         }
 
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1.5rem 2rem;
-            background: rgba(8, 11, 17, 0.8);
+            padding: 1.25rem 2rem;
+            background: rgba(255, 255, 255, 0.8);
             backdrop-filter: var(--glass-blur);
             border-bottom: 1px solid var(--border-color);
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: var(--shadow-sm);
         }
 
         .header-title {
@@ -60,21 +72,21 @@
         }
 
         .header-title h1 {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #fff 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .badge-k8s {
-            background: rgba(59, 130, 246, 0.15);
-            border: 1px solid var(--accent-blue);
+            background: var(--accent-blue-light);
+            border: 1px solid rgba(37, 99, 235, 0.2);
             color: var(--accent-blue);
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
             font-size: 0.75rem;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -91,6 +103,7 @@
             gap: 0.5rem;
             font-size: 0.85rem;
             color: var(--text-secondary);
+            font-weight: 500;
         }
 
         .status-dot {
@@ -98,17 +111,17 @@
             height: 8px;
             border-radius: 50%;
             background-color: var(--accent-green);
-            box-shadow: 0 0 8px var(--accent-green);
+            box-shadow: 0 0 8px rgba(5, 150, 105, 0.4);
         }
 
         .status-dot.warning {
             background-color: var(--accent-orange);
-            box-shadow: 0 0 8px var(--accent-orange);
+            box-shadow: 0 0 8px rgba(217, 119, 6, 0.4);
         }
 
         .status-dot.danger {
             background-color: var(--accent-red);
-            box-shadow: 0 0 8px var(--accent-red);
+            box-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
             animation: pulse-red 1s infinite alternate;
         }
 
@@ -119,9 +132,9 @@
 
         main {
             flex: 1;
-            padding: 2rem;
+            padding: 1.5rem 2rem;
             display: grid;
-            grid-template-columns: 280px 1fr 340px;
+            grid-template-columns: 300px 1fr 340px;
             gap: 1.5rem;
             max-width: 1800px;
             margin: 0 auto;
@@ -137,7 +150,7 @@
             display: flex;
             flex-direction: column;
             gap: 1.25rem;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            box-shadow: var(--shadow-md);
         }
 
         .panel-header {
@@ -149,21 +162,98 @@
         }
 
         .panel-header h2 {
-            font-size: 1.1rem;
-            font-weight: 600;
+            font-size: 1rem;
+            font-weight: 700;
             color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Guided Tour Step Container */
+        .tour-container {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border-radius: 12px;
+            padding: 1.25rem;
+            color: #fff;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .tour-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .tour-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .tour-body {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            opacity: 0.9;
+        }
+
+        .tour-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+
+        .btn-tour {
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: transparent;
+            color: #fff;
+            transition: all var(--transition-speed);
+        }
+
+        .btn-tour:hover:not(:disabled) {
+            background: rgba(255,255,255,0.15);
+            border-color: #fff;
+        }
+
+        .btn-tour:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-tour.primary-tour {
+            background: #fff;
+            color: var(--accent-blue);
+            border-color: #fff;
+        }
+
+        .btn-tour.primary-tour:hover {
+            background: rgba(255,255,255,0.9);
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
         }
 
         .btn-mode {
             width: 100%;
-            padding: 0.75rem 1rem;
-            background: rgba(255, 255, 255, 0.03);
+            padding: 0.85rem 1rem;
+            background: rgba(15, 23, 42, 0.02);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
+            border-radius: 10px;
             color: var(--text-secondary);
             font-family: 'Outfit', sans-serif;
             font-size: 0.9rem;
-            font-weight: 500;
+            font-weight: 600;
             text-align: left;
             cursor: pointer;
             transition: all var(--transition-speed);
@@ -173,27 +263,28 @@
         }
 
         .btn-mode:hover {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.05);
             color: var(--text-primary);
-            border-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(15, 23, 42, 0.15);
         }
 
         .btn-mode.active {
-            background: rgba(59, 130, 246, 0.1);
+            background: #fff;
             border-color: var(--accent-blue);
-            color: var(--text-primary);
-            box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+            color: var(--accent-blue);
+            box-shadow: var(--shadow-md), 0 0 0 2px rgba(37, 99, 235, 0.1);
         }
 
         .btn-mode.active::after {
             content: "ACTIVE";
             margin-left: auto;
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             font-weight: 800;
             background: var(--accent-blue);
             padding: 0.15rem 0.4rem;
             border-radius: 4px;
             color: #fff;
+            letter-spacing: 0.05em;
         }
 
         .controls-grid {
@@ -203,11 +294,11 @@
         }
 
         .btn-action {
-            padding: 0.65rem 1rem;
-            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
             border: 1px solid var(--border-color);
             font-family: 'Outfit', sans-serif;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 0.85rem;
             cursor: pointer;
             transition: all var(--transition-speed);
@@ -215,75 +306,86 @@
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
-            color: #fff;
+            box-shadow: var(--shadow-sm);
         }
 
         .btn-primary {
             background: var(--accent-blue);
             border-color: var(--accent-blue);
+            color: #fff;
         }
 
         .btn-primary:hover {
-            background: #2563eb;
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+            background: #1d4ed8;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
         }
 
         .btn-primary:disabled {
-            background: rgba(59, 130, 246, 0.3);
-            border-color: transparent;
+            background: #cbd5e1;
+            border-color: #cbd5e1;
+            color: #94a3b8;
             cursor: not-allowed;
+            box-shadow: none;
         }
 
         .btn-danger {
-            background: var(--accent-red);
-            border-color: var(--accent-red);
+            background: var(--accent-red-light);
+            border-color: rgba(220, 38, 38, 0.2);
+            color: var(--accent-red);
         }
 
         .btn-danger:hover {
-            background: #dc2626;
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
         }
 
         .btn-warning {
-            background: var(--accent-orange);
-            border-color: var(--accent-orange);
+            background: var(--accent-orange-light);
+            border-color: rgba(217, 119, 6, 0.2);
+            color: var(--accent-orange);
         }
 
         .btn-warning:hover {
-            background: #d97706;
-            box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+            background: var(--accent-orange);
+            border-color: var(--accent-orange);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);
         }
 
         .metric-card {
-            background: rgba(255, 255, 255, 0.02);
+            background: #fff;
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 1rem;
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            box-shadow: var(--shadow-sm);
         }
 
         .metric-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            color: var(--text-secondary);
+            color: var(--text-muted);
             font-size: 0.8rem;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .metric-value {
-            font-size: 1.75rem;
+            font-size: 1.6rem;
             font-weight: 800;
             color: var(--text-primary);
             font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.02em;
         }
 
         .metric-bar {
-            height: 4px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 2px;
+            height: 6px;
+            background: #f1f5f9;
+            border-radius: 3px;
             overflow: hidden;
         }
 
@@ -291,7 +393,7 @@
             height: 100%;
             background: var(--accent-blue);
             width: 0%;
-            transition: width 0.5s ease;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .metric-progress.green { background: var(--accent-green); }
@@ -301,55 +403,78 @@
         .topo-container {
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1.25rem;
             height: 100%;
+        }
+
+        .topo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .topo-header h2 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
         }
 
         .topology-view {
             flex: 1;
-            background: rgba(0, 0, 0, 0.2);
+            background: #fff;
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
+            border-radius: 16px;
+            padding: 2rem;
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
             align-content: center;
             align-items: center;
-            gap: 1.5rem;
+            gap: 2rem;
             position: relative;
-            min-height: 450px;
+            min-height: 420px;
+            box-shadow: var(--shadow-sm);
         }
 
         .node-box {
-            background: rgba(255, 255, 255, 0.02);
+            background: #fff;
             border: 2px solid var(--border-color);
-            border-radius: 12px;
+            border-radius: 14px;
             padding: 1rem;
-            width: 200px;
+            width: 220px;
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
             position: relative;
-            transition: all var(--transition-speed) ease;
+            transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm);
         }
 
         .node-box.healthy {
-            border-color: rgba(16, 185, 129, 0.4);
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+            border-color: rgba(5, 150, 105, 0.25);
+        }
+
+        .node-box.healthy:hover {
+            border-color: var(--accent-green);
+            box-shadow: 0 10px 15px -3px rgba(5, 150, 105, 0.08);
         }
 
         .node-box.crashed {
-            border-color: rgba(239, 68, 68, 0.6);
-            background: rgba(239, 68, 68, 0.05);
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+            border-color: var(--accent-red);
+            background: var(--accent-red-light);
+            box-shadow: 0 10px 20px rgba(220, 38, 38, 0.1);
             animation: shake 0.5s;
         }
 
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-4px); }
-            75% { transform: translateX(4px); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
 
         .node-header {
@@ -358,42 +483,45 @@
             align-items: center;
             font-size: 0.8rem;
             font-weight: 700;
-            letter-spacing: 0.05em;
             color: var(--text-secondary);
         }
 
         .node-badge {
             font-size: 0.6rem;
-            padding: 0.15rem 0.4rem;
-            border-radius: 4px;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
             font-weight: 800;
+            letter-spacing: 0.05em;
         }
 
         .node-badge.healthy {
-            background: rgba(16, 185, 129, 0.15);
+            background: var(--accent-green-light);
             color: var(--accent-green);
+            border: 1px solid rgba(5, 150, 105, 0.15);
         }
 
         .node-badge.crashed {
-            background: rgba(239, 68, 68, 0.15);
+            background: var(--accent-red-light);
             color: var(--accent-red);
+            border: 1px solid rgba(220, 38, 38, 0.15);
         }
 
         .pod-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 0.5rem;
-            min-height: 40px;
-            background: rgba(0, 0, 0, 0.2);
+            min-height: 44px;
+            background: #f8fafc;
             border-radius: 8px;
             padding: 0.5rem;
+            border: 1px solid rgba(15, 23, 42, 0.04);
         }
 
         .pod-cell {
             width: 100%;
             aspect-ratio: 1;
             border-radius: 6px;
-            background: rgba(255, 255, 255, 0.05);
+            background: #fff;
             border: 1px dashed var(--border-color);
             position: relative;
             transition: all var(--transition-speed) ease;
@@ -403,26 +531,28 @@
         }
 
         .pod-active {
-            background: var(--accent-blue);
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             border-style: solid;
-            border-color: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
-            animation: spawn 0.3s ease-out;
+            border-color: rgba(255,255,255,0.25);
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.25);
+            animation: spawn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         .pod-active.purple {
-            background: var(--accent-purple);
-            box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            box-shadow: 0 4px 6px rgba(124, 58, 237, 0.25);
         }
 
         .pod-cell.crashed-pod {
             background: var(--accent-red);
-            box-shadow: 0 0 10px var(--accent-red);
+            border-style: solid;
+            border-color: transparent;
+            box-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
             animation: blink 0.5s infinite alternate;
         }
 
         @keyframes blink {
-            0% { opacity: 0.3; }
+            0% { opacity: 0.4; }
             100% { opacity: 1; }
         }
 
@@ -436,27 +566,33 @@
             justify-content: space-between;
             font-size: 0.75rem;
             font-family: 'JetBrains Mono', monospace;
-            color: var(--text-secondary);
+            color: var(--text-muted);
+            font-weight: 500;
         }
 
         .log-panel {
-            background: rgba(0, 0, 0, 0.4);
+            background: #0f172a;
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1rem;
+            border-radius: 14px;
+            padding: 1.25rem;
             height: 180px;
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            box-shadow: var(--shadow-lg);
         }
 
         .log-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            font-weight: 600;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 0.4rem;
         }
 
         .log-output {
@@ -464,89 +600,100 @@
             overflow-y: auto;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.75rem;
-            color: #a7f3d0;
+            color: #38bdf8;
             display: flex;
             flex-direction: column;
-            gap: 0.25rem;
+            gap: 0.35rem;
         }
 
         .log-row {
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
         .log-time {
-            color: #6ee7b7;
+            color: #64748b;
             margin-right: 0.5rem;
+            font-weight: 700;
         }
 
-        .log-error { color: var(--accent-red); }
-        .log-warning { color: var(--accent-orange); }
-        .log-info { color: var(--accent-blue); }
+        .log-error { color: #f87171; }
+        .log-warning { color: #fbbf24; }
+        .log-info { color: #38bdf8; }
+        .log-success { color: #34d399; }
 
         .explanation-card {
-            background: rgba(255, 255, 255, 0.02);
+            background: #fff;
             border-radius: 12px;
             border: 1px solid var(--border-color);
             padding: 1rem;
             font-size: 0.85rem;
-            line-height: 1.5;
+            line-height: 1.6;
             color: var(--text-secondary);
+            box-shadow: var(--shadow-sm);
         }
 
         .explanation-card h3 {
             color: var(--text-primary);
             font-size: 0.95rem;
             margin-bottom: 0.5rem;
-            font-weight: 600;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .explanation-card strong {
             color: var(--accent-blue);
+            font-weight: 600;
         }
 
         .reconciliation-loop {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(0, 0, 0, 0.2);
+            gap: 0.4rem;
+            background: #fff;
             border-radius: 12px;
-            padding: 1rem;
+            padding: 0.75rem;
             border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
         }
 
         .loop-step {
             width: 100%;
-            padding: 0.5rem;
-            background: rgba(255, 255, 255, 0.03);
+            padding: 0.45rem;
+            background: #f8fafc;
             border-radius: 6px;
             border: 1px solid var(--border-color);
             text-align: center;
-            font-size: 0.8rem;
-            font-weight: 600;
-            transition: all 0.3s;
+            font-size: 0.75rem;
+            font-weight: 700;
+            transition: all var(--transition-speed);
+            color: var(--text-muted);
         }
 
         .loop-step.active-step {
-            background: rgba(59, 130, 246, 0.15);
+            background: var(--accent-blue-light);
             border-color: var(--accent-blue);
-            color: #fff;
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+            color: var(--accent-blue);
+            box-shadow: 0 0 8px rgba(37, 99, 235, 0.1);
         }
 
         .arrow {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1;
         }
 
         .control-plane-view {
             display: flex;
             flex-direction: column;
-            gap: 1rem;
-            background: rgba(255, 255, 255, 0.02);
+            gap: 0.85rem;
+            background: #fff;
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 1rem;
+            box-shadow: var(--shadow-sm);
         }
 
         .cp-grid {
@@ -556,39 +703,99 @@
         }
 
         .cp-box {
-            background: rgba(255, 255, 255, 0.04);
+            background: #f8fafc;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 0.5rem;
+            border-radius: 8px;
+            padding: 0.5rem 0.25rem;
             text-align: center;
             font-size: 0.75rem;
             font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: all var(--transition-speed);
         }
 
         .cp-box.active {
             border-color: var(--accent-purple);
-            background: rgba(139, 92, 246, 0.1);
-            color: #fff;
-            animation: pulse-purple 1.5s infinite alternate;
-        }
-
-        @keyframes pulse-purple {
-            0% { border-color: rgba(139, 92, 246, 0.3); }
-            100% { border-color: rgba(139, 92, 246, 1); }
+            background: var(--accent-purple-light);
+            color: var(--accent-purple);
+            box-shadow: 0 0 10px rgba(125, 60, 255, 0.15);
         }
 
         .overlay-text {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.15);
+            top: 5%;
+            left: 5%;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            opacity: 0.5;
             pointer-events: none;
-            letter-spacing: 0.15em;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
         }
+
+        /* Desired vs Actual State Card */
+        .state-comparison-card {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .state-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 8px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+        }
+
+        .state-box.desired {
+            border-color: rgba(37, 99, 235, 0.2);
+            background: var(--accent-blue-light);
+        }
+
+        .state-box.actual {
+            border-color: rgba(5, 150, 105, 0.2);
+            background: var(--accent-green-light);
+        }
+
+        .state-box.actual.mismatch {
+            border-color: rgba(220, 38, 38, 0.2);
+            background: var(--accent-red-light);
+            animation: pulse-border 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-border {
+            0% { border-color: rgba(220, 38, 38, 0.2); }
+            100% { border-color: rgba(220, 38, 38, 0.8); }
+        }
+
+        .state-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .state-val {
+            font-size: 1.5rem;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 0.25rem;
+        }
+
+        .state-val.desired-num { color: var(--accent-blue); }
+        .state-val.actual-num { color: var(--accent-green); }
+        .state-val.actual-num.mismatch { color: var(--accent-red); }
     </style>
 </head>
 <body>
@@ -600,22 +807,38 @@
         </div>
         <div class="header-status">
             <div class="status-item">
-                <span>Cluster State:</span>
+                <span>Cluster Status:</span>
                 <div class="status-dot" id="global-status-dot"></div>
-                <span id="global-status-text">Operational</span>
+                <span id="global-status-text" style="font-weight: 700;">HEALTHY</span>
             </div>
             <div class="status-item" id="reconciliation-state-container" style="display:none;">
-                <span>Reconciling:</span>
-                <span id="reconciliation-time-val" style="font-weight: 700; color: var(--accent-green); margin-left: 4px;">SECURE</span>
+                <span>Reconciliation State:</span>
+                <span id="reconciliation-time-val" style="font-weight: 800; color: var(--accent-green); margin-left: 4px;">SECURED</span>
             </div>
         </div>
     </header>
 
     <main>
-        <!-- LEFT PANEL: Era Selection & Actions -->
+        <!-- LEFT PANEL: Guided Tour & Era Selection -->
         <div class="panel">
+            <!-- Guided Tour Container -->
+            <div class="tour-container">
+                <div class="tour-header">
+                    <span>Guided Learning Tour</span>
+                    <span id="tour-step-indicator">Step 1 of 4</span>
+                </div>
+                <div class="tour-title" id="tour-title">1. The Manual Era</div>
+                <div class="tour-body" id="tour-body">
+                    We start in the Bare Metal Era. Scale up your workload, then trigger a Server crash. Observe the long provisioning times and how crashed services stay offline forever.
+                </div>
+                <div class="tour-nav">
+                    <button class="btn-tour" id="btn-prev-tour" onclick="prevTour()" disabled>Back</button>
+                    <button class="btn-tour primary-tour" id="btn-next-tour" onclick="nextTour()">Next Step</button>
+                </div>
+            </div>
+
             <div class="panel-header">
-                <h2>Select Infrastructure Era</h2>
+                <h2>Infrastructure Eras</h2>
             </div>
             <div class="btn-mode active" onclick="switchEra('bare-metal')" id="btn-bare-metal">
                 📦 Bare Metal
@@ -629,16 +852,45 @@
             <div class="btn-mode" onclick="switchEra('k8s')" id="btn-k8s">
                 ☸️ Kubernetes Orchestration
             </div>
+        </div>
 
-            <div class="panel-header" style="margin-top: 1rem;">
-                <h2>Control Panel</h2>
+        <!-- CENTER PANEL: Live Topology View & Logs -->
+        <div class="panel">
+            <div class="topo-container">
+                <div class="topo-header">
+                    <h2 id="topology-title">Physical Bare Metal Topology</h2>
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted);" id="provisioning-delay-indicator">Provisioning: Manual (Slow)</span>
+                </div>
+                
+                <div class="topology-view" id="topology-view">
+                    <div class="overlay-text" id="topology-overlay">Bare Metal</div>
+                    <!-- Nodes rendered dynamically -->
+                </div>
+
+                <div class="log-panel">
+                    <div class="log-header">
+                        <span>Event Log Stream</span>
+                        <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: #64748b;">STDOUT / DEV_SYS</span>
+                    </div>
+                    <div class="log-output" id="log-output">
+                        <div class="log-row"><span class="log-time">[22:50:00]</span><span class="log-info">System initialized in Bare Metal mode. Ready for manual deployments.</span></div>
+                    </div>
+                </div>
             </div>
+        </div>
+
+        <!-- RIGHT PANEL: Action Controls & Telemetry -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Control Actions</h2>
+            </div>
+            
             <div class="controls-grid">
                 <button class="btn-action btn-primary" id="btn-scale-up" onclick="scaleUp()">
-                    ➕ Scale Workload (+1 Pod)
+                    ➕ Scale Workload (+1 Unit)
                 </button>
                 <button class="btn-action btn-primary" id="btn-scale-down" onclick="scaleDown()">
-                    ➖ Scale Workload (-1 Pod)
+                    ➖ Scale Workload (-1 Unit)
                 </button>
                 <button class="btn-action btn-danger" id="btn-kill-node" onclick="killNode()">
                     ⚡ Crash Server Node
@@ -646,39 +898,23 @@
                 <button class="btn-action btn-warning" id="btn-traffic-spike" onclick="trafficSpike()">
                     📈 Simulate Traffic Spike
                 </button>
-                <button class="btn-action" style="background: rgba(255,255,255,0.05); color: #fff;" onclick="resetSimulator()">
+                <button class="btn-action" style="background: #f1f5f9; border-color: #cbd5e1; color: var(--text-primary);" onclick="resetSimulator()">
                     🔄 Reset Infrastructure
                 </button>
             </div>
-        </div>
 
-        <!-- CENTER PANEL: Live Topology & Logs -->
-        <div class="panel" style="gap: 1.5rem;">
-            <div class="topo-container">
-                <div class="panel-header">
-                    <h2 id="topology-title">Physical Bare Metal Topology</h2>
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);" id="provisioning-delay-indicator">Provisioning: Manual (Slow)</span>
+            <!-- Desired vs Actual State Visualizer (K8s specific but useful for all) -->
+            <div class="state-comparison-card" id="state-comparison-card">
+                <div class="state-box desired">
+                    <span class="state-label">Desired State</span>
+                    <span class="state-val desired-num" id="state-desired-val">0</span>
                 </div>
-                
-                <div class="topology-view" id="topology-view">
-                    <div class="overlay-text" id="topology-overlay">Bare Metal</div>
-                    <!-- Nodes will be rendered dynamically -->
-                </div>
-
-                <div class="log-panel">
-                    <div class="log-header">
-                        <span>Event Log Stream</span>
-                        <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-secondary);">STDOUT / DEV_SYS</span>
-                    </div>
-                    <div class="log-output" id="log-output">
-                        <div class="log-row"><span class="log-time">[22:49:00]</span><span class="log-info">System initialized in Bare Metal mode. Ready for manual deployments.</span></div>
-                    </div>
+                <div class="state-box actual" id="state-actual-box">
+                    <span class="state-label">Actual State</span>
+                    <span class="state-val actual-num" id="state-actual-val">0</span>
                 </div>
             </div>
-        </div>
 
-        <!-- RIGHT PANEL: Metrics & Concept Visualizer -->
-        <div class="panel">
             <div class="panel-header">
                 <h2>Telemetry & Metrics</h2>
             </div>
@@ -688,7 +924,7 @@
                     <span>Provisioning Overhead</span>
                     <span id="metric-prov-val">100%</span>
                 </div>
-                <div class="metric-value" id="metric-prov-text">Manual</div>
+                <div class="metric-value" id="metric-prov-text" style="color: var(--accent-red);">Manual</div>
                 <div class="metric-bar">
                     <div class="metric-progress red" id="metric-prov-bar" style="width: 100%;"></div>
                 </div>
@@ -696,40 +932,24 @@
 
             <div class="metric-card">
                 <div class="metric-header">
-                    <span>Active Compute Load</span>
-                    <span id="metric-load-val">0%</span>
-                </div>
-                <div class="metric-value" id="metric-load-text">0 / 12 units</div>
-                <div class="metric-bar">
-                    <div class="metric-progress green" id="metric-load-bar" style="width: 0%;"></div>
-                </div>
-            </div>
-
-            <div class="metric-card">
-                <div class="metric-header">
-                    <span>Resource Fragmentation</span>
+                    <span>Resource Overhead ("Guest OS Tax")</span>
                     <span id="metric-frag-val">Low</span>
                 </div>
-                <div class="metric-value" id="metric-frag-text">0.0%</div>
+                <div class="metric-value" id="metric-frag-text">0% Waste</div>
                 <div class="metric-bar">
-                    <div class="metric-progress green" id="metric-frag-bar" style="width: 0%;"></div>
+                    <div class="metric-progress green" id="metric-frag-bar" style="width: 5%;"></div>
                 </div>
             </div>
 
             <!-- Contextual Concepts Panel -->
-            <div class="panel-header" style="margin-top: 1rem;">
-                <h2 id="concept-panel-title">Infrastructure Realities</h2>
-            </div>
-
-            <!-- Dynamic Concept Cards -->
             <div class="explanation-card" id="explanation-card">
                 <h3>Manual Ops Bottleneck</h3>
                 In the **Bare Metal era**, scaling required manually buying, racking, and installing Linux OS. Provisions took **weeks**. If a server died, the service stayed offline until replacement hardware arrived.
             </div>
 
-            <!-- Kubernetes Reconciliation Loop Visualizer (Hidden for others) -->
+            <!-- Kubernetes Control Plane & Reconciliation Loop Visualizer (Hidden by default) -->
             <div class="control-plane-view" id="k8s-control-plane-visualizer" style="display: none;">
-                <h3>Kubernetes Control Plane</h3>
+                <h3 style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase;">Kubernetes Control Plane</h3>
                 <div class="cp-grid">
                     <div class="cp-box" id="cp-apiserver">kube-apiserver</div>
                     <div class="cp-box" id="cp-etcd">etcd (Desired: 3)</div>
@@ -751,13 +971,38 @@
         // Simulator State Configuration
         let currentEra = 'bare-metal';
         let nodes = [];
-        let workloadUnits = 0; // Number of tasks/pods desired
+        let workloadUnits = 0; // Number of desired units/pods
         let maxNodes = 3;
         let maxPodsPerNode = 4;
         let trafficSpikeActive = false;
         let reconciliationInterval = null;
         let loopStepIndex = 1;
         let loopInterval = null;
+        let tourStep = 1;
+
+        // Guided Tour Data
+        const tourData = {
+            1: {
+                title: "1. The Manual Era (Bare Metal)",
+                body: "In the **Bare Metal Era**, scaling is manual and painfully slow. Click **Scale Workload (+1 Unit)**. Notice the slow provisioning delay representing manual racking of servers. Next, click **Crash Server Node**—the workload is lost permanently. There is zero automation or self-healing.",
+                era: "bare-metal"
+            },
+            2: {
+                title: "2. The Virtualization Era (VMs)",
+                body: "Virtual Machines allow partitioning physical hosts into logical machines, accelerating provisioning time. However, look at the **Resource Overhead ('Guest OS Tax')** bar. Because each VM runs a full guest OS kernel, overhead is massive, wasting up to 40% of host CPU/RAM.",
+                era: "vm"
+            },
+            3: {
+                title: "3. Standalone Containers (Docker)",
+                body: "Containers share the host kernel, bypassing Guest OS overhead. Boot is instant (milliseconds). Scale up your workload to 6 units. Now, click **Crash Server Node**. The containers on that node crash, and because there is no cluster management, they stay offline until you manually intervene.",
+                era: "docker"
+            },
+            4: {
+                title: "4. Orchestration Era (Kubernetes)",
+                body: "Kubernetes introduces automation. Select Kubernetes, scale up to 6 pods, and click **Crash Server Node**. Watch the **Control Plane** observe the failure, analyze the diff (Desired vs Actual), and automatically recreate the pods on healthy nodes. Self-healing is now active!",
+                era: "k8s"
+            }
+        };
 
         // Initialize Simulator
         function initSimulator() {
@@ -771,7 +1016,7 @@
             for (let i = 1; i <= maxNodes; i++) {
                 nodes.push({
                     id: i,
-                    name: currentEra === 'bare-metal' ? `Hardware Server-${i}` : (currentEra === 'vm' ? `Hypervisor-${i}` : `Node-${i}`),
+                    name: currentEra === 'bare-metal' ? `Physical Server-${i}` : (currentEra === 'vm' ? `VM Hypervisor-${i}` : `Node-${i}`),
                     type: currentEra === 'bare-metal' ? 'Server' : (currentEra === 'vm' ? 'VMHost' : 'K8sNode'),
                     crashed: false,
                     pods: []
@@ -779,7 +1024,6 @@
             }
             renderTopology();
             updateMetrics();
-            updateControlPlaneVisuals();
         }
 
         // Switch Infrastructure Eras
@@ -810,9 +1054,10 @@
                 badge.innerText = 'Bare Metal Era';
                 badge.style.borderColor = 'var(--accent-orange)';
                 badge.style.color = 'var(--accent-orange)';
+                badge.className = 'badge-k8s';
                 topoTitle.innerText = 'Physical Bare Metal Topology';
                 overlayText.innerText = 'Bare Metal';
-                provIndicator.innerText = 'Provisioning: Manual (Days/Weeks)';
+                provIndicator.innerText = 'Provisioning: Manual (Slow)';
                 explCard.innerHTML = `
                     <h3>Manual Ops Bottleneck</h3>
                     In the **Bare Metal era**, scaling required manually buying, racking, and installing Linux OS. Provisions took **weeks**. If a server died, the service stayed offline until replacement hardware arrived.
@@ -822,6 +1067,7 @@
                 badge.innerText = 'VM Era';
                 badge.style.borderColor = 'var(--accent-purple)';
                 badge.style.color = 'var(--accent-purple)';
+                badge.className = 'badge-k8s';
                 topoTitle.innerText = 'Virtual Machine Infrastructure';
                 overlayText.innerText = 'Hypervisor VMs';
                 provIndicator.innerText = 'Provisioning: Hypervisor (Minutes)';
@@ -834,6 +1080,7 @@
                 badge.innerText = 'Docker Era';
                 badge.style.borderColor = 'var(--accent-blue)';
                 badge.style.color = 'var(--accent-blue)';
+                badge.className = 'badge-k8s';
                 topoTitle.innerText = 'Docker Containerized Cluster';
                 overlayText.innerText = 'Containers';
                 provIndicator.innerText = 'Provisioning: Docker CLI (Seconds)';
@@ -846,6 +1093,7 @@
                 badge.innerText = 'Kubernetes Era';
                 badge.style.borderColor = 'var(--accent-green)';
                 badge.style.color = 'var(--accent-green)';
+                badge.className = 'badge-k8s';
                 topoTitle.innerText = 'Production Kubernetes Cluster';
                 overlayText.innerText = 'Kubernetes';
                 provIndicator.innerText = 'Provisioning: API-Driven Declarative (Automated)';
@@ -855,7 +1103,7 @@
                 `;
                 cpVisualizer.style.display = 'flex';
                 reconcStateContainer.style.display = 'block';
-                logEvent("Switched to Kubernetes Orchestration. Automated self-healing is active.", "info");
+                logEvent("Switched to Kubernetes Orchestration. Automated self-healing is active.", "success");
                 
                 // Start reconciliation loop
                 startK8sReconciliationLoop();
@@ -874,6 +1122,7 @@
             if (type === "error") classStr = "log-error";
             else if (type === "warning") classStr = "log-warning";
             else if (type === "info") classStr = "log-info";
+            else if (type === "success") classStr = "log-success";
 
             output.innerHTML += `<div class="log-row"><span class="log-time">[${timeStr}]</span><span class="${classStr}">${message}</span></div>`;
             output.scrollTop = output.scrollHeight;
@@ -882,8 +1131,6 @@
         // Render Topology to UI
         function renderTopology() {
             const container = document.getElementById('topology-view');
-            
-            // Retain the overlay text
             const overlayText = document.getElementById('topology-overlay');
             container.innerHTML = "";
             container.appendChild(overlayText);
@@ -904,7 +1151,7 @@
                     <div class="pod-grid" id="node-grid-${node.id}">
                         <!-- Workloads/Pods will be appended -->
                     </div>
-                    <div class="resource-usage">
+                    <div class="resource-usage" style="margin-top: 0.50rem;">
                         <span>CPU: ${resources.cpu}%</span>
                         <span>Mem: ${resources.mem}%</span>
                     </div>
@@ -938,7 +1185,7 @@
 
             if (currentEra === 'vm') {
                 cpu = 15; // Hypervisor cost
-                mem = 30; // Guest OS bloat per host VM allocation
+                mem = 35; // Guest OS bloat per host VM allocation
             } else if (currentEra === 'k8s') {
                 cpu = 8; // Kubelet and Kube-proxy cost
                 mem = 12;
@@ -951,7 +1198,7 @@
                     mem += 20;
                 } else if (currentEra === 'vm') {
                     cpu += 15;
-                    mem += 25; // Large overhead due to OS runtimes
+                    mem += 20;
                 } else { // docker & k8s
                     cpu += 10;
                     mem += 8;  // Highly efficient shared kernel
@@ -1143,6 +1390,22 @@
                 }
             });
 
+            // Update Desired vs Actual State Card
+            const desiredValEl = document.getElementById('state-desired-val');
+            const actualValEl = document.getElementById('state-actual-val');
+            const actualBoxEl = document.getElementById('state-actual-box');
+
+            desiredValEl.innerText = workloadUnits;
+            actualValEl.innerText = totalPodsActive;
+
+            if (workloadUnits !== totalPodsActive) {
+                actualValEl.className = "state-val actual-num mismatch";
+                actualBoxEl.className = "state-box actual mismatch";
+            } else {
+                actualValEl.className = "state-val actual-num";
+                actualBoxEl.className = "state-box actual";
+            }
+
             loadText.innerText = `${totalPodsActive} / ${maxNodes * maxPodsPerNode} units`;
             let loadPercent = Math.min(Math.round((totalPodsActive / (maxNodes * maxPodsPerNode)) * 100), 100);
             loadVal.innerText = `${loadPercent}%`;
@@ -1156,25 +1419,25 @@
                 loadBar.className = "metric-progress green";
             }
 
-            // 3. Resource Fragmentation
+            // 3. Resource Overhead ("Guest OS Tax")
             if (currentEra === 'bare-metal') {
-                fragText.innerText = "0.0% (Dedicated)";
+                fragText.innerText = "0% Waste (Dedicated)";
                 fragVal.innerText = "Low";
                 fragBar.className = "metric-progress green";
                 fragBar.style.width = "5%";
             } else if (currentEra === 'vm') {
                 // High fragmentation because of guest OS partition limits
-                fragText.innerText = "42.5% (Reserved Waste)";
+                fragText.innerText = "42.5% Waste (Guest OS)";
                 fragVal.innerText = "High";
                 fragBar.className = "metric-progress red";
-                fragBar.style.width = "75%";
+                fragBar.style.width = "85%";
             } else if (currentEra === 'docker') {
-                fragText.innerText = "18.0% (Manual Bin Pack)";
+                fragText.innerText = "12.0% Waste (Manual Config)";
                 fragVal.innerText = "Medium";
                 fragBar.className = "metric-progress orange";
-                fragBar.style.width = "40%";
+                fragBar.style.width = "30%";
             } else if (currentEra === 'k8s') {
-                fragText.innerText = "4.2% (Auto Bin Pack)";
+                fragText.innerText = "4.2% Waste (Auto Packed)";
                 fragVal.innerText = "Optimized";
                 fragBar.className = "metric-progress green";
                 fragBar.style.width = "10%";
@@ -1195,12 +1458,12 @@
                 statusText.innerText = "HEALTHY";
                 statusText.style.color = "var(--accent-green)";
             }
-            
-            // Sync control plane state visuals
+
+            // Sync control plane visuals
             updateControlPlaneVisuals();
         }
 
-        // Kubernetes Control Plane & Reconciliation Loop Loop
+        // Kubernetes Control Plane & Reconciliation Loop
         function startK8sReconciliationLoop() {
             const timeContainer = document.getElementById('reconciliation-time-val');
             
@@ -1247,7 +1510,6 @@
                 timeContainer.style.color = "var(--accent-orange)";
 
                 // Step 1: Handle nodes crashed, reschedule pods that were on dead nodes
-                // If a node is down, empty its pod list immediately to simulate death
                 nodes.forEach(n => {
                     if (n.crashed && n.pods.length > 0) {
                         n.pods = [];
@@ -1285,13 +1547,50 @@
 
                 renderTopology();
                 updateMetrics();
-            }, 2500);
+            }, 2000);
         }
 
         function updateControlPlaneVisuals() {
             const etcdText = document.getElementById('cp-etcd');
             if (etcdText) {
                 etcdText.innerText = `etcd (Desired: ${workloadUnits})`;
+            }
+        }
+
+        // Guided Tour Navigation
+        function nextTour() {
+            if (tourStep < 4) {
+                tourStep++;
+                updateTourStep();
+            }
+        }
+
+        function prevTour() {
+            if (tourStep > 1) {
+                tourStep--;
+                updateTourStep();
+            }
+        }
+
+        function updateTourStep() {
+            const data = tourData[tourStep];
+            document.getElementById('tour-step-indicator').innerText = `Step ${tourStep} of 4`;
+            document.getElementById('tour-title').innerText = data.title;
+            document.getElementById('tour-body').innerHTML = data.body;
+            
+            // Auto switch era to match step
+            switchEra(data.era);
+
+            // Handle navigation button disabled states
+            document.getElementById('btn-prev-tour').disabled = tourStep === 1;
+            document.getElementById('btn-next-tour').disabled = tourStep === 4;
+            
+            // Adjust Next Button Text on last step
+            if (tourStep === 4) {
+                document.getElementById('btn-next-tour').innerText = "End Tour";
+                document.getElementById('btn-next-tour').disabled = true;
+            } else {
+                document.getElementById('btn-next-tour').innerText = "Next Step";
             }
         }
 
