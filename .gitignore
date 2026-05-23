@@ -1,0 +1,42 @@
+﻿# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Kubernetes and Helm outputs
+.kube/
+kubeconfig
+*.kubeconfig
+.helm/
+*.tgz
+charts/logs/
+
+# Terraform state
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Local secrets and credentials
+*.pem
+*.key
+*.crt
+credentials.json
+.env
+secret-*.yaml
+!*example*secret*.yaml
+
+# Temporary outputs
+tmp/
+temp/
+logs/
+*.log
