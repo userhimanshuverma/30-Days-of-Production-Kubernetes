@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo
+  namespace: default
+  labels:
+    app: secure-app
+    day: day-02
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+  containers:
+  - name: secure-container
+    image: alpine:latest
+    command: ["sleep", "3600"]
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+        - ALL          # Drops all kernel capabilities (e.g., CAP_NET_ADMIN, CAP_SYS_ADMIN)
+        add:
+        - NET_BIND_SERVICE # Adds only minimum required privilege (e.g., bind to ports < 1024 if running as root)
+      seccompProfile:
+        type: RuntimeDefault # Enforces the runtime's default syscall filtering
+    resources:
+      limits:
+        cpu: "100m"
+        memory: "64Mi"
+      requests:
+        cpu: "50m"
+        memory: "32Mi"
+  restartPolicy: Always

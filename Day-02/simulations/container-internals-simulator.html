@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inside a Container — Advanced Isolation & Runtime Simulator</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #06060c;
+            --panel-bg: rgba(15, 15, 29, 0.7);
+            --panel-border: rgba(147, 51, 234, 0.2);
+            --panel-border-hover: rgba(147, 51, 234, 0.45);
+            --primary: #9333ea;
+            --primary-glow: rgba(147, 51, 234, 0.5);
+            --accent: #ec4899;
+            --accent-glow: rgba(236, 72, 153, 0.4);
+            --cyan: #06b6d4;
+            --cyan-glow: rgba(6, 182, 212, 0.4);
+            --green: #22c55e;
+            --green-glow: rgba(34, 197, 94, 0.4);
+            --yellow: #eab308;
+            --yellow-glow: rgba(234, 179, 8, 0.4);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.5);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --card-radius: 16px;
+            --glow-strength: 0 0 15px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(147, 51, 234, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        header {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--panel-border);
+            background: rgba(6, 6, 12, 0.85);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #fff 0%, #d8b4fe 50%, #9333ea 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title .tag {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            font-size: 11px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            font-weight: 700;
+            box-shadow: 0 0 10px rgba(147, 51, 234, 0.4);
+        }
+
+        .system-status {
+            display: flex;
+            gap: 30px;
+            font-size: 13px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.warning {
+            background-color: var(--yellow);
+            box-shadow: 0 0 8px var(--yellow);
+        }
+
+        .status-dot.danger {
+            background-color: var(--red);
+            box-shadow: 0 0 8px var(--red);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 25px;
+            padding: 30px 40px;
+            flex-grow: 1;
+            max-width: 1800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .control-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        /* Glassmorphic Panel Card */
+        .glass-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--card-radius);
+            padding: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            border-color: var(--panel-border-hover);
+            box-shadow: 0 8px 32px 0 rgba(147, 51, 234, 0.08);
+        }
+
+        .glass-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 18px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #d8b4fe;
+            border-left: 3px solid var(--primary);
+            padding-left: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Modern Custom Switch */
+        .switch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            margin-bottom: 10px;
+            transition: background 0.2s ease;
+        }
+
+        .switch-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .switch-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .switch-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .switch-desc {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.15);
+            transition: .3s;
+            border-radius: 22px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Buttons & Controls */
+        .btn {
+            background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            box-shadow: 0 4px 20px rgba(147, 51, 234, 0.5);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: #d8b4fe;
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: rgba(147, 51, 234, 0.1);
+            color: white;
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.15);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--red) 0%, #dc2626 100%);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        /* Sliders */
+        .range-slider {
+            width: 100%;
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            margin: 10px 0;
+        }
+
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--primary);
+        }
+
+        .slider-value-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Main Workspace Panels */
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        /* Charts & Monitor Panels */
+        .monitor-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .chart-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            height: 180px;
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .chart-label {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .chart-metric {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+            font-weight: 800;
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* SVG Grid Background for Chart */
+        .chart-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Process Tree Panel */
+        .process-tree {
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .tree-node {
+            margin-left: 20px;
+            border-left: 1px dashed rgba(255, 255, 255, 0.1);
+            padding-left: 15px;
+            position: relative;
+            padding-top: 5px;
+            padding-bottom: 5px;
+        }
+
+        .tree-node::before {
+            content: "└── ";
+            position: absolute;
+            left: 0;
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        .tree-root {
+            margin-left: 0;
+            border-left: none;
+            padding-left: 0;
+        }
+
+        .tree-root::before {
+            content: "";
+        }
+
+        .process-info {
+            display: inline-flex;
+            gap: 8px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            transition: background 0.2s ease;
+        }
+
+        .process-info:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .pid-badge {
+            color: var(--cyan);
+            font-weight: bold;
+        }
+
+        .process-name {
+            color: #fff;
+        }
+
+        .process-cgroup {
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+
+        .process-highlight {
+            background: rgba(147, 51, 234, 0.2);
+            border: 1px solid rgba(147, 51, 234, 0.4);
+        }
+
+        /* Filesystem Layer Visualizer */
+        .layer-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 10px 0;
+        }
+
+        .fs-layer {
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .fs-layer:hover {
+            transform: translateY(-2px);
+        }
+
+        .fs-layer::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+
+        .layer-writable {
+            background: rgba(34, 197, 94, 0.05);
+            border-color: rgba(34, 197, 94, 0.2);
+        }
+        .layer-writable::before { background-color: var(--green); }
+
+        .layer-merged {
+            background: rgba(147, 51, 234, 0.05);
+            border-color: rgba(147, 51, 234, 0.2);
+        }
+        .layer-merged::before { background-color: var(--primary); }
+
+        .layer-readonly {
+            background: rgba(6, 182, 212, 0.05);
+            border-color: rgba(6, 182, 212, 0.2);
+        }
+        .layer-readonly::before { background-color: var(--cyan); }
+
+        .layer-title {
+            font-weight: 700;
+            font-size: 13px;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .layer-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-writable { background-color: rgba(34, 197, 94, 0.2); color: var(--green); }
+        .badge-merged { background-color: rgba(147, 51, 234, 0.2); color: #d8b4fe; }
+        .badge-readonly { background-color: rgba(6, 182, 212, 0.2); color: var(--cyan); }
+
+        .layer-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .layer-files {
+            font-family: 'Fira Code', monospace;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .file-item {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s ease;
+        }
+
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .file-item.modified {
+            border-color: rgba(234, 179, 8, 0.3);
+            color: var(--yellow);
+        }
+
+        .file-item.deleted {
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--red);
+            text-decoration: line-through;
+        }
+
+        .fs-action-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* VM vs Container Race Box */
+        .race-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .race-column {
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 200px;
+        }
+
+        .race-header {
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .race-timer {
+            font-family: 'Fira Code', monospace;
+            color: var(--cyan);
+            font-size: 14px;
+        }
+
+        .race-bar-bg {
+            background: rgba(255,255,255,0.05);
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .race-bar {
+            background: linear-gradient(90deg, var(--primary), var(--cyan));
+            height: 100%;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .race-logs {
+            font-family: 'Fira Code', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            height: 120px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* Logs Console Panel */
+        .logs-panel {
+            background: #040408;
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 11px;
+            padding: 15px;
+            height: 180px;
+            overflow-y: auto;
+            color: #d1d5db;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);
+        }
+
+        .log-line {
+            margin-bottom: 6px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .log-timestamp {
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .log-tag {
+            color: var(--cyan);
+            flex-shrink: 0;
+            font-weight: 600;
+        }
+
+        .log-text {
+            word-break: break-all;
+        }
+
+        .log-warn { color: var(--yellow); }
+        .log-err { color: var(--red); }
+        .log-success { color: var(--green); }
+
+        /* Dialog/Alert Overlay */
+        .system-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 8px;
+            padding: 12px 18px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            animation: flashRed 2s infinite;
+        }
+
+        @keyframes flashRed {
+            0% { border-color: rgba(239, 68, 68, 0.35); box-shadow: none; }
+            50% { border-color: rgba(239, 68, 68, 0.85); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+            100% { border-color: rgba(239, 68, 68, 0.35); box-shadow: none; }
+        }
+
+        .system-alert-icon {
+            font-size: 20px;
+        }
+
+        .system-alert-text h4 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #fca5a5;
+        }
+
+        .system-alert-text p {
+            font-size: 11px;
+            color: #fecaca;
+        }
+
+        /* Tooltips */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 220px;
+            background-color: #111827;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 105;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 11px;
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>Inside a Container</h1>
+            <span class="tag">Interactive Simulator</span>
+        </div>
+        <div class="system-status">
+            <div class="status-item">
+                <span>Kernel:</span>
+                <strong style="color: var(--cyan);">Linux 6.8.0-custom</strong>
+            </div>
+            <div class="status-item">
+                <span>cgroups:</span>
+                <strong style="color: var(--primary);">v2 (Unified)</strong>
+            </div>
+            <div class="status-item">
+                <span>Status:</span>
+                <div class="status-dot" id="status-dot"></div>
+                <strong id="status-text">Operational</strong>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        
+        <!-- SIDEBAR CONTROLS -->
+        <div class="control-sidebar">
+            
+            <!-- CONTROLLER CARD -->
+            <div class="glass-card">
+                <h3>Runtime Engine</h3>
+                
+                <div class="control-group">
+                    <button class="btn" id="btn-launch" onclick="toggleContainerState()">Launch Container</button>
+                </div>
+
+                <div class="control-group" style="margin-top: 15px;">
+                    <button class="btn btn-outline" id="btn-noisy" onclick="toggleNoisyNeighbor()">Inject Noisy Neighbor</button>
+                </div>
+            </div>
+
+            <!-- NAMESPACE CARD -->
+            <div class="glass-card">
+                <h3>Linux Namespaces
+                    <div class="tooltip" style="cursor: help;">ℹ️
+                        <span class="tooltiptext">Toggling a namespace off removes the isolation boundary, bleeding host kernel objects into the container.</span>
+                    </div>
+                </h3>
+                
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <span class="switch-name">PID Namespace</span>
+                        <span class="switch-desc">Isolates process tree IDs</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="ns-pid" checked onchange="updateNamespaces()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <span class="switch-name">NET Namespace</span>
+                        <span class="switch-desc">Isolates loopback, routes & NICs</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="ns-net" checked onchange="updateNamespaces()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <span class="switch-name">Mount (MNT) Namespace</span>
+                        <span class="switch-desc">Isolates rootfs file mounts</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="ns-mnt" checked onchange="updateNamespaces()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <span class="switch-name">User Namespace</span>
+                        <span class="switch-desc">Maps container root to host non-root</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="ns-user" checked onchange="updateNamespaces()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- CGROUP LIMITS CARD -->
+            <div class="glass-card">
+                <h3>cgroup Limits</h3>
+                
+                <div class="control-group">
+                    <div class="slider-value-row">
+                        <span>CPU Quota (cpu.max)</span>
+                        <strong id="val-cpu">50%</strong>
+                    </div>
+                    <input type="range" class="range-slider" id="limit-cpu" min="10" max="100" value="50" oninput="updateCgroupLimits()">
+                </div>
+
+                <div class="control-group">
+                    <div class="slider-value-row">
+                        <span>Memory Limit (memory.max)</span>
+                        <strong id="val-mem">128 MB</strong>
+                    </div>
+                    <input type="range" class="range-slider" id="limit-mem" min="32" max="256" value="128" step="16" oninput="updateCgroupLimits()">
+                </div>
+
+                <div class="fs-action-bar" style="margin-top: 20px;">
+                    <button class="btn btn-outline" onclick="triggerCPUWorkload()" style="font-size:12px; padding: 8px 10px;">Stress CPU</button>
+                    <button class="btn btn-danger" onclick="triggerMemoryLeak()" style="font-size:12px; padding: 8px 10px;">Leaked memory</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MAIN DASHBOARD AREA -->
+        <div class="workspace">
+            
+            <!-- SYSTEM ALERTS -->
+            <div class="system-alert" id="system-alert">
+                <span class="system-alert-icon">⚠️</span>
+                <div class="system-alert-text">
+                    <h4 id="alert-title">SYSTEM THREAT DETECTED</h4>
+                    <p id="alert-desc">Namespace configuration breached. Container processes visible to Host OS.</p>
+                </div>
+            </div>
+
+            <div class="workspace-grid">
+                
+                <!-- CHARTS PANEL -->
+                <div class="glass-card">
+                    <h3>Performance Monitor</h3>
+                    <div class="monitor-panel">
+                        <div class="chart-box">
+                            <span class="chart-label">CPU Utilization</span>
+                            <span class="chart-metric" id="metric-cpu">0%</span>
+                            <svg class="chart-svg" id="svg-cpu"></svg>
+                        </div>
+                        <div class="chart-box">
+                            <span class="chart-label">Memory Allocation</span>
+                            <span class="chart-metric" id="metric-mem">0 MB</span>
+                            <svg class="chart-svg" id="svg-mem"></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROCESS TREE PANEL -->
+                <div class="glass-card">
+                    <h3>Process Tree Visualizer</h3>
+                    <div class="process-tree" id="process-tree">
+                        <!-- Filled dynamically by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- FILESYSTEM LAYERS PANEL -->
+                <div class="glass-card">
+                    <h3>OverlayFS Filesystem Layers</h3>
+                    
+                    <div class="layer-stack">
+                        
+                        <!-- Merged -->
+                        <div class="fs-layer layer-merged">
+                            <div class="layer-title">
+                                <span>Merged View (pivot_root target)</span>
+                                <span class="layer-badge badge-merged">merged</span>
+                            </div>
+                            <p class="layer-desc">The container's unified mount point (combined read-only & writable layers).</p>
+                            <div class="layer-files" id="files-merged">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Upper Writable -->
+                        <div class="fs-layer layer-writable">
+                            <div class="layer-title">
+                                <span>Upper Directory (Writable Container Layer)</span>
+                                <span class="layer-badge badge-writable">upperdir</span>
+                            </div>
+                            <p class="layer-desc">All modifications, creations, and deletions (whiteouts) reside here.</p>
+                            <div class="layer-files" id="files-upper">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Lower Image Layer -->
+                        <div class="fs-layer layer-readonly">
+                            <div class="layer-title">
+                                <span>Lower Directory (Read-Only Image Layer)</span>
+                                <span class="layer-badge badge-readonly">lowerdir</span>
+                            </div>
+                            <p class="layer-desc">Standard immutable image layers containing dependencies.</p>
+                            <div class="layer-files" id="files-lower">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="fs-action-bar">
+                        <button class="btn btn-outline" style="font-size:12px;" onclick="addFile()">+ Add File</button>
+                        <button class="btn btn-outline" style="font-size:12px;" onclick="modifyFile()">Edit web.conf</button>
+                        <button class="btn btn-outline btn-danger" style="font-size:12px;" onclick="deleteFile()">Delete app.js</button>
+                    </div>
+                </div>
+
+                <!-- BOOT PERFORMANCE RACE -->
+                <div class="glass-card">
+                    <h3>VM vs. Container Launch Speed Race</h3>
+                    
+                    <div style="font-size:12px; color: var(--text-muted); margin-bottom: 15px;">
+                        Compare the architectural overhead of booting virtual devices vs spawning standard kernel threads.
+                    </div>
+
+                    <button class="btn btn-outline" onclick="startRace()" style="margin-bottom: 15px;">Start Startup Race</button>
+
+                    <div class="race-container">
+                        
+                        <div class="race-column">
+                            <div class="race-header">
+                                <span>MicroVM Boot</span>
+                                <span class="race-timer" id="timer-vm">0.00s</span>
+                            </div>
+                            <div class="race-bar-bg">
+                                <div class="race-bar" id="bar-vm"></div>
+                            </div>
+                            <div class="race-logs" id="logs-vm">
+                                <div>Click start to trigger boot cycles.</div>
+                            </div>
+                        </div>
+
+                        <div class="race-column">
+                            <div class="race-header">
+                                <span>OCI Container Run</span>
+                                <span class="race-timer" id="timer-container">0.00s</span>
+                            </div>
+                            <div class="race-bar-bg">
+                                <div class="race-bar" id="bar-container"></div>
+                            </div>
+                            <div class="race-logs" id="logs-container">
+                                <div>Click start to trigger run cycles.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- TERMINAL CONSOLE -->
+                <div class="glass-card full-width">
+                    <h3>Host Kernel & OCI Runtime Logs</h3>
+                    <div class="logs-panel" id="console-logs">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- JAVASCRIPT WORKINGS -->
+    <script>
+        // State management variables
+        let containerRunning = false;
+        let cpuLimit = 50; // percent
+        let memoryLimit = 128; // MB
+        let cpuUsage = 0;
+        let memoryUsage = 0;
+        let noisyNeighborActive = false;
+        let cpuStressActive = false;
+        let memoryLeakActive = false;
+        let oomKilled = false;
+        
+        let cpuDataPoints = Array(20).fill(0);
+        let memDataPoints = Array(20).fill(0);
+
+        // Simulated OverlayFS State
+        let lowerFiles = ["app.js", "web.conf", "alpine-base.so"];
+        let upperFiles = []; // Writable additions
+        let modifiedFiles = {}; // filename -> state
+        let deletedFiles = {}; // filename -> boolean
+
+        // Add boot timer log entries
+        const vmLogs = [
+            "Initializing BIOS handshake...",
+            "Loading bootloader GRUB v2.06...",
+            "Loading Linux Kernel 6.8.0-generic...",
+            "Decompressing kernel image... Done.",
+            "Mounting root filesystem /dev/sda1 (ext4)...",
+            "Starting systemd init system (PID 1)...",
+            "Starting local system network configurations...",
+            "Launching sshd service... Listening.",
+            "Launching local application server process...",
+            "Application listening on http://localhost:8080"
+        ];
+
+        const containerLogs = [
+            "Invoke runc create -b /run/containerd/ctr-demo...",
+            "Allocating namespaces: PID, Mount, Net, UTS, IPC.",
+            "Creating cgroups paths: /sys/fs/cgroup/ctr-demo",
+            "Mounting OverlayFS merged root directory...",
+            "runc pivot_root: switched filesystem roots.",
+            "Executing application process (PID 1)...",
+            "Application listening on http://localhost:8080"
+        ];
+
+        // Init function
+        window.onload = function() {
+            logTerminal("Kernel booted. Standing by for OCI commands.", "success");
+            updateProcessTree();
+            updateOverlayFSView();
+            drawCharts();
+            
+            // Periodically refresh stats and charts
+            setInterval(updatePerformanceMetrics, 500);
+        };
+
+        // Terminal Log helper
+        function logTerminal(message, type = "info") {
+            const consoleBox = document.getElementById("console-logs");
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, 12);
+            
+            let typeClass = "";
+            let tag = "[KERNEL]";
+            
+            if (type === "warning") {
+                typeClass = "log-warn";
+                tag = "[WARN]";
+            } else if (type === "error") {
+                typeClass = "log-err";
+                tag = "[CRIT]";
+            } else if (type === "success") {
+                typeClass = "log-success";
+                tag = "[OK]";
+            } else if (type === "oci") {
+                tag = "[OCI]";
+            }
+            
+            const logLine = document.createElement("div");
+            logLine.className = "log-line";
+            logLine.innerHTML = `
+                <span class="log-timestamp">${timestamp}</span>
+                <span class="log-tag ${typeClass}">${tag}</span>
+                <span class="log-text ${typeClass}">${message}</span>
+            `;
+            
+            consoleBox.appendChild(logLine);
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        // Toggle container state
+        function toggleContainerState() {
+            const btn = document.getElementById("btn-launch");
+            const statusDot = document.getElementById("status-dot");
+            const statusText = document.getElementById("status-text");
+
+            if (!containerRunning) {
+                // Launch
+                containerRunning = true;
+                oomKilled = false;
+                btn.innerText = "Kill Container";
+                btn.className = "btn btn-danger";
+                
+                logTerminal("Kubelet CRI: CreateContainer request received.", "oci");
+                logTerminal("containerd-shim: Spawning runc process.", "oci");
+                logTerminal("runc: Invoked clone() syscall. Namespaces isolated.", "success");
+                logTerminal("runc: Writing limits to cgroups hierarchy.", "success");
+                logTerminal("pivot_root: Switch root filesystems completed.", "success");
+                logTerminal("Container PID 1 process (node) started.", "success");
+                
+                cpuUsage = 10;
+                memoryUsage = 40;
+                
+                statusDot.className = "status-dot";
+                statusText.innerText = "Container Active";
+            } else {
+                // Kill
+                containerRunning = false;
+                cpuStressActive = false;
+                memoryLeakActive = false;
+                btn.innerText = "Launch Container";
+                btn.className = "btn";
+                
+                logTerminal("containerd-shim: Sending SIGTERM to PID 1.", "oci");
+                logTerminal("Kernel: Tearing down namespaces for container.", "info");
+                logTerminal("Kernel: Cleaning up cgroups entries.", "info");
+                logTerminal("Container terminated.", "warning");
+                
+                cpuUsage = 0;
+                memoryUsage = 0;
+                
+                statusDot.className = "status-dot warning";
+                statusText.innerText = "Operational";
+            }
+            
+            updateProcessTree();
+            updateNamespaces();
+        }
+
+        // Namespace updates
+        function updateNamespaces() {
+            const pidIso = document.getElementById("ns-pid").checked;
+            const netIso = document.getElementById("ns-net").checked;
+            const mntIso = document.getElementById("ns-mnt").checked;
+            const userIso = document.getElementById("ns-user").checked;
+            
+            const alertBox = document.getElementById("system-alert");
+            const alertTitle = document.getElementById("alert-title");
+            const alertDesc = document.getElementById("alert-desc");
+            
+            let breach = false;
+            let breachMsgs = [];
+            
+            if (!pidIso) {
+                breach = true;
+                breachMsgs.push("PID isolation compromised (Host processes visible)");
+                logTerminal("CRITICAL: PID namespace isolation disabled! Process tree merged.", "error");
+            }
+            if (!netIso) {
+                breach = true;
+                breachMsgs.push("NET isolation compromised (Shared host interfaces)");
+                logTerminal("CRITICAL: Network namespace isolation disabled! Ports exposed on host.", "error");
+            }
+            if (!mntIso) {
+                breach = true;
+                breachMsgs.push("Mount isolation compromised (Host filesystem writeable)");
+                logTerminal("CRITICAL: Mount namespace isolation disabled! Root path host-bleeding.", "error");
+            }
+            if (!userIso) {
+                breach = true;
+                breachMsgs.push("User privilege escalation risk (Mapped to Host root UID 0)");
+                logTerminal("WARNING: User namespace disabled. Container running as host root user.", "warning");
+            }
+            
+            if (breach && containerRunning) {
+                alertBox.style.display = "flex";
+                alertTitle.innerText = "SECURITY BOUNDARY BREACHED";
+                alertDesc.innerText = breachMsgs.join(" | ");
+                document.getElementById("status-dot").className = "status-dot danger";
+                document.getElementById("status-text").innerText = "Isolated Failure";
+            } else {
+                alertBox.style.display = "none";
+                if (containerRunning) {
+                    document.getElementById("status-dot").className = "status-dot";
+                    document.getElementById("status-text").innerText = "Container Active";
+                }
+            }
+            
+            updateProcessTree();
+            updateOverlayFSView();
+        }
+
+        // Update process tree
+        function updateProcessTree() {
+            const treeBox = document.getElementById("process-tree");
+            const pidIso = document.getElementById("ns-pid").checked;
+            
+            let html = "";
+            
+            if (!containerRunning) {
+                html = `
+                    <div class="tree-node tree-root">
+                        <span class="process-info">
+                            <span class="pid-badge">PID 1</span>
+                            <span class="process-name">systemd</span>
+                            <span class="process-cgroup">/system.slice</span>
+                        </span>
+                        <div class="tree-node">
+                            <span class="process-info">
+                                <span class="pid-badge">PID 720</span>
+                                <span class="process-name">containerd</span>
+                                <span class="process-cgroup">/system.slice/containerd</span>
+                            </span>
+                        </div>
+                        <div class="tree-node">
+                            <span class="process-info">
+                                <span class="pid-badge">PID 1202</span>
+                                <span class="process-name">sshd</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+            } else if (containerRunning && pidIso) {
+                // Isolated PID tree
+                html = `
+                    <div style="margin-bottom: 10px; font-weight: 700; color: var(--cyan);">[Container PID Namespace View]</div>
+                    <div class="tree-node tree-root">
+                        <span class="process-info process-highlight">
+                            <span class="pid-badge">PID 1</span>
+                            <span class="process-name">node server.js</span>
+                            <span class="process-cgroup">cgroup: day02-container</span>
+                        </span>
+                        <div class="tree-node">
+                            <span class="process-info">
+                                <span class="pid-badge">PID 24</span>
+                                <span class="process-name">node worker.js</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <hr style="border-color: rgba(255,255,255,0.05); margin: 15px 0;">
+                    <div style="margin-bottom: 5px; font-weight: 700; color: var(--text-muted);">[Host OS View]</div>
+                    <div class="tree-node tree-root">
+                        <span class="process-info">
+                            <span class="pid-badge">PID 1</span>
+                            <span class="process-name">systemd</span>
+                        </span>
+                        <div class="tree-node">
+                            <span class="process-info">
+                                <span class="pid-badge">PID 720</span>
+                                <span class="process-name">containerd</span>
+                            </span>
+                            <div class="tree-node">
+                                <span class="process-info">
+                                    <span class="pid-badge">PID 8500</span>
+                                    <span class="process-name">containerd-shim -id ctr-demo</span>
+                                </span>
+                                <div class="tree-node">
+                                    <span class="process-info process-highlight">
+                                        <span class="pid-badge">PID 9832</span>
+                                        <span class="process-name">node server.js (Mapped to PID 1)</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (containerRunning && !pidIso) {
+                // Leaked PID tree (merged)
+                html = `
+                    <div style="margin-bottom: 10px; font-weight: 700; color: var(--red);">[Shared Namespace View (PID Leak)]</div>
+                    <div class="tree-node tree-root">
+                        <span class="process-info">
+                            <span class="pid-badge">PID 1</span>
+                            <span class="process-name">systemd</span>
+                        </span>
+                        <div class="tree-node">
+                            <span class="process-info">
+                                <span class="pid-badge">PID 720</span>
+                                <span class="process-name">containerd</span>
+                            </span>
+                            <div class="tree-node">
+                                <span class="process-info">
+                                    <span class="pid-badge">PID 8500</span>
+                                    <span class="process-name">containerd-shim</span>
+                                </span>
+                                <div class="tree-node">
+                                    <span class="process-info process-highlight">
+                                        <span class="pid-badge">PID 9832</span>
+                                        <span class="process-name">node server.js <span style="color:var(--red); font-weight:bold;">(NO PID 1!)</span></span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tree-node">
+                            <span class="process-info">
+                                <span class="pid-badge">PID 1202</span>
+                                <span class="process-name">sshd</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            treeBox.innerHTML = html;
+        }
+
+        // Update Slider Limits
+        function updateCgroupLimits() {
+            cpuLimit = document.getElementById("limit-cpu").value;
+            memoryLimit = document.getElementById("limit-mem").value;
+            
+            document.getElementById("val-cpu").innerText = `${cpuLimit}%`;
+            document.getElementById("val-mem").innerText = `${memoryLimit} MB`;
+            
+            logTerminal(`cgroup write: cpu.max updated to ${cpuLimit}% limit.`, "oci");
+            logTerminal(`cgroup write: memory.max updated to ${memoryLimit}MB limit.`, "oci");
+        }
+
+        // Toggle Noisy Neighbor
+        function toggleNoisyNeighbor() {
+            noisyNeighborActive = !noisyNeighborActive;
+            const btn = document.getElementById("btn-noisy");
+            
+            if (noisyNeighborActive) {
+                btn.className = "btn btn-outline btn-danger";
+                btn.innerText = "Noisy Neighbor: ACTIVE";
+                logTerminal("Noisy Neighbor launched: starting background IOPS & networking stress loops.", "warning");
+            } else {
+                btn.className = "btn btn-outline";
+                btn.innerText = "Inject Noisy Neighbor";
+                logTerminal("Noisy Neighbor stopped. Host resources cleared.", "success");
+            }
+        }
+
+        // Stress CPU
+        function triggerCPUWorkload() {
+            if (!containerRunning) {
+                alert("Please launch the container first.");
+                return;
+            }
+            cpuStressActive = true;
+            logTerminal("Container process executes thread intensive loop.", "oci");
+        }
+
+        // Memory Leak simulator
+        function triggerMemoryLeak() {
+            if (!containerRunning) {
+                alert("Please launch the container first.");
+                return;
+            }
+            memoryLeakActive = true;
+            logTerminal("Container: Memory allocation loop initialized (Allocating 16MB/sec).", "oci");
+        }
+
+        // Metrics engine loop
+        function updatePerformanceMetrics() {
+            if (!containerRunning) {
+                cpuUsage = 0;
+                memoryUsage = 0;
+                cpuStressActive = false;
+                memoryLeakActive = false;
+            } else {
+                // Base usage
+                let baselineCPU = noisyNeighborActive ? 15 : 4;
+                let targetCPU = baselineCPU;
+                
+                if (cpuStressActive) {
+                    targetCPU += 80;
+                    // If CPU Usage crosses limits, simulate cgroup CFS throttling
+                    if (targetCPU > cpuLimit) {
+                        targetCPU = cpuLimit;
+                        logTerminal("cgroup: CFS Throttling triggered. cpu.stat nr_throttled incrementing.", "warning");
+                    }
+                }
+                
+                cpuUsage = Math.round(targetCPU + (Math.random() * 4 - 2));
+                cpuUsage = Math.max(0, Math.min(100, cpuUsage));
+
+                if (memoryLeakActive) {
+                    memoryUsage += 16;
+                    logTerminal(`cgroup allocation: memory usage is now ${memoryUsage}MB.`, "info");
+                    
+                    if (memoryUsage >= memoryLimit) {
+                        // OOM KILL
+                        logTerminal(`CRITICAL: Memory cgroup limit of ${memoryLimit}MB exceeded.`, "error");
+                        logTerminal("Kernel: Invoked Out-Of-Memory (OOM) Killer.", "error");
+                        logTerminal("Kernel: Sent SIGKILL to PID 9832 (node). Exit code 137.", "error");
+                        
+                        // Kill container
+                        toggleContainerState();
+                        oomKilled = true;
+                        
+                        document.getElementById("status-dot").className = "status-dot danger";
+                        document.getElementById("status-text").innerText = "OOMKilled (137)";
+                        
+                        alert("Process OOMKilled! The container allocated memory exceeding its cgroup limit (Exit Code 137).");
+                    }
+                } else {
+                    memoryUsage = 40 + (noisyNeighborActive ? 20 : 0) + Math.round(Math.random() * 2 - 1);
+                }
+            }
+
+            document.getElementById("metric-cpu").innerText = `${cpuUsage}%`;
+            document.getElementById("metric-mem").innerText = `${memoryUsage} MB`;
+
+            // Rotate points in data
+            cpuDataPoints.shift();
+            cpuDataPoints.push(cpuUsage);
+            memDataPoints.shift();
+            memDataPoints.push(memoryUsage);
+
+            drawCharts();
+        }
+
+        // OverlayFS Filesystem Layer Controls
+        function updateOverlayFSView() {
+            const lowerDiv = document.getElementById("files-lower");
+            const upperDiv = document.getElementById("files-upper");
+            const mergedDiv = document.getElementById("files-merged");
+            const mntIso = document.getElementById("ns-mnt").checked;
+            
+            // Lower layers
+            lowerDiv.innerHTML = lowerFiles.map(f => `<span class="file-item">${f}</span>`).join("");
+            
+            // Upper layer
+            let upperHtml = "";
+            if (upperFiles.length === 0 && Object.keys(modifiedFiles).length === 0 && Object.keys(deletedFiles).length === 0) {
+                upperHtml = `<span style="color: var(--text-muted); font-style: italic;">No modifications (Layer is clean)</span>`;
+            } else {
+                upperHtml += upperFiles.map(f => `<span class="file-item">${f}</span>`).join("");
+                upperHtml += Object.keys(modifiedFiles).map(f => `<span class="file-item modified">${f} (Copy-on-Write)</span>`).join("");
+                upperHtml += Object.keys(deletedFiles).map(f => `<span class="file-item deleted">${f} (Whiteout Device)</span>`).join("");
+            }
+            upperDiv.innerHTML = upperHtml;
+
+            // Merged view
+            let mergedHtml = "";
+            if (!mntIso) {
+                // MNT isolation disabled -> Bleeds host paths
+                mergedHtml += `
+                    <span class="file-item log-err">/etc/shadow (Host!)</span>
+                    <span class="file-item log-err">/sys/fs/cgroup (Host!)</span>
+                    <span class="file-item log-err">/var/run/docker.sock (Host!)</span>
+                `;
+            }
+            
+            // Assemble files that should be visible in Merged view
+            let activeFiles = [];
+            // lower files that aren't deleted
+            lowerFiles.forEach(f => {
+                if (!deletedFiles[f]) {
+                    activeFiles.push(f);
+                }
+            });
+            // upper files
+            upperFiles.forEach(f => {
+                activeFiles.push(f);
+            });
+
+            mergedHtml += activeFiles.map(f => {
+                if (modifiedFiles[f]) {
+                    return `<span class="file-item modified">${f}</span>`;
+                }
+                return `<span class="file-item">${f}</span>`;
+            }).join("");
+
+            mergedDiv.innerHTML = mergedHtml;
+        }
+
+        // Add File
+        function addFile() {
+            const fileName = prompt("Enter file name to create in container /:");
+            if (!fileName) return;
+            
+            upperFiles.push(fileName);
+            logTerminal(`Process create file: /${fileName} created in Merged view. Written to upperdir/`, "oci");
+            updateOverlayFSView();
+        }
+
+        // Modify File
+        function modifyFile() {
+            modifiedFiles["web.conf"] = "modified";
+            logTerminal("Process edit web.conf: Kernel performed Copy-on-Write. Duplicated web.conf to upperdir/ & applied write.", "success");
+            updateOverlayFSView();
+        }
+
+        // Delete File
+        function deleteFile() {
+            deletedFiles["app.js"] = true;
+            logTerminal("Process delete app.js: Created character device whiteout in upperdir/ to hide app.js.", "warning");
+            updateOverlayFSView();
+        }
+
+        // SVG rendering logic for CPU & memory charts
+        function drawCharts() {
+            drawPath("svg-cpu", cpuDataPoints, 100, "var(--primary)");
+            drawPath("svg-mem", memDataPoints, 256, "var(--cyan)");
+        }
+
+        function drawPath(svgId, data, maxVal, color) {
+            const svg = document.getElementById(svgId);
+            svg.innerHTML = ""; // Clear
+            
+            const width = svg.clientWidth || 300;
+            const height = svg.clientHeight || 150;
+            
+            // Draw grid lines
+            for (let i = 1; i < 4; i++) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", 0);
+                line.setAttribute("y1", (height / 4) * i);
+                line.setAttribute("x2", width);
+                line.setAttribute("y2", (height / 4) * i);
+                line.setAttribute("stroke", "rgba(255,255,255,0.03)");
+                svg.appendChild(line);
+            }
+
+            // Draw data line
+            const points = data.map((val, index) => {
+                const x = (width / (data.length - 1)) * index;
+                const ratio = val / maxVal;
+                const y = height - (height * ratio * 0.8) - 10; // offset from margins
+                return `${x},${y}`;
+            }).join(" ");
+
+            const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+            polyline.setAttribute("fill", "none");
+            polyline.setAttribute("stroke", color);
+            polyline.setAttribute("stroke-width", "2");
+            polyline.setAttribute("points", points);
+            
+            // Draw area under path
+            const fillPoints = `0,${height} ` + points + ` ${width},${height}`;
+            const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            polygon.setAttribute("fill", color.replace(")", ", 0.1)"));
+            polygon.setAttribute("points", fillPoints);
+            
+            svg.appendChild(polygon);
+            svg.appendChild(polyline);
+        }
+
+        // Boot Race simulation
+        let raceTimer = null;
+        
+        function startRace() {
+            const btnVM = document.getElementById("bar-vm");
+            const btnCont = document.getElementById("bar-container");
+            const logsVM = document.getElementById("logs-vm");
+            const logsCont = document.getElementById("logs-container");
+            
+            logsVM.innerHTML = "";
+            logsCont.innerHTML = "";
+            btnVM.style.width = "0%";
+            btnCont.style.width = "0%";
+            
+            let vmIndex = 0;
+            let containerIndex = 0;
+            
+            let vmTime = 0.00;
+            let contTime = 0.00;
+            
+            const timerVM = document.getElementById("timer-vm");
+            const timerContainer = document.getElementById("timer-container");
+            
+            timerVM.innerText = "0.00s";
+            timerContainer.innerText = "0.00s";
+            
+            if (raceTimer) clearInterval(raceTimer);
+            
+            // Container executes instantaneously (in 1 loop step of 30ms)
+            setTimeout(() => {
+                btnCont.style.width = "100%";
+                timerContainer.innerText = "0.02s";
+                
+                containerLogs.forEach(log => {
+                    const line = document.createElement("div");
+                    line.innerText = `[0.02s] ${log}`;
+                    logsCont.appendChild(line);
+                });
+                logsCont.scrollTop = logsCont.scrollHeight;
+                logTerminal("Boot Race: Container spawned in 0.02s.", "success");
+            }, 50);
+
+            // VM executes progressively over time (takes ~8 seconds simulation)
+            const intervalMs = 800;
+            let totalSteps = vmLogs.length;
+            
+            raceTimer = setInterval(() => {
+                vmTime += 0.82;
+                timerVM.innerText = `${vmTime.toFixed(2)}s`;
+                
+                let percent = (vmIndex / totalSteps) * 100;
+                btnVM.style.width = `${percent}%`;
+                
+                if (vmIndex < totalSteps) {
+                    const line = document.createElement("div");
+                    line.innerText = `[${vmTime.toFixed(2)}s] ${vmLogs[vmIndex]}`;
+                    logsVM.appendChild(line);
+                    logsVM.scrollTop = logsVM.scrollHeight;
+                    vmIndex++;
+                } else {
+                    btnVM.style.width = "100%";
+                    clearInterval(raceTimer);
+                    logTerminal("Boot Race: MicroVM completed boot process.", "info");
+                }
+            }, intervalMs);
+        }
+    </script>
+</body>
+</html>

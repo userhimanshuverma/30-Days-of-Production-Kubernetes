@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-throttle-demo
+  namespace: default
+  labels:
+    app: cpu-stress
+    day: day-02
+spec:
+  containers:
+  - name: stress-container
+    image: polinux/stress:latest
+    imagePullPolicy: IfNotPresent
+    command: ["stress"]
+    args: ["--cpu", "2", "--timeout", "600s"]
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"  # This low limit forces CFS scheduler to throttle CPU when stress tries to use 2 cores
+        memory: "128Mi"
+  restartPolicy: OnFailure
