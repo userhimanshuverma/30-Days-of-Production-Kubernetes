@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Control Plane & Internals Simulator</title>
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #080710;
+            --panel-bg: rgba(18, 16, 35, 0.7);
+            --panel-border: rgba(139, 92, 246, 0.2);
+            --panel-border-hover: rgba(139, 92, 246, 0.45);
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.5);
+            --accent: #d946ef;
+            --accent-glow: rgba(217, 70, 239, 0.4);
+            --cyan: #06b6d4;
+            --cyan-glow: rgba(6, 182, 212, 0.4);
+            --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.4);
+            --yellow: #f59e0b;
+            --yellow-glow: rgba(245, 158, 11, 0.4);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.5);
+            --text-main: #f3f4f6;
+            --text-muted: #a1a1aa;
+            --card-radius: 16px;
+            --font-mono: 'Fira Code', monospace;
+            --font-sans: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 5% 15%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 95% 85%, rgba(6, 182, 212, 0.15) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        header {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--panel-border);
+            background: rgba(8, 7, 16, 0.85);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #fff 0%, #ddd6fe 50%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title .tag {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            font-size: 10px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            font-weight: 700;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+        }
+
+        .system-status {
+            display: flex;
+            gap: 25px;
+            font-size: 13px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.offline {
+            background-color: var(--red);
+            box-shadow: 0 0 8px var(--red);
+            animation: none;
+        }
+
+        .status-dot.warning {
+            background-color: var(--yellow);
+            box-shadow: 0 0 8px var(--yellow);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 25px;
+            padding: 30px 40px;
+            flex-grow: 1;
+            max-width: 1920px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .control-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .glass-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--card-radius);
+            padding: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            border-color: var(--panel-border-hover);
+            box-shadow: 0 8px 32px 0 rgba(139, 92, 246, 0.08);
+        }
+
+        .glass-card h3 {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 18px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ddd6fe;
+            border-left: 3px solid var(--primary);
+            padding-left: 10px;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .input-text {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: white;
+            font-family: var(--font-sans);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-text:focus {
+            border-color: var(--primary);
+        }
+
+        .select-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: white;
+            font-family: var(--font-sans);
+            font-size: 13px;
+            outline: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary) 0%, #6d28d9 100%);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s ease, transform 0.1s ease, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: #ddd6fe;
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: rgba(139, 92, 246, 0.1);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--red) 0%, #b91c1c 100%);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--green) 0%, #047857 100%);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .range-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .range-slider {
+            flex-grow: 1;
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--primary);
+        }
+
+        .slider-val {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            width: 20px;
+            text-align: right;
+        }
+
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 25px;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        /* Topology SVG Canvas */
+        .topology-box {
+            height: 380px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .topology-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Interactive Tracing Panel */
+        .trace-box {
+            height: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .trace-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .trace-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .trace-step.active {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
+            transform: translateX(4px);
+        }
+
+        .trace-step.completed {
+            border-color: var(--green);
+            background: rgba(16, 185, 129, 0.03);
+        }
+
+        .trace-step-num {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .trace-step.active .trace-step-num {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 8px var(--primary);
+        }
+
+        .trace-step.completed .trace-step-num {
+            background: var(--green);
+            color: white;
+        }
+
+        .trace-step-desc {
+            flex-grow: 1;
+        }
+
+        .trace-step-status {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .trace-step.active .trace-step-status {
+            color: var(--primary);
+        }
+
+        .trace-step.completed .trace-step-status {
+            color: var(--green);
+        }
+
+        /* Scheduler & Reconciliation States */
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1.05fr 0.95fr 1fr;
+            gap: 20px;
+        }
+
+        .status-column {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .status-column h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 6px;
+        }
+
+        .score-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .score-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .score-row-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .score-bar-bg {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .score-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--cyan));
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .scheduler-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .filter-badge {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: var(--text-muted);
+        }
+
+        .filter-badge.passed {
+            color: var(--green);
+            background: rgba(16, 185, 129, 0.08);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .filter-badge.failed {
+            color: var(--red);
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .reconcile-stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .reconcile-stat-label {
+            font-size: 13px;
+        }
+
+        .reconcile-stat-val {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--cyan);
+        }
+
+        /* SVG Micro Charts */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .metric-card-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .metric-card-val {
+            font-size: 20px;
+            font-weight: 800;
+            font-family: var(--font-mono);
+        }
+
+        .micro-chart-box {
+            height: 50px;
+            position: relative;
+            margin-top: 5px;
+        }
+
+        .micro-chart-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Event Timeline and Logs Console */
+        .console-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 25px;
+        }
+
+        .console-card {
+            display: flex;
+            flex-direction: column;
+            height: 220px;
+        }
+
+        .console-box {
+            background: #030209;
+            border: 1px solid rgba(139, 92, 246, 0.15);
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 12px 16px;
+            overflow-y: auto;
+            flex-grow: 1;
+            color: #e4e4e7;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.9);
+        }
+
+        .console-line {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        .console-line.api-server { color: #a78bfa; }
+        .console-line.etcd { color: #f472b6; }
+        .console-line.scheduler { color: #60a5fa; }
+        .console-line.controller-manager { color: #fbbf24; }
+        .console-line.kubelet { color: #34d399; }
+        .console-line.kube-proxy { color: #2dd4bf; }
+        .console-line.error { color: var(--red); font-weight: bold; }
+        .console-line.success { color: var(--green); }
+
+        .timeline-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            overflow-y: auto;
+            flex-grow: 1;
+            background: #030209;
+            border: 1px solid rgba(139, 92, 246, 0.15);
+            border-radius: 8px;
+            padding: 12px 16px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.9);
+        }
+
+        .timeline-item {
+            font-size: 11px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            padding-bottom: 6px;
+            margin-bottom: 2px;
+        }
+
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-meta {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .timeline-reason {
+            font-weight: 700;
+            color: var(--cyan);
+        }
+
+        .timeline-msg {
+            color: #e4e4e7;
+        }
+
+        /* SVG Node & Pod layout styling */
+        .node-rect {
+            fill: rgba(30, 27, 75, 0.4);
+            stroke: rgba(139, 92, 246, 0.3);
+            stroke-width: 1.5;
+            rx: 10px;
+            transition: all 0.3s;
+        }
+
+        .node-rect.notready {
+            fill: rgba(127, 29, 29, 0.2);
+            stroke: rgba(239, 68, 68, 0.4);
+        }
+
+        .node-label {
+            font-family: var(--font-sans);
+            font-size: 11px;
+            font-weight: 700;
+            fill: #fff;
+        }
+
+        .component-circle {
+            fill: #1e1b4b;
+            stroke: var(--primary);
+            stroke-width: 1.5;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .component-circle:hover {
+            stroke: var(--cyan);
+            filter: drop-shadow(0 0 6px var(--cyan-glow));
+        }
+
+        .component-circle.active {
+            fill: #4c1d95;
+            stroke: var(--accent);
+            filter: drop-shadow(0 0 6px var(--accent-glow));
+        }
+
+        .component-circle.failed {
+            fill: #7f1d1d;
+            stroke: var(--red);
+            filter: drop-shadow(0 0 6px var(--red-glow));
+        }
+
+        .component-text {
+            font-family: var(--font-sans);
+            font-size: 9px;
+            font-weight: bold;
+            fill: #e4e4e7;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .pod-bubble {
+            fill: rgba(6, 182, 212, 0.15);
+            stroke: var(--cyan);
+            stroke-width: 1.5;
+            rx: 6px;
+            ry: 6px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .pod-bubble.pending {
+            fill: rgba(245, 158, 11, 0.1);
+            stroke: var(--yellow);
+            stroke-dasharray: 4 2;
+        }
+
+        .pod-text {
+            font-family: var(--font-mono);
+            font-size: 8px;
+            fill: #fff;
+            text-anchor: middle;
+        }
+
+        .flow-line {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.08);
+            stroke-width: 1;
+            stroke-dasharray: 4 4;
+        }
+
+        .flow-line.active {
+            stroke: var(--primary);
+            stroke-width: 2;
+            stroke-dasharray: none;
+            animation: dash 10s linear infinite;
+        }
+
+        .flow-packet {
+            fill: var(--cyan);
+            filter: drop-shadow(0 0 4px var(--cyan-glow));
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -100;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>Kubernetes Control Plane</h1>
+            <span class="tag">Internals Simulator</span>
+        </div>
+        <div class="system-status">
+            <div class="status-item">
+                <span>API Server:</span>
+                <div class="status-dot" id="status-apiserver"></div>
+            </div>
+            <div class="status-item">
+                <span>etcd:</span>
+                <div class="status-dot" id="status-etcd"></div>
+            </div>
+            <div class="status-item">
+                <span>Nodes Online:</span>
+                <strong style="color: var(--cyan);" id="status-nodes">2/2</strong>
+            </div>
+            <div class="status-item">
+                <span>Pods:</span>
+                <strong style="color: var(--primary);" id="status-podcount">0</strong>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        
+        <!-- SIDEBAR CONTROLS -->
+        <div class="control-sidebar">
+            
+            <div class="glass-card">
+                <h3>Workload Deployer</h3>
+                
+                <div class="control-group">
+                    <label class="control-label">Resource Type</label>
+                    <select class="select-input" id="resource-type" onchange="toggleReplicas()">
+                        <option value="Pod">Pod (Single instance)</option>
+                        <option value="Deployment">Deployment (ReplicaSet)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">App Name</label>
+                    <input type="text" class="input-text" id="app-name" value="web-nginx">
+                </div>
+
+                <div class="control-group" id="replicas-group" style="display: none;">
+                    <label class="control-label">Desired Replicas</label>
+                    <div class="range-slider-container">
+                        <input type="range" class="range-slider" id="replica-slider" min="1" max="6" value="3" oninput="updateReplicaLabel(this.value)">
+                        <span class="slider-val" id="replica-val">3</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Node Selector Constraint</label>
+                    <select class="select-input" id="node-selector">
+                        <option value="none">None (Schedule anywhere)</option>
+                        <option value="disk=ssd">disktype=ssd (Worker 1 only)</option>
+                        <option value="disk=hdd">disktype=hdd (Worker 2 only)</option>
+                    </select>
+                </div>
+
+                <button class="btn" id="btn-deploy" onclick="triggerDeploy()">
+                    Apply Configuration
+                </button>
+            </div>
+
+            <div class="glass-card">
+                <h3>Cluster Operations</h3>
+                <div class="control-group" style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn btn-outline" onclick="triggerTrafficSpike()">
+                        Simulate Traffic IPVS / NAT
+                    </button>
+                    <button class="btn btn-outline" onclick="triggerCompaction()">
+                        etcd Database Compaction
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h3>Chaos Engineering</h3>
+                <div class="control-group" style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn btn-danger" id="btn-kill-node-1" onclick="toggleNode(0)">
+                        Crash Worker Node 1
+                    </button>
+                    <button class="btn btn-danger" id="btn-kill-node-2" onclick="toggleNode(1)">
+                        Crash Worker Node 2
+                    </button>
+                    <button class="btn btn-danger" id="btn-fail-apiserver" onclick="toggleApiServer()">
+                        Inject API Server OOM
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MAIN SIMULATION AREA -->
+        <div class="workspace">
+            <!-- Interactive Guided Tour Banner -->
+            <div class="glass-card" style="margin-bottom: 0px; border-color: rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.05); padding: 18px 24px;">
+                <h3 style="margin-bottom: 10px; color: #c084fc; display: flex; align-items: center; gap: 8px; border: none; padding-left: 0;">
+                    <span>💡 Interactive Guided Tour</span>
+                    <span style="font-size: 11px; font-weight: normal; text-transform: none; color: var(--text-muted); letter-spacing: 0;">Click on component circles/cards in the map below to inspect production specs!</span>
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; font-size: 11.5px; line-height: 1.4;">
+                    <div style="border-right: 1px solid rgba(255, 255, 255, 0.05); padding-right: 10px;">
+                        <strong style="color: var(--cyan); display: block; margin-bottom: 2px;">1. Deploy Pods</strong>
+                        Configure selectors in the sidebar and click <strong>Apply</strong>. Watch requests audit through the Auth/Admission pipeline to etcd.
+                    </div>
+                    <div style="border-right: 1px solid rgba(255, 255, 255, 0.05); padding-right: 10px;">
+                        <strong style="color: var(--cyan); display: block; margin-bottom: 2px;">2. Watch Scheduling</strong>
+                        Observe the Scheduler score <i>Worker 1</i> vs <i>Worker 2</i> based on image locality and taints. Look at the filter badges!
+                    </div>
+                    <div style="border-right: 1px solid rgba(255, 255, 255, 0.05); padding-right: 10px;">
+                        <strong style="color: var(--cyan); display: block; margin-bottom: 2px;">3. Simulate Traffic</strong>
+                        Fire a traffic spike. Packets load-balance randomly across Pod IPs via <i>kube-proxy</i> IPVS/IPTables rules.
+                    </div>
+                    <div>
+                        <strong style="color: var(--cyan); display: block; margin-bottom: 2px;">4. Inject Outages</strong>
+                        Crash a Worker Node (heartbeat failure eviction) or Fail the API Server (connection refused, local cache read-only isolation).
+                    </div>
+                </div>
+            </div>
+            
+            <div class="workspace-grid">
+                
+                <!-- Topology Graph -->
+                <div class="topology-box glass-card">
+                    <h3>Active Cluster Topology Map</h3>
+                    <svg class="topology-svg" id="topology-svg" viewBox="0 0 570 380" preserveAspectRatio="xMidYMid meet">
+                        <!-- Connecting Lines -->
+                        <path d="M 120 70 L 120 130" class="flow-line active" id="line-api-etcd"></path>
+                        <path d="M 50 170 C 50 90, 95 90, 95 90" class="flow-line" id="line-sched-api"></path>
+                        <path d="M 190 170 C 190 90, 145 90, 145 90" class="flow-line" id="line-kcm-api"></path>
+                        <path d="M 120 90 L 320 120" class="flow-line" id="line-api-node1"></path>
+                        <path d="M 120 90 L 320 280" class="flow-line" id="line-api-node2"></path>
+
+                        <!-- Control Plane Boundary -->
+                        <rect x="10" y="40" width="220" height="240" fill="rgba(139, 92, 246, 0.03)" stroke="rgba(139, 92, 246, 0.15)" stroke-width="1" rx="8"></rect>
+                        <text x="20" y="55" font-family="var(--font-sans)" font-size="9" fill="var(--primary)" font-weight="bold">CONTROL PLANE</text>
+
+                        <!-- API Server -->
+                        <circle cx="120" cy="90" r="28" class="component-circle active" id="node-apiserver" onclick="inspectComponent('apiserver')"></circle>
+                        <text x="120" y="93" class="component-text">api-server</text>
+
+                        <!-- etcd -->
+                        <circle cx="120" cy="160" r="25" class="component-circle active" id="node-etcd" onclick="inspectComponent('etcd')"></circle>
+                        <text x="120" y="163" class="component-text">etcd</text>
+
+                        <!-- Scheduler -->
+                        <circle cx="50" cy="200" r="22" class="component-circle active" id="node-scheduler" onclick="inspectComponent('scheduler')"></circle>
+                        <text x="50" y="203" class="component-text">scheduler</text>
+
+                        <!-- Controller Manager -->
+                        <circle cx="190" cy="200" r="22" class="component-circle active" id="node-kcm" onclick="inspectComponent('kcm')"></circle>
+                        <text x="190" y="203" class="component-text">k-controller</text>
+
+                        <!-- Worker Node 1 -->
+                        <g id="svg-worker-0">
+                            <rect x="290" y="40" width="250" height="150" class="node-rect" id="rect-node-0" onclick="inspectComponent('kubelet')"></rect>
+                            <text x="300" y="55" class="node-label" onclick="inspectComponent('kubelet')" style="cursor: pointer;">k8s-worker-1 [disktype=ssd]</text>
+                            <circle cx="485" cy="52" r="4" fill="var(--green)" id="dot-node-0"></circle>
+                            <!-- Kubelet Node 1 -->
+                            <circle cx="330" cy="90" r="16" fill="#1e1b4b" stroke="var(--cyan)" stroke-width="1.5" style="cursor: pointer;" id="node-kubelet-0" onclick="inspectComponent('kubelet')"></circle>
+                            <text x="330" y="93" class="component-text">kubelet</text>
+                            <!-- Kube-proxy Node 1 -->
+                            <circle cx="330" cy="140" r="16" fill="#1e1b4b" stroke="var(--cyan)" stroke-width="1.5" style="cursor: pointer;" id="node-proxy-0" onclick="inspectComponent('proxy')"></circle>
+                            <text x="330" y="143" class="component-text">k-proxy</text>
+                        </g>
+
+                        <!-- Worker Node 2 -->
+                        <g id="svg-worker-1">
+                            <rect x="290" y="210" width="250" height="150" class="node-rect" id="rect-node-1" onclick="inspectComponent('kubelet')"></rect>
+                            <text x="300" y="225" class="node-label" onclick="inspectComponent('kubelet')" style="cursor: pointer;">k8s-worker-2 [disktype=hdd]</text>
+                            <circle cx="485" cy="222" r="4" fill="var(--green)" id="dot-node-1"></circle>
+                            <!-- Kubelet Node 2 -->
+                            <circle cx="330" cy="260" r="16" fill="#1e1b4b" stroke="var(--cyan)" stroke-width="1.5" style="cursor: pointer;" id="node-kubelet-1" onclick="inspectComponent('kubelet')"></circle>
+                            <text x="330" y="263" class="component-text">kubelet</text>
+                            <!-- Kube-proxy Node 2 -->
+                            <circle cx="330" cy="310" r="16" fill="#1e1b4b" stroke="var(--cyan)" stroke-width="1.5" style="cursor: pointer;" id="node-proxy-1" onclick="inspectComponent('proxy')"></circle>
+                            <text x="330" y="313" class="component-text">k-proxy</text>
+                        </g>
+
+                        <!-- Animated Packet -->
+                        <circle cx="0" cy="0" r="5" class="flow-packet" id="packet" style="display: none;"></circle>
+                    </svg>
+                </div>
+
+                <!-- API Request Lifecyle Trace -->
+                <div class="trace-box glass-card">
+                    <h3>API Request Lifecycle Tracer</h3>
+                    <div class="trace-steps">
+                        <div class="trace-step" id="step-auth">
+                            <div class="trace-step-num">1</div>
+                            <div class="trace-step-desc">
+                                <strong>Authentication (AuthN)</strong>
+                                <p style="font-size: 10px; color: var(--text-muted);">Validate Client Certificate / Token</p>
+                            </div>
+                            <div class="trace-step-status" id="status-step-auth">-</div>
+                        </div>
+
+                        <div class="trace-step" id="step-authz">
+                            <div class="trace-step-num">2</div>
+                            <div class="trace-step-desc">
+                                <strong>Authorization (AuthZ)</strong>
+                                <p style="font-size: 10px; color: var(--text-muted);">Inspect RBAC User/Verb permissions</p>
+                            </div>
+                            <div class="trace-step-status" id="status-step-authz">-</div>
+                        </div>
+
+                        <div class="trace-step" id="step-mutate">
+                            <div class="trace-step-num">3</div>
+                            <div class="trace-step-desc">
+                                <strong>Mutating Admission Webhooks</strong>
+                                <p style="font-size: 10px; color: var(--text-muted);">Inject Sidecars, environment presets</p>
+                            </div>
+                            <div class="trace-step-status" id="status-step-mutate">-</div>
+                        </div>
+
+                        <div class="trace-step" id="step-validate">
+                            <div class="trace-step-num">4</div>
+                            <div class="trace-step-desc">
+                                <strong>Schema Validation & Policy checks</strong>
+                                <p style="font-size: 10px; color: var(--text-muted);">Syntax checking & Validating Webhooks</p>
+                            </div>
+                            <div class="trace-step-status" id="status-step-validate">-</div>
+                        </div>
+
+                        <div class="trace-step" id="step-etcd">
+                            <div class="trace-step-num">5</div>
+                            <div class="trace-step-desc">
+                                <strong>etcd Database Persistence</strong>
+                                <p style="font-size: 10px; color: var(--text-muted);">Protobuf representation committed</p>
+                            </div>
+                            <div class="trace-step-status" id="status-step-etcd">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduler, Reconciliation & Component Inspector States -->
+                <div class="full-width status-grid">
+                    <!-- Scheduler scoring panel -->
+                    <div class="status-column">
+                        <h4>Scheduler Decision scoring</h4>
+                        <div class="score-list">
+                            <div class="score-row">
+                                <div class="score-row-labels">
+                                    <span>Worker Node 1</span>
+                                    <strong id="score-node-0">0%</strong>
+                                </div>
+                                <div class="score-bar-bg">
+                                    <div class="score-bar" id="score-bar-0"></div>
+                                </div>
+                                <div class="scheduler-filters" id="filters-node-0">
+                                    <span class="filter-badge">CPUFit</span>
+                                    <span class="filter-badge">MemFit</span>
+                                    <span class="filter-badge">Taints</span>
+                                </div>
+                            </div>
+                            <div class="score-row">
+                                <div class="score-row-labels">
+                                    <span>Worker Node 2</span>
+                                    <strong id="score-node-1">0%</strong>
+                                </div>
+                                <div class="score-bar-bg">
+                                    <div class="score-bar" id="score-bar-1"></div>
+                                </div>
+                                <div class="scheduler-filters" id="filters-node-1">
+                                    <span class="filter-badge">CPUFit</span>
+                                    <span class="filter-badge">MemFit</span>
+                                    <span class="filter-badge">Taints</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Controller Reconciliation Stats -->
+                    <div class="status-column">
+                        <h4>Controller desired-state check</h4>
+                        <div class="reconcile-stat-row" style="margin-bottom: 8px;">
+                            <span class="reconcile-stat-label">Desired Replicas:</span>
+                            <span class="reconcile-stat-val" id="stat-desired" style="font-size: 15px;">-</span>
+                        </div>
+                        <div class="reconcile-stat-row" style="margin-bottom: 8px;">
+                            <span class="reconcile-stat-label">Actual Pods:</span>
+                            <span class="reconcile-stat-val" id="stat-actual" style="font-size: 15px;">-</span>
+                        </div>
+                        <div class="reconcile-stat-row" style="margin-bottom: 0;">
+                            <span class="reconcile-stat-label">Sync Delta:</span>
+                            <span class="reconcile-stat-val" id="stat-delta" style="color: var(--yellow); font-size: 15px;">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Component Inspector Details -->
+                    <div class="status-column" style="border-color: rgba(6, 182, 212, 0.3); display: flex; flex-direction: column;">
+                        <h4 style="color: var(--cyan); border-bottom-color: rgba(6, 182, 212, 0.15);">Component Inspector</h4>
+                        <div id="inspector-placeholder" style="font-size: 11.5px; color: var(--text-muted); text-align: center; padding-top: 15px; flex-grow: 1; display: flex; align-items: center; justify-content: center; line-height: 1.4;">
+                            Click any node or component in the Topology Map above to inspect its architecture.
+                        </div>
+                        <div id="inspector-content" style="display: none; font-size: 11.5px; flex-direction: column; gap: 8px; flex-grow: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 4px;">
+                                <strong style="font-size: 13px; color: #fff;" id="inspect-title">-</strong>
+                                <span class="filter-badge passed" id="inspect-port" style="font-size: 8.5px;">PORT: -</span>
+                            </div>
+                            <div>
+                                <span id="inspect-desc" style="color: var(--text-muted); line-height: 1.3; display: block;">-</span>
+                            </div>
+                            <div style="background: rgba(239, 68, 68, 0.04); padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.12); line-height: 1.3;">
+                                <strong style="color: #fca5a5; font-size: 9.5px; text-transform: uppercase; display: block; margin-bottom: 1px;">⚠️ Production Bottleneck</strong>
+                                <span id="inspect-bottleneck" style="color: #fecaca; font-size: 11px;">-</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                                <strong style="color: var(--text-muted); font-size: 9.5px; text-transform: uppercase;">🔧 Key CLI Flag:</strong>
+                                <code id="inspect-flag" style="font-family: var(--font-mono); font-size: 10px; color: var(--cyan); background: rgba(0, 0, 0, 0.3); padding: 1px 4px; border-radius: 4px; display: inline-block;">-</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Graphs -->
+                <div class="full-width metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-card-header">
+                            <span>API Server request rate</span>
+                            <span style="color: var(--cyan);">active-active</span>
+                        </div>
+                        <div class="metric-card-val" id="metric-api-rate">0 req/s</div>
+                        <div class="micro-chart-box">
+                            <svg class="micro-chart-svg" id="chart-api-svg" viewBox="0 0 170 50" preserveAspectRatio="none">
+                                <path d="" fill="none" stroke="var(--cyan)" stroke-width="2" id="path-api-chart"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-card-header">
+                            <span>etcd Disk Write Latency</span>
+                            <span style="color: var(--accent);">fdatasync (p99)</span>
+                        </div>
+                        <div class="metric-card-val" id="metric-etcd-lat">1.1 ms</div>
+                        <div class="micro-chart-box">
+                            <svg class="micro-chart-svg" id="chart-etcd-svg" viewBox="0 0 170 50" preserveAspectRatio="none">
+                                <path d="" fill="none" stroke="var(--accent)" stroke-width="2" id="path-etcd-chart"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Timeline & Logs Panel -->
+                <div class="full-width console-grid">
+                    <!-- Logs Console -->
+                    <div class="console-card">
+                        <h4 style="font-size: 11px; text-transform: uppercase; margin-bottom: 8px; color: var(--text-muted); letter-spacing: 0.5px;">Live Components Logs Panel</h4>
+                        <div class="console-box" id="logs-box">
+                            <div class="console-line success">[system] Cluster bootstrapped. Ready for application deployments.</div>
+                        </div>
+                    </div>
+                    <!-- Event Timeline -->
+                    <div class="console-card">
+                        <h4 style="font-size: 11px; text-transform: uppercase; margin-bottom: 8px; color: var(--text-muted); letter-spacing: 0.5px;">Cluster Events Timeline (get events)</h4>
+                        <div class="timeline-box" id="events-box">
+                            <div class="timeline-item">
+                                <div class="timeline-meta">
+                                    <span class="timeline-reason">ClusterStarted</span>
+                                    <span>Just now</span>
+                                </div>
+                                <div class="timeline-msg">Control Plane components initialized successfully.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Simulation Engine Logic -->
+    <script>
+        // Global Cluster State
+        const state = {
+            apiServer: { status: 'READY' },
+            etcd: { status: 'READY' },
+            nodes: [
+                { name: 'k8s-worker-1', status: 'Ready', disk: 'ssd', taints: [], pods: [] },
+                { name: 'k8s-worker-2', status: 'Ready', disk: 'hdd', taints: [], pods: [] }
+            ],
+            deployments: [],
+            pendingQueue: [],
+            activeRequest: null,
+            metrics: {
+                apiRateHistory: Array(20).fill(0),
+                etcdLatHistory: Array(20).fill(1.2)
+            }
+        };
+
+        // UI Initialization
+        function toggleReplicas() {
+            const type = document.getElementById('resource-type').value;
+            const repGroup = document.getElementById('replicas-group');
+            if (type === 'Deployment') {
+                repGroup.style.display = 'block';
+            } else {
+                repGroup.style.display = 'none';
+            }
+        }
+
+        function updateReplicaLabel(val) {
+            document.getElementById('replica-val').innerText = val;
+        }
+
+        // Live Log Dispatcher
+        function log(component, message, type = 'info') {
+            const box = document.getElementById('logs-box');
+            const line = document.createElement('div');
+            line.className = `console-line ${component} ${type === 'error' ? 'error' : ''}`;
+            const time = new Date().toLocaleTimeString();
+            line.innerHTML = `[${time}] [${component}] ${message}`;
+            box.appendChild(line);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // Event Timeline Dispatcher
+        function emitEvent(reason, message) {
+            const box = document.getElementById('events-box');
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+            const time = new Date().toLocaleTimeString();
+            item.innerHTML = `
+                <div class="timeline-meta">
+                    <span class="timeline-reason">${reason}</span>
+                    <span>${time}</span>
+                </div>
+                <div class="timeline-msg">${message}</div>
+            `;
+            box.appendChild(item);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // Helper: sleep/timeout wrapper
+        const wait = ms => new Promise(res => setTimeout(res, ms));
+
+        // Animate request packet inside SVG topology
+        async function animatePacket(startX, startY, endX, endY) {
+            const packet = document.getElementById('packet');
+            packet.setAttribute('cx', startX);
+            packet.setAttribute('cy', startY);
+            packet.style.display = 'block';
+            
+            const duration = 12; // animation frames
+            let step = 0;
+            return new Promise((resolve) => {
+                const interval = setInterval(() => {
+                    step++;
+                    const progress = step / duration;
+                    const curX = startX + (endX - startX) * progress;
+                    const curY = startY + (endY - startY) * progress;
+                    packet.setAttribute('cx', curX);
+                    packet.setAttribute('cy', curY);
+                    
+                    if (step >= duration) {
+                        clearInterval(interval);
+                        packet.style.display = 'none';
+                        resolve();
+                    }
+                }, 40);
+            });
+        }
+
+        // API Server Step Tracer Highlight
+        function resetTrace() {
+            const steps = ['auth', 'authz', 'mutate', 'validate', 'etcd'];
+            steps.forEach(id => {
+                const el = document.getElementById(`step-${id}`);
+                el.className = 'trace-step';
+                document.getElementById(`status-step-${id}`).innerText = '-';
+            });
+        }
+
+        async function traceStep(id, status, type = 'active') {
+            const el = document.getElementById(`step-${id}`);
+            el.className = `trace-step ${type}`;
+            document.getElementById(`status-step-${id}`).innerText = status;
+        }
+
+        // Triggers the deployment of a pod or deployment
+        async function triggerDeploy() {
+            if (state.apiServer.status !== 'READY') {
+                log('api-server', 'CRITICAL: REST Gateway Timeout: Connection Refused (OOM State)', 'error');
+                emitEvent('ConnectionRefused', 'Kubectl apply failed: API Server is offline.');
+                return;
+            }
+
+            const type = document.getElementById('resource-type').value;
+            const name = document.getElementById('app-name').value;
+            const nodeSel = document.getElementById('node-selector').value;
+            
+            resetTrace();
+            
+            // 1. API authentication
+            await traceStep('auth', 'Authenticating...', 'active');
+            log('api-server', `Client (kubectl) connected. Requesting client auth checks.`);
+            await wait(600);
+            await traceStep('auth', '200 OK (User: system:admin)', 'completed');
+
+            // 2. API authorization
+            await traceStep('authz', 'Evaluating RBAC...', 'active');
+            log('api-server', `Authorizing client: Verb [create], Resource [${type.toLowerCase()}]`);
+            await wait(600);
+            await traceStep('authz', 'Authorized', 'completed');
+
+            // 3. Mutating Admission
+            await traceStep('mutate', 'Interacting Webhooks...', 'active');
+            log('api-server', 'Calling Mutating Webhooks (injecting resource defaults)...');
+            await wait(600);
+            await traceStep('mutate', 'Mutated (Limits Injected)', 'completed');
+
+            // 4. Schema Validation
+            await traceStep('validate', 'Validating syntax...', 'active');
+            log('api-server', 'Verifying object schemas and checking validating webhooks...');
+            await wait(600);
+            await traceStep('validate', 'Valid', 'completed');
+
+            // 5. etcd persistence
+            await traceStep('etcd', 'Writing keys...', 'active');
+            log('etcd', `Raft append: Requesting consensus to store ${type} "${name}"`);
+            await animatePacket(120, 90, 120, 160);
+            await wait(500);
+            await traceStep('etcd', 'Committed Revision ' + Math.floor(Math.random() * 50 + 100), 'completed');
+            log('api-server', `Persisted /registry/${type.toLowerCase()}s/default/${name}. Returning 201 Created.`);
+
+            emitEvent('Created', `Created ${type} "${name}" object schema.`);
+
+            if (type === 'Pod') {
+                state.pendingQueue.push({
+                    name: name,
+                    type: 'Pod',
+                    nodeSelector: nodeSel,
+                    uid: Math.floor(Math.random() * 1000)
+                });
+                runScheduler();
+            } else {
+                const replicas = parseInt(document.getElementById('replica-slider').value);
+                state.deployments.push({
+                    name: name,
+                    desired: replicas,
+                    actual: 0,
+                    nodeSelector: nodeSel
+                });
+                runControllerManager();
+            }
+        }
+
+        // ReplicaSet Controller Manager Logic
+        async function runControllerManager() {
+            log('controller-manager', 'Informer watch triggered: Deployment event.');
+            
+            for (let deploy of state.deployments) {
+                document.getElementById('stat-desired').innerText = deploy.desired;
+                document.getElementById('stat-actual').innerText = deploy.actual;
+                
+                const delta = deploy.desired - deploy.actual;
+                document.getElementById('stat-delta').innerText = delta;
+
+                if (delta > 0) {
+                    log('controller-manager', `Scale deficit detected for "${deploy.name}". Desired: ${deploy.desired}, Actual: ${deploy.actual}. Delta: +${delta}`);
+                    emitEvent('ScalingReplicaSet', `Scaling deployment ${deploy.name} up to ${deploy.desired} (Delta: +${delta})`);
+                    
+                    for (let i = 0; i < delta; i++) {
+                        const podId = Math.random().toString(36).substring(7);
+                        state.pendingQueue.push({
+                            name: `${deploy.name}-${podId}`,
+                            type: 'Pod',
+                            nodeSelector: deploy.nodeSelector,
+                            uid: Math.floor(Math.random() * 1000),
+                            deployRef: deploy
+                        });
+                    }
+                }
+            }
+            runScheduler();
+        }
+
+        // Scheduler Filtering & Scoring Engine
+        async function runScheduler() {
+            if (state.pendingQueue.length === 0) return;
+            
+            log('scheduler', 'Running schedule sweep queue. Pending count: ' + state.pendingQueue.length);
+            
+            while (state.pendingQueue.length > 0) {
+                const pod = state.pendingQueue.shift();
+                log('scheduler', `Evaluating node fits for pod "${pod.name}"`);
+
+                let scores = [0, 0];
+                let filterChecks = [
+                    { cpu: true, mem: true, taint: true },
+                    { cpu: true, mem: true, taint: true }
+                ];
+
+                for (let i = 0; i < 2; i++) {
+                    const node = state.nodes[i];
+                    
+                    // Filter 1: Node status NotReady check
+                    if (node.status !== 'Ready') {
+                        filterChecks[i].cpu = false;
+                        filterChecks[i].mem = false;
+                        filterChecks[i].taint = false;
+                        scores[i] = 0;
+                        continue;
+                    }
+
+                    // Filter 2: Node Selector match
+                    if (pod.nodeSelector === 'disk=ssd' && node.disk !== 'ssd') {
+                        filterChecks[i].taint = false; // selector fail
+                        scores[i] = 0;
+                        continue;
+                    }
+                    if (pod.nodeSelector === 'disk=hdd' && node.disk !== 'hdd') {
+                        filterChecks[i].taint = false; // selector fail
+                        scores[i] = 0;
+                        continue;
+                    }
+
+                    // Simulate basic image locality prioritization
+                    scores[i] = i === 0 ? 80 : 65; // Worker 1 has image locality advantage usually
+                }
+
+                // Render scheduler UI details
+                updateSchedulerUI(scores, filterChecks);
+                await wait(1000);
+
+                // Bind choice
+                let chosenNodeIndex = -1;
+                if (scores[0] > scores[1] && scores[0] > 0) chosenNodeIndex = 0;
+                else if (scores[1] > scores[0] && scores[1] > 0) chosenNodeIndex = 1;
+                else if (scores[0] === scores[1] && scores[0] > 0) chosenNodeIndex = Math.floor(Math.random() * 2);
+
+                if (chosenNodeIndex === -1) {
+                    log('scheduler', `CRITICAL: Failed to schedule pod "${pod.name}". Insufficient resource filters.`, 'error');
+                    emitEvent('FailedScheduling', `Pod ${pod.name} fits no available nodes.`);
+                    // put back to queue or discard
+                    continue;
+                }
+
+                const chosenNode = state.nodes[chosenNodeIndex];
+                log('scheduler', `Binding Pod "${pod.name}" to node ${chosenNode.name} (Score: ${scores[chosenNodeIndex]}%)`);
+                
+                // Write Binding back to API Server
+                log('api-server', `Writing Binding: pod "${pod.name}" -> node "${chosenNode.name}"`);
+                await animatePacket(50, 200, 120, 90);
+                
+                pod.nodeName = chosenNode.name;
+                chosenNode.pods.push(pod);
+                
+                emitEvent('Scheduled', `Successfully assigned ${pod.name} to ${chosenNode.name}`);
+                
+                // Trigger Kubelet Pod runner loop
+                runKubelet(pod, chosenNodeIndex);
+            }
+        }
+
+        function updateSchedulerUI(scores, filters) {
+            for (let i = 0; i < 2; i++) {
+                document.getElementById(`score-node-${i}`).innerText = scores[i] + '%';
+                document.getElementById(`score-bar-${i}`).style.width = scores[i] + '%';
+
+                const badges = document.getElementById(`filters-node-${i}`).children;
+                badges[0].className = 'filter-badge ' + (filters[i].cpu ? 'passed' : 'failed');
+                badges[1].className = 'filter-badge ' + (filters[i].mem ? 'passed' : 'failed');
+                badges[2].className = 'filter-badge ' + (filters[i].taint ? 'passed' : 'failed');
+            }
+        }
+
+        // Node Kubelet Running Container Sequence
+        async function runKubelet(pod, nodeIndex) {
+            const node = state.nodes[nodeIndex];
+            log(`kubelet`, `[${node.name}] Detected assigned Pod "${pod.name}". Initiating launch sequence.`);
+            
+            // 1. Mount CSI volumes
+            log(`kubelet`, `[${node.name}] CSI mounting host storage layers...`);
+            await wait(600);
+
+            // 2. CRI sandbox creation
+            log(`kubelet`, `[${node.name}] CRI gRPC: RunPodSandbox`);
+            await wait(600);
+
+            // 3. CNI network integration
+            log(`kubelet`, `[${node.name}] CNI configuring network interface card & pod IP allocation`);
+            pod.ip = `10.244.${nodeIndex + 1}.${Math.floor(Math.random() * 250 + 4)}`;
+            await wait(600);
+
+            // 4. Launch Container
+            log(`kubelet`, `[${node.name}] containerd: Pulling & starting container tag nginx:alpine`);
+            await wait(600);
+
+            pod.status = 'Running';
+            log(`kubelet`, `[${node.name}] Container started successfully. Reporting RUNNING to API Server.`);
+            
+            // Patch Status
+            await animatePacket(330, nodeIndex === 0 ? 90 : 260, 120, 90);
+            
+            // Increment deployment counter if deployment-backed
+            if (pod.deployRef) {
+                pod.deployRef.actual++;
+                document.getElementById('stat-actual').innerText = pod.deployRef.actual;
+                document.getElementById('stat-delta').innerText = pod.deployRef.desired - pod.deployRef.actual;
+            }
+
+            renderClusterMap();
+        }
+
+        // Rendering logic for SVG topology
+        function renderClusterMap() {
+            const svg = document.getElementById('topology-svg');
+            
+            // Clear existing pods (remove old g tags representing pods)
+            const oldPods = svg.querySelectorAll('.pod-group');
+            oldPods.forEach(el => el.remove());
+
+            // Render Pod bubbles for Node 1
+            state.nodes[0].pods.forEach((pod, index) => {
+                const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                group.setAttribute('class', 'pod-group');
+                
+                const col = index % 3;
+                const row = Math.floor(index / 3);
+                const x = 370 + col * 55;
+                const y = 80 + row * 45;
+
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', '50');
+                rect.setAttribute('height', '30');
+                rect.setAttribute('class', 'pod-bubble');
+                rect.addEventListener('click', () => deletePod(pod));
+
+                const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                txt.setAttribute('x', x + 25);
+                txt.setAttribute('y', y + 17);
+                txt.setAttribute('class', 'pod-text');
+                txt.textContent = pod.name.substring(0, 8);
+
+                group.appendChild(rect);
+                group.appendChild(txt);
+                svg.appendChild(group);
+            });
+
+            // Render Pod bubbles for Node 2
+            state.nodes[1].pods.forEach((pod, index) => {
+                const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                group.setAttribute('class', 'pod-group');
+                
+                const col = index % 3;
+                const row = Math.floor(index / 3);
+                const x = 370 + col * 55;
+                const y = 250 + row * 45;
+
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', '50');
+                rect.setAttribute('height', '30');
+                rect.setAttribute('class', 'pod-bubble');
+                rect.addEventListener('click', () => deletePod(pod));
+
+                const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                txt.setAttribute('x', x + 25);
+                txt.setAttribute('y', y + 17);
+                txt.setAttribute('class', 'pod-text');
+                txt.textContent = pod.name.substring(0, 8);
+
+                group.appendChild(rect);
+                group.appendChild(txt);
+                svg.appendChild(group);
+            });
+
+            const count = state.nodes[0].pods.length + state.nodes[1].pods.length;
+            document.getElementById('status-podcount').innerText = count;
+        }
+
+        // Delete pod (simulating manual delete or scaling events)
+        async function deletePod(pod) {
+            log('api-server', `Received delete request for Pod "${pod.name}"`);
+            emitEvent('Killing', `Deleting pod ${pod.name} from resource registry.`);
+            
+            // Remove from nodes
+            state.nodes.forEach(node => {
+                const i = node.pods.indexOf(pod);
+                if (i > -1) {
+                    node.pods.splice(i, 1);
+                    log('kubelet', `[${node.name}] Stopping containers & releasing interfaces for "${pod.name}"`);
+                }
+            });
+
+            if (pod.deployRef) {
+                pod.deployRef.actual--;
+                runControllerManager();
+            }
+
+            renderClusterMap();
+        }
+
+        // Chaos: Toggle Node Online/Offline (Docker Stop simulation)
+        async function toggleNode(index) {
+            const node = state.nodes[index];
+            const rect = document.getElementById(`rect-node-${index}`);
+            const dot = document.getElementById(`dot-node-${index}`);
+            const btn = document.getElementById(`btn-kill-node-${index + 1}`);
+
+            if (node.status === 'Ready') {
+                node.status = 'NotReady';
+                rect.setAttribute('class', 'node-rect notready');
+                dot.setAttribute('fill', 'var(--red)');
+                btn.innerText = `Boot Worker Node ${index + 1}`;
+                btn.className = 'btn btn-success';
+                
+                log('system', `CRITICAL: Worker Node "${node.name}" crashed. Heartbeats stopped.`, 'error');
+                emitEvent('NodeNotReady', `Worker node ${node.name} status changed to NotReady.`);
+
+                // Node eviction timeline (Grace period)
+                log('controller-manager', `Node Lifecycle Controller: Started eviction grace timer (10s simulated) for "${node.name}"`);
+                await wait(10000);
+
+                if (node.status === 'NotReady') {
+                    log('controller-manager', `Eviction timer expired. Evicting pods on node "${node.name}"`);
+                    
+                    const podsToEvict = [...node.pods];
+                    node.pods = [];
+                    
+                    podsToEvict.forEach(pod => {
+                        emitEvent('Evicted', `Pod ${pod.name} evicted from dead node ${node.name}`);
+                        if (pod.deployRef) {
+                            pod.deployRef.actual--;
+                        }
+                    });
+
+                    renderClusterMap();
+                    
+                    if (podsToEvict.some(p => p.deployRef)) {
+                        runControllerManager();
+                    }
+                }
+            } else {
+                node.status = 'Ready';
+                rect.setAttribute('class', 'node-rect');
+                dot.setAttribute('fill', 'var(--green)');
+                btn.innerText = `Crash Worker Node ${index + 1}`;
+                btn.className = 'btn btn-danger';
+                
+                log('system', `Worker Node "${node.name}" has returned online. Kubelet connected.`, 'success');
+                emitEvent('NodeReady', `Worker node ${node.name} status is now Ready.`);
+            }
+        }
+
+        // Chaos: Toggle API Server (OOM simulation)
+        function toggleApiServer() {
+            const btn = document.getElementById('btn-fail-apiserver');
+            const dot = document.getElementById('status-apiserver');
+            const nodeEl = document.getElementById('node-apiserver');
+
+            if (state.apiServer.status === 'READY') {
+                state.apiServer.status = 'FAILED';
+                btn.innerText = 'Recover API Server';
+                btn.className = 'btn btn-success';
+                dot.className = 'status-dot offline';
+                nodeEl.setAttribute('class', 'component-circle failed');
+                log('system', 'FATAL: API Server crash detected: Out of memory (OOMKilled)', 'error');
+                emitEvent('ControlPlaneCrash', 'kube-apiserver is offline. Connection refused.');
+            } else {
+                state.apiServer.status = 'READY';
+                btn.innerText = 'Inject API Server OOM';
+                btn.className = 'btn btn-danger';
+                dot.className = 'status-dot';
+                nodeEl.setAttribute('class', 'component-circle active');
+                log('system', 'Control Plane recovered. API Server exposed on port 6443.', 'success');
+                emitEvent('ControlPlaneRestored', 'kube-apiserver recovered and running.');
+            }
+        }
+
+        // Ops: Simulate traffic spike (kube-proxy IPVS routing)
+        async function triggerTrafficSpike() {
+            if (state.apiServer.status !== 'READY') return;
+
+            const allRunningPods = [];
+            state.nodes.forEach(n => {
+                n.pods.forEach(p => {
+                    if (p.status === 'Running') allRunningPods.push(p);
+                });
+            });
+
+            if (allRunningPods.length === 0) {
+                log('kube-proxy', 'No healthy endpoints backing the Service mapping table.', 'error');
+                return;
+            }
+
+            log('kube-proxy', 'Traffic spike initiated. Ingress routing mappings loaded (IPVS mode active).');
+            
+            for (let i = 0; i < 6; i++) {
+                // Select pod using statistics probability (random choice)
+                const targetPod = allRunningPods[Math.floor(Math.random() * allRunningPods.length)];
+                const nodeIndex = state.nodes[0].pods.includes(targetPod) ? 0 : 1;
+                
+                log('kube-proxy', `Route packet -> ClusterIP (10.96.128.44:80) -> NAT -> Pod IP (${targetPod.ip}:8080)`);
+                
+                const targetY = nodeIndex === 0 ? 90 : 260;
+                animatePacket(120, 90, 330, targetY);
+                await wait(400);
+            }
+        }
+
+        // Ops: etcd Database Compaction
+        function triggerCompaction() {
+            log('etcd', 'Compaction triggered. Discarding historical revision metadata log segments.');
+            log('etcd', 'Defragmenting database tables to recover storage blocks on disk.');
+            emitEvent('etcdCompacted', 'Database compacted and memory pages defragmented.');
+        }
+
+        // Status update loops for chart rendering
+        let reqCount = 0;
+        setInterval(() => {
+            // Random fluctuations in requests rates
+            let rate = Math.floor(Math.random() * 20);
+            if (state.apiServer.status === 'FAILED') rate = 0;
+            
+            state.metrics.apiRateHistory.push(rate);
+            state.metrics.apiRateHistory.shift();
+            
+            document.getElementById('metric-api-rate').innerText = rate + ' req/s';
+            
+            let latency = (Math.random() * 1.5 + 0.5).toFixed(1);
+            if (state.apiServer.status === 'FAILED') latency = '0.0';
+            
+            state.metrics.etcdLatHistory.push(parseFloat(latency));
+            state.metrics.etcdLatHistory.shift();
+            
+            document.getElementById('metric-etcd-lat').innerText = latency + ' ms';
+            
+            renderCharts();
+        }, 1500);
+
+        function renderCharts() {
+            // Draw API Chart
+            const apiPath = document.getElementById('path-api-chart');
+            let dApi = '';
+            state.metrics.apiRateHistory.forEach((val, index) => {
+                const x = (index * 8.5).toFixed(1);
+                const y = (50 - (val / 40) * 50).toFixed(1);
+                dApi += `${index === 0 ? 'M' : 'L'} ${x} ${y} `;
+            });
+            apiPath.setAttribute('d', dApi);
+
+            // Draw etcd Chart
+            const etcdPath = document.getElementById('path-etcd-chart');
+            let dEtcd = '';
+            state.metrics.etcdLatHistory.forEach((val, index) => {
+                const x = (index * 8.5).toFixed(1);
+                const y = (50 - (val / 3) * 50).toFixed(1);
+                dEtcd += `${index === 0 ? 'M' : 'L'} ${x} ${y} `;
+            });
+            etcdPath.setAttribute('d', dEtcd);
+        }
+
+        // Component Inspector Database
+        const componentDetails = {
+            apiserver: {
+                title: 'kube-apiserver',
+                port: '6443',
+                desc: 'The stateless gatekeeper of the control plane. Processes REST requests, handles authentication (AuthN) / authorization (AuthZ), and runs mutating/validating admission webhooks before persisting objects to etcd.',
+                bottleneck: 'CPU spikes during mass client watch reconnection storms; APF queue overflows under controller load loops.',
+                flag: '--max-requests-in-flight / --enable-admission-plugins'
+            },
+            etcd: {
+                title: 'etcd database',
+                port: '2379',
+                desc: 'Strongly consistent, distributed MVCC key-value database using Raft consensus. Serves as the single source of truth for the entire cluster state.',
+                bottleneck: '8GB hard quota limitation triggering read-only lockdowns; disk fdatasync WAL write delays causing leader loss.',
+                flag: '--quota-backend-bytes / --etcd-compaction-interval'
+            },
+            scheduler: {
+                title: 'kube-scheduler',
+                port: '10259',
+                desc: 'Assigns unscheduled pods to nodes. It runs a filtering phase to check resource fit, followed by priority scoring matching image locality and spreads.',
+                bottleneck: 'Linear evaluation times scanning every node in massive clusters, causing scheduling backlogs.',
+                flag: '--percentage-of-nodes-to-score'
+            },
+            kcm: {
+                title: 'kube-controller-manager',
+                port: '10257',
+                desc: 'Runs the core reconciliation loops (Deployment, ReplicaSet, Node Lifecycle). Continuously evaluates actual state vs desired state.',
+                bottleneck: 'Control loop sync latency under heavy load; Informer memory exhaustion caching large namespaces.',
+                flag: '--concurrent-deployment-syncs'
+            },
+            kubelet: {
+                title: 'kubelet (Node Agent)',
+                port: '10250',
+                desc: 'Host agent running on each node. Directs the Container Runtime (CRI), Network plugins (CNI), and Storage drivers (CSI) to run containers.',
+                bottleneck: 'Disk space exhaustion triggering eviction; CPU limits throttling pod startup processes.',
+                flag: '--static-pod-path / --eviction-hard'
+            },
+            proxy: {
+                title: 'kube-proxy',
+                port: '10256',
+                desc: 'Manages networking services on host nodes. Rewrites routing tables (IPTables or IPVS) to direct ClusterIP service packets to actual pod IPs.',
+                bottleneck: 'Sequential evaluation lookup latency in legacy IPTables mode in large clusters.',
+                flag: '--proxy-mode=ipvs'
+            }
+        };
+
+        function inspectComponent(name) {
+            const details = componentDetails[name];
+            if (!details) return;
+
+            // Update details panel
+            document.getElementById('inspector-placeholder').style.display = 'none';
+            const content = document.getElementById('inspector-content');
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+
+            document.getElementById('inspect-title').innerText = details.title;
+            document.getElementById('inspect-port').innerText = 'PORT: ' + details.port;
+            document.getElementById('inspect-desc').innerText = details.desc;
+            document.getElementById('inspect-bottleneck').innerText = details.bottleneck;
+            document.getElementById('inspect-flag').innerText = details.flag;
+
+            // Highlight in SVG
+            const allCircles = document.querySelectorAll('.component-circle');
+            allCircles.forEach(el => {
+                const isTarget = el.id === 'node-' + name || 
+                                 (name === 'kubelet' && el.id.startsWith('node-kubelet')) || 
+                                 (name === 'proxy' && el.id.startsWith('node-proxy'));
+                if (isTarget) {
+                    el.style.stroke = 'var(--cyan)';
+                    el.style.strokeWidth = '3px';
+                } else {
+                    const isControl = el.id === 'node-apiserver' || el.id === 'node-etcd' || el.id === 'node-scheduler' || el.id === 'node-kcm';
+                    el.style.stroke = isControl ? 'var(--primary)' : 'var(--cyan)';
+                    el.style.strokeWidth = '1.5px';
+                }
+            });
+
+            log('system', `Inspector: Loaded architectural specs for component: ${details.title}`);
+        }
+
+        // Run UI Boot
+        toggleReplicas();
+        renderCharts();
+    </script>
+</body>
+</html>
