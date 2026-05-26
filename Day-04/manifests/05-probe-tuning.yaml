@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probed-service
+  namespace: default
+  labels:
+    app: tuned-app
+spec:
+  containers:
+    - name: api-server
+      image: nginxinc/nginx-unprivileged:alpine
+      ports:
+        - containerPort: 8080
+          name: http
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
+      
+      # Startup Probe: Protects long-starting apps. 
+      # When active, it disables liveness and readiness checks until it succeeds.
+      startupProbe:
+        httpGet:
+          path: /
+          port: 8080
+        # 10s * 3 = 30s maximum allowed startup time before failure
+        failureThreshold: 3
+        periodSeconds: 10
+        timeoutSeconds: 2
+      
+      # Liveness Probe: Detects if the container needs to be restarted (e.g. deadlocked).
+      # Runs only AFTER startupProbe succeeds.
+      livenessProbe:
+        httpGet:
+          path: /
+          port: 8080
+        periodSeconds: 15
+        timeoutSeconds: 3
+        successThreshold: 1
+        failureThreshold: 3
+      
+      # Readiness Probe: Detects if the container is ready to accept traffic.
+      # Runs only AFTER startupProbe succeeds. If it fails, pod is removed from endpoints.
+      readinessProbe:
+        httpGet:
+          path: /
+          port: 8080
+        periodSeconds: 10
+        timeoutSeconds: 2
+        successThreshold: 1
+        failureThreshold: 2

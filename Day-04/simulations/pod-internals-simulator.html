@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inside a Kubernetes Pod — Interactive Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0816;
+            --card-bg: rgba(20, 16, 38, 0.6);
+            --card-border: rgba(168, 85, 247, 0.2);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --purple-glow: rgba(168, 85, 247, 0.4);
+            
+            /* Status Colors */
+            --color-pending: #f59e0b;
+            --color-running: #10b981;
+            --color-failed: #ef4444;
+            --color-succeeded: #3b82f6;
+            --color-init: #06b6d4;
+            --color-pause: #a855f7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            background: rgba(11, 8, 22, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-title p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.2rem;
+        }
+
+        .cluster-status-bar {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        .status-pill {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 0.4rem 0.8rem;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-secondary);
+        }
+
+        .status-dot.active {
+            background-color: var(--color-running);
+            box-shadow: 0 0 8px var(--color-running);
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            flex-grow: 1;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Sidebar Controls */
+        .controls-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* Guided Tour Box */
+        .guide-box {
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .guide-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #d8b4fe;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .guide-text {
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #e9d5ff;
+        }
+
+        .guide-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.2rem;
+        }
+
+        .guide-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .guide-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .guide-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #8b5cf6, #d946ef);
+            border: none;
+            color: white;
+            padding: 0.65rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.4rem;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 0 12px var(--purple-glow);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #f43f5e);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        select, input[type="range"] {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            outline: none;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Center Topology Display */
+        .topology-area {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .pod-boundary {
+            background: rgba(13, 9, 29, 0.7);
+            border: 2px dashed rgba(168, 85, 247, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            position: relative;
+            backdrop-filter: blur(10px);
+            min-height: 440px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: inset 0 0 30px rgba(168, 85, 247, 0.05);
+        }
+
+        .pod-boundary.tour-focus {
+            animation: border-glow-purple 2s infinite alternate;
+        }
+
+        .pod-boundary::before {
+            content: 'KUBERNETES POD BOUNDARY (IP: 10.244.1.45)';
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: #110c26;
+            padding: 0 0.5rem;
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+            color: #c084fc;
+            font-weight: 700;
+            border-radius: 4px;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+
+        .namespaces-strip {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.8rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0.6rem;
+            border-radius: 8px;
+        }
+
+        .ns-box {
+            flex: 1;
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.4rem;
+            border-radius: 4px;
+            background: rgba(168, 85, 247, 0.08);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            color: #d8b4fe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+
+        .containers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 1rem;
+            flex-grow: 1;
+        }
+
+        .container-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .container-card.active {
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.1);
+        }
+
+        .container-card.focus-glow {
+            border-color: #a855f7 !important;
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.6) !important;
+            transform: scale(1.02);
+        }
+
+        .container-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .container-subtitle {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .container-description {
+            font-size: 0.65rem;
+            line-height: 1.3;
+            color: #8c8c9e;
+            background: rgba(0,0,0,0.15);
+            padding: 0.3rem 0.5rem;
+            border-radius: 4px;
+            border-left: 2px solid rgba(255,255,255,0.05);
+        }
+
+        .container-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-sleeping { background: rgba(255,255,255,0.05); color: var(--text-secondary); }
+        .status-booting { background: rgba(6, 182, 212, 0.15); color: var(--color-init); }
+        .status-running { background: rgba(16, 185, 129, 0.15); color: var(--color-running); }
+        .status-failed { background: rgba(239, 68, 68, 0.15); color: var(--color-failed); }
+        .status-exited { background: rgba(59, 130, 246, 0.15); color: var(--color-succeeded); }
+
+        .container-visuals {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+            min-height: 100px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            padding: 0.5rem;
+        }
+
+        /* Probe indicators */
+        .probe-light-container {
+            display: flex;
+            gap: 0.4rem;
+            position: absolute;
+            bottom: 6px;
+            right: 6px;
+        }
+
+        .probe-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .probe-dot::after {
+            content: attr(data-label);
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            font-size: 0.55rem;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .probe-dot:hover::after {
+            opacity: 1;
+        }
+
+        .probe-active-ok {
+            background-color: var(--color-running);
+            box-shadow: 0 0 6px var(--color-running);
+            animation: pulse-green 1.5s infinite;
+        }
+
+        .probe-active-fail {
+            background-color: var(--color-failed);
+            box-shadow: 0 0 6px var(--color-failed);
+            animation: pulse-red 1s infinite;
+        }
+
+        /* Probes Legend Card */
+        .probes-legend {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.6rem;
+            display: flex;
+            justify-content: space-between;
+            gap: 0.8rem;
+            font-size: 0.7rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .legend-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+        }
+
+        /* SVG animations */
+        .packet-animation {
+            width: 100%;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.01);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .packet {
+            width: 8px;
+            height: 8px;
+            background: #a855f7;
+            border-radius: 50%;
+            position: absolute;
+            left: 10px;
+            box-shadow: 0 0 8px #a855f7;
+        }
+
+        .packet.animating {
+            animation: movePacket 2s infinite linear;
+        }
+
+        /* Shared Storage Volume */
+        .volume-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .vol-icon {
+            font-size: 1.5rem;
+            color: #a855f7;
+            animation: spin-slow 10s infinite linear;
+        }
+
+        .vol-files {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .file-badge {
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            color: #d8b4fe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Right Panel: Telemetry & Logs */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .telemetry-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .telemetry-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .telemetry-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .telemetry-val {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .progress-bar-bg {
+            background: rgba(255, 255, 255, 0.05);
+            height: 8px;
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #a855f7, #ec4899);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-bar-fill.warning {
+            background: linear-gradient(90deg, #f59e0b, #ef4444);
+        }
+
+        /* Terminal Console */
+        .terminal-card {
+            background: #05020c;
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            height: 230px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .terminal-header {
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 0.3rem;
+        }
+
+        .term-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .term-dot:nth-child(1) { background: #ef4444; }
+        .term-dot:nth-child(2) { background: #f59e0b; }
+        .term-dot:nth-child(3) { background: #10b981; }
+
+        .terminal-logs {
+            padding: 0.8rem;
+            overflow-y: auto;
+            flex-grow: 1;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            color: #d1d5db;
+        }
+
+        .log-entry {
+            line-height: 1.3;
+        }
+        .log-time { color: #8b5cf6; }
+        .log-info { color: #10b981; }
+        .log-warn { color: #f59e0b; }
+        .log-error { color: #ef4444; }
+        .log-system { color: #06b6d4; }
+
+        /* Event Timeline */
+        .events-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            max-height: 240px;
+        }
+
+        .events-list {
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .event-item {
+            border-left: 2px solid rgba(168, 85, 247, 0.4);
+            padding-left: 0.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 500;
+        }
+
+        .event-msg {
+            color: var(--text-secondary);
+        }
+
+        /* Animations */
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        @keyframes movePacket {
+            0% { left: 10px; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { left: calc(100% - 18px); opacity: 0; }
+        }
+
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes border-glow-purple {
+            from {
+                border-color: rgba(168, 85, 247, 0.3);
+                box-shadow: 0 0 10px rgba(168, 85, 247, 0.1);
+            }
+            to {
+                border-color: rgba(168, 85, 247, 0.8);
+                box-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+            }
+        }
+
+        /* Condition Cards styling */
+        .conditions-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.8rem;
+        }
+
+        .condition-badge {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 6px;
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .cond-title {
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .cond-val {
+            font-weight: 700;
+        }
+        .cond-val.true { color: var(--color-running); }
+        .cond-val.false { color: var(--text-secondary); }
+
+        .container-graphic {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            margin-bottom: 0.1rem;
+            font-size: 1.4rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>📦 Inside a Kubernetes Pod Simulator</h1>
+            <p>Day 4 — Pod Lifecycle, Shared Namespaces, Sidecars, and Probes</p>
+        </div>
+        <div class="cluster-status-bar">
+            <div class="status-pill">
+                <span class="status-dot active"></span>
+                <span>Worker Node: <strong>node-01</strong></span>
+            </div>
+            <div class="status-pill">
+                <span>Pod IP: <strong>10.244.1.45</strong></span>
+            </div>
+            <div class="status-pill">
+                <span>Restarts: <strong id="global-restarts">0</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        
+        <!-- Controls Panel -->
+        <aside class="controls-panel">
+            <!-- Guided Tour Center -->
+            <div class="guide-box">
+                <div class="guide-header">
+                    <span>Guided Learning</span>
+                    <span id="guide-step-num">1 / 6</span>
+                </div>
+                <div class="guide-text" id="guide-step-text">
+                    Welcome! Click "Next" to begin the step-by-step tour explaining how Pod namespaces and lifecycles work.
+                </div>
+                <div class="guide-footer">
+                    <button class="guide-btn" id="guide-prev" disabled>Back</button>
+                    <button class="guide-btn" id="guide-next">Next</button>
+                </div>
+            </div>
+
+            <div class="section-title">Workflow Actions</div>
+            <button class="btn" id="btn-deploy">Deploy Pod</button>
+            <button class="btn btn-secondary" id="btn-reset" disabled>Reset Pod</button>
+
+            <div class="section-title">Fault Injection</div>
+            <button class="btn btn-danger" id="btn-crash" disabled>Simulate App Crash</button>
+            <button class="btn btn-danger" id="btn-oom" disabled>Trigger Memory Leak (OOM)</button>
+            
+            <div class="section-title">Simulation Settings</div>
+            <div class="form-group">
+                <label for="init-delay">Init Container delay: <span id="delay-val">3s</span></label>
+                <input type="range" id="init-delay" min="1" max="10" value="3">
+            </div>
+
+            <div class="form-group">
+                <label>Startup Probe Status</label>
+                <select id="probe-startup-status">
+                    <option value="ok">Healthy (HTTP 200)</option>
+                    <option value="fail">Failing (HTTP 500)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Liveness Probe Status</label>
+                <select id="probe-liveness-status">
+                    <option value="ok">Healthy (HTTP 200)</option>
+                    <option value="fail">Failing (HTTP 503)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Readiness Probe Status</label>
+                <select id="probe-readiness-status">
+                    <option value="ok">Healthy (HTTP 200)</option>
+                    <option value="fail">Failing (HTTP 500)</option>
+                </select>
+            </div>
+        </aside>
+
+        <!-- Center Topology Display -->
+        <main class="topology-area">
+            
+            <div class="pod-boundary" id="visual-pod-boundary">
+                <!-- Namespaces -->
+                <div class="namespaces-strip">
+                    <div class="ns-box">🌐 NET Namespace</div>
+                    <div class="ns-box">🔒 IPC Namespace</div>
+                    <div class="ns-box">🏷️ UTS Namespace</div>
+                </div>
+
+                <!-- Containers Grid -->
+                <div class="containers-grid">
+                    <!-- Pause Container -->
+                    <div class="container-card active" id="card-pause">
+                        <div class="container-header">
+                            <span class="container-title">Pause</span>
+                            <span class="container-status status-sleeping" id="status-pause">Offline</span>
+                        </div>
+                        <div class="container-subtitle">Namespace Holder (PID 1)</div>
+                        <div class="container-description">
+                            Creates the shared namespaces first so app containers can join.
+                        </div>
+                        <div class="container-visuals">
+                            <div class="container-graphic" style="background: rgba(168,85,247,0.1); color: var(--color-pause)">⚓</div>
+                            <span style="font-size: 0.65rem; color: var(--text-secondary)">CLONE_NEWNET</span>
+                        </div>
+                    </div>
+
+                    <!-- Init Container -->
+                    <div class="container-card" id="card-init">
+                        <div class="container-header">
+                            <span class="container-title">init-db</span>
+                            <span class="container-status status-sleeping" id="status-init">Offline</span>
+                        </div>
+                        <div class="container-subtitle">Sequential Task (Runs once)</div>
+                        <div class="container-description">
+                            Blocks the main app until prerequisites are met (Exits 0).
+                        </div>
+                        <div class="container-visuals">
+                            <div class="container-graphic" style="background: rgba(6,182,212,0.1); color: var(--color-init)">🔀</div>
+                            <span style="font-size: 0.65rem; color: var(--text-secondary)">Task check db-service</span>
+                        </div>
+                    </div>
+
+                    <!-- Sidecar Container -->
+                    <div class="container-card" id="card-sidecar">
+                        <div class="container-header">
+                            <span class="container-title">ambient-proxy</span>
+                            <span class="container-status status-sleeping" id="status-sidecar">Offline</span>
+                        </div>
+                        <div class="container-subtitle">Native Sidecar (Always)</div>
+                        <div class="container-description">
+                            Runs side-by-side with the app. Intercepts local traffic.
+                        </div>
+                        <div class="container-visuals">
+                            <div class="container-graphic" style="background: rgba(16,185,129,0.1); color: var(--color-running)">🛡️</div>
+                            <span style="font-size: 0.65rem; color: var(--text-secondary)">Port: localhost:9090</span>
+                        </div>
+                    </div>
+
+                    <!-- Main App Container -->
+                    <div class="container-card" id="card-app">
+                        <div class="container-header">
+                            <span class="container-title">auth-app</span>
+                            <span class="container-status status-sleeping" id="status-app">Offline</span>
+                        </div>
+                        <div class="container-subtitle">Primary Web Service</div>
+                        <div class="container-description">
+                            The primary business container, serving web responses.
+                        </div>
+                        <div class="container-visuals">
+                            <div class="container-graphic" style="background: rgba(59,130,246,0.1); color: var(--color-succeeded)">⚙️</div>
+                            <span style="font-size: 0.65rem; color: var(--text-secondary)">Port: 8080 (http)</span>
+                            <div class="probe-light-container">
+                                <div class="probe-dot" id="dot-startup" data-label="Startup Probe"></div>
+                                <div class="probe-dot" id="dot-liveness" data-label="Liveness Probe"></div>
+                                <div class="probe-dot" id="dot-readiness" data-label="Readiness Probe"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Probes Info Panel -->
+                <div class="probes-legend">
+                    <div class="legend-item">
+                        <span class="legend-indicator" style="background-color: #3b82f6;"></span>
+                        <span><strong>Startup:</strong> Checks if app booted. Enables others.</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-indicator" style="background-color: #ef4444;"></span>
+                        <span><strong>Liveness:</strong> Restarts container if it deadlocks.</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-indicator" style="background-color: #10b981;"></span>
+                        <span><strong>Readiness:</strong> Connects/disconnects service traffic.</span>
+                    </div>
+                </div>
+
+                <!-- Network Interception Flow -->
+                <div class="packet-animation" id="packet-flow-container">
+                    <span style="font-size: 0.7rem; color: var(--text-secondary); margin-right: auto; padding-left: 10px;">Localhost loopback traffic:</span>
+                    <div class="packet" id="packet-flow"></div>
+                </div>
+
+                <!-- Shared emptyDir volume -->
+                <div class="volume-card" id="volume-component">
+                    <div class="vol-icon">📁</div>
+                    <div>
+                        <div style="font-size: 0.8rem; font-weight:600">Shared Volume (emptyDir: log-storage)</div>
+                        <div class="vol-files" id="vol-files-list">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary)">No volumes mounted yet</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Pod Conditions Badge Grid -->
+            <div class="conditions-grid">
+                <div class="condition-badge">
+                    <span class="cond-title">PodScheduled</span>
+                    <span class="cond-val false" id="cond-scheduled">FALSE</span>
+                </div>
+                <div class="condition-badge">
+                    <span class="cond-title">Initialized</span>
+                    <span class="cond-val false" id="cond-initialized">FALSE</span>
+                </div>
+                <div class="condition-badge">
+                    <span class="cond-title">ContainersReady</span>
+                    <span class="cond-val false" id="cond-containersready">FALSE</span>
+                </div>
+                <div class="condition-badge">
+                    <span class="cond-title">Ready</span>
+                    <span class="cond-val false" id="cond-ready">FALSE</span>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Right Panel: Telemetry & logs -->
+        <aside class="right-panel">
+            
+            <!-- Resource Telemetry -->
+            <div class="telemetry-card" id="telemetry-component">
+                <div class="section-title">Resource Telemetry</div>
+                
+                <div class="telemetry-row">
+                    <div class="telemetry-header">
+                        <span>CPU Utilization</span>
+                        <span class="telemetry-val" id="cpu-val">0m / 300m</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="cpu-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="telemetry-row">
+                    <div class="telemetry-header">
+                        <span>Memory Allocation</span>
+                        <span class="telemetry-val" id="mem-val">0Mi / 256Mi</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="mem-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events List -->
+            <div class="events-card">
+                <div class="section-title">Kubernetes Event Log</div>
+                <div class="events-list" id="events-list">
+                    <div style="color: var(--text-secondary); text-align: center; margin-top: 1rem;">Deploy a Pod to record cluster events</div>
+                </div>
+            </div>
+
+            <!-- Console Terminal Logs -->
+            <div class="terminal-card">
+                <div class="terminal-header">
+                    <div class="terminal-dots">
+                        <span class="term-dot"></span>
+                        <span class="term-dot"></span>
+                        <span class="term-dot"></span>
+                    </div>
+                    <span>stdout terminal logs</span>
+                </div>
+                <div class="terminal-logs" id="terminal-logs">
+                    <div class="log-entry"><span class="log-warn">Console initialized. Ready for Pod deployment.</span></div>
+                </div>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <script>
+        // Guided Learning Content
+        const tourSteps = [
+            {
+                num: "1 / 6",
+                text: "<strong>Welcome to the Pod!</strong> A Pod represents a single instance of a service. The dotted outline shows the Pod Boundary which isolates its components on the node. Click 'Deploy Pod' below to see the startup stages in action, or click Next to explore components.",
+                focus: "visual-pod-boundary"
+            },
+            {
+                num: "2 / 6",
+                text: "<strong>The Pause Container (Sandbox):</strong> Created first by the container runtime. It builds the shared <em>Network, IPC, and UTS</em> namespaces. Because it holds them open, if application containers crash, the IP address (10.244.1.45) is preserved.",
+                focus: "card-pause"
+            },
+            {
+                num: "3 / 6",
+                text: "<strong>Init Container (init-db):</strong> Executes sequentially before the app starts. It runs dependency scripts (like schema migrations). If it exits with code 0, the pod transitions to the running phase. Adjust the delay slider to simulate slow init checks.",
+                focus: "card-init"
+            },
+            {
+                num: "4 / 6",
+                text: "<strong>Native Sidecar (ambient-proxy):</strong> Introduced in K8s 1.28+. Declared in init containers but with <code>restartPolicy: Always</code>. It starts before the main app and continues running indefinitely to proxy request logs.",
+                focus: "card-sidecar"
+            },
+            {
+                num: "5 / 6",
+                text: "<strong>Main App Container & Probes:</strong> The primary service hosting your web application. The three dots (Startup, Liveness, Readiness) monitor health. Modify the drop-downs on the left to observe how probe failures affect status.",
+                focus: "card-app"
+            },
+            {
+                num: "6 / 6",
+                text: "<strong>Shared Storage & Networking:</strong> Observe the shared emptyDir volume card and local network traffic animation. Try injecting errors (click 'Simulate App Crash' or 'Trigger Memory Leak') to watch the self-healing and OOMKilled recovery loops.",
+                focus: "packet-flow-container"
+            }
+        ];
+
+        let currentTourIndex = 0;
+
+        function updateTour() {
+            const step = tourSteps[currentTourIndex];
+            document.getElementById("guide-step-num").innerText = step.num;
+            document.getElementById("guide-step-text").innerHTML = step.text;
+
+            // Remove all focus borders
+            document.querySelectorAll(".container-card, .pod-boundary, .packet-animation").forEach(el => {
+                el.classList.remove("focus-glow", "tour-focus");
+            });
+
+            // Add highlight focus to targeted element
+            const focusTarget = document.getElementById(step.focus);
+            if (focusTarget) {
+                if (step.focus === "visual-pod-boundary") {
+                    focusTarget.classList.add("tour-focus");
+                } else {
+                    focusTarget.classList.add("focus-glow");
+                }
+            }
+
+            document.getElementById("guide-prev").disabled = currentTourIndex === 0;
+            document.getElementById("guide-next").disabled = currentTourIndex === tourSteps.length - 1;
+        }
+
+        document.getElementById("guide-next").addEventListener("click", () => {
+            if (currentTourIndex < tourSteps.length - 1) {
+                currentTourIndex++;
+                updateTour();
+            }
+        });
+
+        document.getElementById("guide-prev").addEventListener("click", () => {
+            if (currentTourIndex > 0) {
+                currentTourIndex--;
+                updateTour();
+            }
+        });
+
+        // Initialize Tour Highlight
+        updateTour();
+
+        // Simulation States
+        let podState = "Offline"; // Offline, Deploying, Running, Crashed, Completed
+        let initDelay = 3;
+        let restartCount = 0;
+        let memoryUsage = 0;
+        let cpuUsage = 0;
+        let telemetryInterval = null;
+        let schedulerTimeout = null;
+        let initTimeout = null;
+        let appBootTimeout = null;
+        let sidecarTimeout = null;
+        let probeInterval = null;
+        let loopbackInterval = null;
+        let logStreamInterval = null;
+        
+        // DOM Cache
+        const btnDeploy = document.getElementById("btn-deploy");
+        const btnReset = document.getElementById("btn-reset");
+        const btnCrash = document.getElementById("btn-crash");
+        const btnOom = document.getElementById("btn-oom");
+        const initDelaySlider = document.getElementById("init-delay");
+        const delayValDisplay = document.getElementById("delay-val");
+        
+        const cardPause = document.getElementById("card-pause");
+        const cardInit = document.getElementById("card-init");
+        const cardSidecar = document.getElementById("card-sidecar");
+        const cardApp = document.getElementById("card-app");
+
+        const statusPause = document.getElementById("status-pause");
+        const statusInit = document.getElementById("status-init");
+        const statusSidecar = document.getElementById("status-sidecar");
+        const statusApp = document.getElementById("status-app");
+
+        const dotStartup = document.getElementById("dot-startup");
+        const dotLiveness = document.getElementById("dot-liveness");
+        const dotReadiness = document.getElementById("dot-readiness");
+
+        const condScheduled = document.getElementById("cond-scheduled");
+        const condInitialized = document.getElementById("cond-initialized");
+        const condContainersReady = document.getElementById("cond-containersready");
+        const condReady = document.getElementById("cond-ready");
+
+        const cpuVal = document.getElementById("cpu-val");
+        const cpuBar = document.getElementById("cpu-bar");
+        const memVal = document.getElementById("mem-val");
+        const memBar = document.getElementById("mem-bar");
+
+        const logsContainer = document.getElementById("terminal-logs");
+        const eventsList = document.getElementById("events-list");
+        const globalRestarts = document.getElementById("global-restarts");
+        const packetFlow = document.getElementById("packet-flow");
+        const volFilesList = document.getElementById("vol-files-list");
+
+        // Slider Interaction
+        initDelaySlider.addEventListener("input", (e) => {
+            initDelay = parseInt(e.target.value);
+            delayValDisplay.innerText = initDelay + "s";
+        });
+
+        // Add Log helper
+        function appendLog(message, type = "info") {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement("div");
+            entry.className = "log-entry";
+            
+            let classColor = "log-info";
+            if (type === "warn") classColor = "log-warn";
+            if (type === "error") classColor = "log-error";
+            if (type === "system") classColor = "log-system";
+
+            entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${classColor}">${message}</span>`;
+            logsContainer.appendChild(entry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Add Event helper
+        function appendEvent(reason, message, type = "Normal") {
+            if (eventsList.innerHTML.includes("Deploy a Pod to record")) {
+                eventsList.innerHTML = "";
+            }
+            const item = document.createElement("div");
+            item.className = "event-item";
+            item.innerHTML = `
+                <div class="event-header">
+                    <span style="color: ${type === 'Warning' ? '#ef4444' : '#c084fc'}">${reason}</span>
+                    <span style="color: var(--text-secondary); font-size: 0.65rem;">just now</span>
+                </div>
+                <div class="event-msg">${message}</div>
+            `;
+            eventsList.insertBefore(item, eventsList.firstChild);
+        }
+
+        // Reset elements
+        function resetUI() {
+            // Statuses
+            statusPause.className = "container-status status-sleeping";
+            statusPause.innerText = "Offline";
+            statusInit.className = "container-status status-sleeping";
+            statusInit.innerText = "Offline";
+            statusSidecar.className = "container-status status-sleeping";
+            statusSidecar.innerText = "Offline";
+            statusApp.className = "container-status status-sleeping";
+            statusApp.innerText = "Offline";
+
+            cardInit.className = "container-card";
+            cardSidecar.className = "container-card";
+            cardApp.className = "container-card";
+
+            dotStartup.className = "probe-dot";
+            dotLiveness.className = "probe-dot";
+            dotReadiness.className = "probe-dot";
+
+            condScheduled.className = "cond-val false";
+            condScheduled.innerText = "FALSE";
+            condInitialized.className = "cond-val false";
+            condInitialized.innerText = "FALSE";
+            condContainersReady.className = "cond-val false";
+            condContainersReady.innerText = "FALSE";
+            condReady.className = "cond-val false";
+            condReady.innerText = "FALSE";
+
+            cpuBar.style.width = "0%";
+            cpuVal.innerText = "0m / 300m";
+            memBar.style.width = "0%";
+            memVal.innerText = "0Mi / 256Mi";
+
+            volFilesList.innerHTML = `<span style="font-size: 0.7rem; color: var(--text-secondary)">No volumes mounted yet</span>`;
+            packetFlow.className = "packet";
+        }
+
+        // Deploy workflow
+        btnDeploy.addEventListener("click", () => {
+            deployPod();
+        });
+
+        function deployPod() {
+            btnDeploy.disabled = true;
+            btnReset.disabled = false;
+            btnCrash.disabled = true;
+            btnOom.disabled = true;
+            
+            resetUI();
+            
+            // Advance tour guide focus to Pause Container
+            currentTourIndex = 1;
+            updateTour();
+
+            appendLog("Kubectl API Request: POST /api/v1/namespaces/default/pods", "system");
+            appendEvent("Scheduled", "Successfully assigned default/enterprise-auth-service to node-01", "Normal");
+            condScheduled.className = "cond-val true";
+            condScheduled.innerText = "TRUE";
+
+            // Boot Pause Container (Sandbox)
+            appendLog("CRI (containerd): Creating Pod Sandbox container", "system");
+            appendLog("CNI (Cilium): Allocating Pod IP 10.244.1.45 and veth pairs", "system");
+            
+            schedulerTimeout = setTimeout(() => {
+                statusPause.className = "container-status status-running";
+                statusPause.innerText = "Running";
+                appendLog("Pause Container running (holding Net, IPC, UTS namespaces)");
+                
+                // Mount Shared Storage EmptyDir
+                appendLog("CSI Driver: Bind mounting emptyDir volume 'log-storage'", "system");
+                volFilesList.innerHTML = `<span class="file-badge">log-storage (empty)</span>`;
+
+                // Launch Init Container
+                runInitContainer();
+            }, 1000);
+        }
+
+        function runInitContainer() {
+            // Advance tour focus to Init Container
+            currentTourIndex = 2;
+            updateTour();
+
+            cardInit.className = "container-card active";
+            statusInit.className = "container-status status-booting";
+            statusInit.innerText = "Running";
+            appendLog("Kubelet: Pulling init image 'busybox:1.36'");
+            appendLog("Kubelet: Starting init-db container");
+            appendEvent("Pulled", "Successfully pulled image 'busybox:1.36'", "Normal");
+            appendEvent("Started", "Started container init-db", "Normal");
+
+            let elapsed = 0;
+            initTimeout = setInterval(() => {
+                elapsed++;
+                appendLog(`init-db: Checking postgres-auth-service:5432... Attempt ${elapsed}`);
+                if (elapsed >= initDelay) {
+                    clearInterval(initTimeout);
+                    statusInit.className = "container-status status-exited";
+                    statusInit.innerText = "Completed";
+                    cardInit.className = "container-card";
+                    appendLog("init-db: Database connection established. Migration complete. Exiting 0");
+                    appendEvent("Completed", "Init container init-db completed successfully with exit code 0", "Normal");
+                    
+                    condInitialized.className = "cond-val true";
+                    condInitialized.innerText = "TRUE";
+                    
+                    // Boot Sidecar and Main App
+                    bootRunningStage();
+                }
+            }, 1000);
+        }
+
+        function bootRunningStage() {
+            // Advance tour focus to Sidecar
+            currentTourIndex = 3;
+            updateTour();
+
+            appendLog("Kubelet: Initialized stage complete. Deploying running containers.", "system");
+            
+            // Native Sidecar boots first
+            cardSidecar.className = "container-card active";
+            statusSidecar.className = "container-status status-booting";
+            statusSidecar.innerText = "Booting";
+            appendLog("Kubelet: Starting native sidecar 'ambient-proxy'");
+            
+            sidecarTimeout = setTimeout(() => {
+                statusSidecar.className = "container-status status-running";
+                statusSidecar.innerText = "Running";
+                appendLog("ambient-proxy: Proxy server listening on port localhost:9090");
+                appendEvent("Started", "Started native sidecar container ambient-proxy", "Normal");
+
+                // Start loopback packet animation
+                packetFlow.className = "packet animating";
+
+                // Now start Main App
+                bootMainApp();
+            }, 1200);
+        }
+
+        function bootMainApp() {
+            // Advance tour focus to App
+            currentTourIndex = 4;
+            updateTour();
+
+            cardApp.className = "container-card active";
+            statusApp.className = "container-status status-booting";
+            statusApp.innerText = "Booting";
+            appendLog("Kubelet: Starting primary app container 'auth-app'");
+            appendEvent("Pulled", "Successfully pulled image 'nginxinc/nginx-unprivileged:alpine'", "Normal");
+            appendEvent("Started", "Started main app container auth-app", "Normal");
+
+            appBootTimeout = setTimeout(() => {
+                statusApp.className = "container-status status-running";
+                statusApp.innerText = "Running";
+                appendLog("auth-app: Web engine listening on port 8080");
+                
+                // Write transaction log to volume
+                volFilesList.innerHTML = `
+                    <span class="file-badge">log-storage/</span>
+                    <span class="file-badge" style="background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3)">access.log</span>
+                `;
+                appendLog("auth-app: Mounted log-storage read-write. Writing logs to /var/log/nginx/access.log");
+                
+                // Start sidecar read loop
+                startSidecarLogRead();
+
+                // Activate Probes
+                runProbesSequence();
+                
+                // Start Telemetry
+                startTelemetry();
+
+                // Enable Crash & OOM buttons
+                btnCrash.disabled = false;
+                btnOom.disabled = false;
+                podState = "Running";
+
+                // Finally advance tour to final step focusing on storage and packet transfers
+                currentTourIndex = 5;
+                updateTour();
+            }, 1500);
+        }
+
+        function startSidecarLogRead() {
+            appendLog("ambient-proxy: Mounted log-storage read-only. Reading logs from /var/log/app/access.log");
+            let count = 0;
+            logStreamInterval = setInterval(() => {
+                if (podState === "Running") {
+                    count++;
+                    appendLog(`ambient-proxy [log-tail]: 127.0.0.1 - [GET /api/v1/auth] HTTP/2.0 200 - Request #${count}`, "warn");
+                }
+            }, 3500);
+        }
+
+        function runProbesSequence() {
+            dotStartup.className = "probe-dot probe-active-ok";
+            appendLog("Kubelet: Running Startup Probe check");
+
+            probeInterval = setTimeout(() => {
+                const startupStatus = document.getElementById("probe-startup-status").value;
+                if (startupStatus === "fail") {
+                    dotStartup.className = "probe-dot probe-active-fail";
+                    appendLog("Kubelet: Startup Probe failed (HTTP 500)", "error");
+                    appendEvent("Unhealthy", "Startup probe failed: HTTP probe failed with statuscode: 500", "Warning");
+                    
+                    // Trigger Restart
+                    triggerCrash("Startup Probe Failure");
+                } else {
+                    appendLog("Kubelet: Startup Probe passed. Activating Steady-State Probes (Liveness & Readiness)");
+                    
+                    // Start periodic liveness and readiness checks
+                    clearInterval(probeInterval);
+                    
+                    probeInterval = setInterval(() => {
+                        const livenessVal = document.getElementById("probe-liveness-status").value;
+                        const readinessVal = document.getElementById("probe-readiness-status").value;
+
+                        // Liveness
+                        if (livenessVal === "ok") {
+                            dotLiveness.className = "probe-dot probe-active-ok";
+                        } else {
+                            dotLiveness.className = "probe-dot probe-active-fail";
+                            appendLog("Kubelet: Liveness Probe failed!", "error");
+                            appendEvent("Unhealthy", "Liveness probe failed: HTTP probe failed", "Warning");
+                            
+                            // Trigger restart due to liveness failure
+                            triggerCrash("Liveness Probe Failure");
+                        }
+
+                        // Readiness
+                        if (readinessVal === "ok" && livenessVal === "ok") {
+                            dotReadiness.className = "probe-dot probe-active-ok";
+                            condContainersReady.className = "cond-val true";
+                            condContainersReady.innerText = "TRUE";
+                            condReady.className = "cond-val true";
+                            condReady.innerText = "TRUE";
+                        } else {
+                            dotReadiness.className = "probe-dot probe-active-fail";
+                            condContainersReady.className = "cond-val false";
+                            condContainersReady.innerText = "FALSE";
+                            condReady.className = "cond-val false";
+                            condReady.innerText = "FALSE";
+                            appendLog("Kubelet: Readiness Probe failed. Removing Pod from service endpoints.", "warn");
+                            appendEvent("Unhealthy", "Readiness probe failed: Service endpoints detached", "Warning");
+                        }
+
+                    }, 4000);
+                }
+            }, 3000);
+        }
+
+        // Telemetry simulations
+        function startTelemetry() {
+            telemetryInterval = setInterval(() => {
+                if (podState === "Running") {
+                    cpuUsage = Math.floor(Math.random() * 40) + 40; // 40m - 80m
+                    memoryUsage = Math.floor(Math.random() * 10) + 90; // 90Mi - 100Mi
+                    
+                    cpuVal.innerText = cpuUsage + "m / 300m";
+                    cpuBar.style.width = (cpuUsage / 300 * 100) + "%";
+
+                    memVal.innerText = memoryUsage + "Mi / 256Mi";
+                    memBar.style.width = (memoryUsage / 256 * 100) + "%";
+                }
+            }, 1000);
+        }
+
+        // Failure Injection: Crash
+        btnCrash.addEventListener("click", () => {
+            triggerCrash("User Simulated Crash (SIGSEGV)");
+        });
+
+        function triggerCrash(reason) {
+            podState = "Crashed";
+            clearInterval(telemetryInterval);
+            clearInterval(probeInterval);
+            clearInterval(logStreamInterval);
+
+            // Set states
+            statusApp.className = "container-status status-failed";
+            statusApp.innerText = "Crashed";
+            dotLiveness.className = "probe-dot probe-active-fail";
+            dotReadiness.className = "probe-dot probe-active-fail";
+
+            condContainersReady.className = "cond-val false";
+            condContainersReady.innerText = "FALSE";
+            condReady.className = "cond-val false";
+            condReady.innerText = "FALSE";
+
+            // Telemetry drop
+            cpuBar.style.width = "0%";
+            cpuVal.innerText = "0m / 300m";
+            memBar.style.width = "0%";
+            memVal.innerText = "0Mi / 256Mi";
+
+            restartCount++;
+            globalRestarts.innerText = restartCount;
+
+            appendLog(`CRITICAL: auth-app container terminated. Reason: ${reason} (Exit Code 1)`, "error");
+            appendEvent("Failed", `Container auth-app failed: ${reason}`, "Warning");
+
+            // Schedule auto-restart loop mimicking Kubelet backoff
+            appendLog("Kubelet: Restart policy 'Always' triggered. Re-initializing container in 5 seconds...", "warn");
+            
+            btnCrash.disabled = true;
+            btnOom.disabled = true;
+
+            setTimeout(() => {
+                if (podState === "Crashed") {
+                    appendLog("Kubelet: Recreating auth-app container");
+                    bootMainApp();
+                }
+            }, 5000);
+        }
+
+        // Failure Injection: Memory Leak (OOM)
+        btnOom.addEventListener("click", () => {
+            triggerOOM();
+        });
+
+        function triggerOOM() {
+            podState = "OOMKilled";
+            clearInterval(telemetryInterval);
+            clearInterval(probeInterval);
+            clearInterval(logStreamInterval);
+            
+            btnCrash.disabled = true;
+            btnOom.disabled = true;
+
+            appendLog("Simulation: Activating memory leak inside auth-app container", "warn");
+            
+            let curMem = 100;
+            const leakInterval = setInterval(() => {
+                curMem += 35;
+                if (curMem >= 256) {
+                    clearInterval(leakInterval);
+                    executeOOMKill();
+                } else {
+                    memVal.innerText = curMem + "Mi / 256Mi";
+                    memBar.style.width = (curMem / 256 * 100) + "%";
+                    if (curMem > 180) {
+                        memBar.className = "progress-bar-fill warning";
+                    }
+                    appendLog(`auth-app: Allocated heavy chunk. Consumed Memory: ${curMem}Mi`);
+                }
+            }, 1000); // Accelerated OOM sequence for smoother interactivity
+        }
+
+        function executeOOMKill() {
+            memVal.innerText = "257Mi / 256Mi";
+            memBar.style.width = "100%";
+            memBar.className = "progress-bar-fill warning";
+
+            statusApp.className = "container-status status-failed";
+            statusApp.innerText = "OOMKilled";
+
+            condContainersReady.className = "cond-val false";
+            condContainersReady.innerText = "FALSE";
+            condReady.className = "cond-val false";
+            condReady.innerText = "FALSE";
+
+            dotLiveness.className = "probe-dot probe-active-fail";
+            dotReadiness.className = "probe-dot probe-active-fail";
+
+            restartCount++;
+            globalRestarts.innerText = restartCount;
+
+            appendLog("Linux Kernel: Out-of-memory handler triggered (cgroup constraint violated)", "error");
+            appendLog("CRITICAL: Container auth-app killed by process manager. Exit Code: 137", "error");
+            appendEvent("OOMKilled", "Container auth-app killed by kernel OOM-killer", "Warning");
+
+            // Telemetry drop
+            cpuBar.style.width = "0%";
+            cpuVal.innerText = "0m / 300m";
+            memBar.className = "progress-bar-fill";
+            memBar.style.width = "0%";
+            memVal.innerText = "0Mi / 256Mi";
+
+            appendLog("Kubelet: Container terminated. Restarting container in 5 seconds...", "warn");
+            
+            setTimeout(() => {
+                if (podState === "OOMKilled") {
+                    bootMainApp();
+                }
+            }, 5000);
+        }
+
+        // Reset Pod
+        btnReset.addEventListener("click", () => {
+            // Clear all intervals
+            clearInterval(telemetryInterval);
+            clearInterval(initTimeout);
+            clearInterval(probeInterval);
+            clearInterval(logStreamInterval);
+            clearTimeout(schedulerTimeout);
+            clearTimeout(appBootTimeout);
+            clearTimeout(sidecarTimeout);
+
+            podState = "Offline";
+            restartCount = 0;
+            globalRestarts.innerText = "0";
+
+            resetUI();
+            btnDeploy.disabled = false;
+            btnReset.disabled = true;
+            btnCrash.disabled = true;
+            btnOom.disabled = true;
+
+            // Reset tour index
+            currentTourIndex = 0;
+            updateTour();
+
+            appendLog("Simulation reset. Pod deleted.", "warn");
+            eventsList.innerHTML = `<div style="color: var(--text-secondary); text-align: center; margin-top: 1rem;">Deploy a Pod to record cluster events</div>`;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: native-sidecar-pod
+  namespace: default
+  labels:
+    app: proxy-app
+spec:
+  initContainers:
+    # Native Sidecar: Runs as an init container but with restartPolicy: Always.
+    # It starts BEFORE the app containers, and continues to run for the lifecycle of the Pod.
+    - name: ambient-proxy
+      image: alpine:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - >
+          echo "Initializing Proxy Sidecar (port 9090)...";
+          nc -lk -p 9090 -e sh -c "echo -e 'HTTP/1.1 200 OK\r\nContent-Length: 22\r\nConnection: close\r\n\r\nProxy intercepted response'"
+      restartPolicy: Always
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
+  containers:
+    - name: application
+      image: curlimages/curl:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - >
+          echo "App started. Waiting for proxy sidecar to accept connections...";
+          sleep 3;
+          while true; do
+            echo "Sending request to proxy sidecar on localhost:9090...";
+            curl -s http://localhost:9090;
+            echo "";
+            sleep 10;
+          done
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
