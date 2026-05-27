@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Rollout & Self-Healing Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #09080e;
+      --panel-bg: rgba(22, 19, 39, 0.45);
+      --border-glow: rgba(186, 104, 200, 0.25);
+      --accent-glow: rgba(147, 112, 219, 0.5);
+      
+      --purple-light: #d1c4e9;
+      --purple-primary: #9575cd;
+      --purple-dark: #673ab7;
+      
+      --color-running: #26a69a;
+      --color-pending: #ffb74d;
+      --color-failed: #ef5350;
+      --color-terminating: #b0bec5;
+      
+      --glow-running: rgba(38, 166, 154, 0.4);
+      --glow-pending: rgba(255, 183, 77, 0.4);
+      --glow-failed: rgba(239, 83, 80, 0.4);
+      --glow-terminating: rgba(176, 190, 197, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--purple-primary) var(--bg-dark);
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 50%, #1c142c 0%, var(--bg-dark) 100%);
+      color: #eae6f0;
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Glassmorphism Header */
+    header {
+      background: rgba(12, 10, 22, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-glow);
+      padding: 1.25rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #e1bee7 0%, var(--purple-primary) 50%, #7e57c2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(149, 117, 205, 0.15);
+      border: 1px solid var(--purple-primary);
+      padding: 0.35rem 0.75rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--purple-light);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--color-running);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--color-running);
+      animation: pulse 1.5s infinite;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 360px 1fr 340px;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      max-width: 1800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Column Container Styling */
+    .col-panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--purple-light);
+      border-bottom: 1px solid var(--border-glow);
+      padding-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Control Forms */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #b39ddb;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    /* Custom Form Elements */
+    select, input[type="range"], button {
+      background: rgba(15, 12, 30, 0.8);
+      border: 1px solid rgba(186, 104, 200, 0.3);
+      color: #f3e5f5;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    select:focus, button:hover {
+      border-color: var(--purple-primary);
+      box-shadow: 0 0 10px rgba(149, 117, 205, 0.3);
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: linear-gradient(135deg, rgba(149, 117, 205, 0.2) 0%, rgba(103, 58, 183, 0.3) 100%);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--purple-primary) 0%, var(--purple-dark) 100%);
+      color: #fff;
+      border: none;
+    }
+
+    button.primary:hover {
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, rgba(239, 83, 80, 0.2) 0%, rgba(198, 40, 40, 0.3) 100%);
+      border-color: rgba(239, 83, 80, 0.4);
+      color: #ffebee;
+    }
+
+    button.danger:hover {
+      border-color: var(--color-failed);
+      box-shadow: 0 0 15px rgba(239, 83, 80, 0.3);
+    }
+
+    .range-val {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--purple-light);
+      float: right;
+    }
+
+    /* Slider styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: rgba(149, 117, 205, 0.2);
+      border: none;
+      outline: none;
+      padding: 0;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--purple-primary);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--purple-primary);
+      transition: transform 0.1s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Cluster topology panel */
+    .topology-panel {
+      grid-column: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .cluster-view {
+      flex: 1;
+      border: 1px solid rgba(186, 104, 200, 0.15);
+      border-radius: 12px;
+      background: rgba(10, 8, 20, 0.6);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      position: relative;
+      overflow-y: auto;
+      min-height: 400px;
+    }
+
+    /* Node Grid and Pod Cards */
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .node-card {
+      background: rgba(22, 19, 39, 0.6);
+      border: 1px solid rgba(186, 104, 200, 0.15);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .node-card.offline {
+      border-color: rgba(239, 83, 80, 0.3);
+      background: rgba(22, 19, 39, 0.2);
+      filter: grayscale(80%);
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #b39ddb;
+    }
+
+    .node-status {
+      font-size: 0.75rem;
+      padding: 0.1rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 800;
+    }
+
+    .node-status.active {
+      background: rgba(38, 166, 154, 0.15);
+      color: var(--color-running);
+    }
+
+    .node-status.dead {
+      background: rgba(239, 83, 80, 0.15);
+      color: var(--color-failed);
+    }
+
+    .pods-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+      min-height: 100px;
+      border: 1px dashed rgba(186, 104, 200, 0.1);
+      border-radius: 8px;
+      padding: 0.5rem;
+      background: rgba(10, 8, 20, 0.3);
+    }
+
+    .pod-element {
+      border-radius: 8px;
+      padding: 0.5rem;
+      border: 1px solid transparent;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Pod status styles */
+    .pod-element.Running {
+      background: rgba(38, 166, 154, 0.1);
+      border-color: var(--color-running);
+      box-shadow: 0 0 6px var(--glow-running);
+    }
+    .pod-element.Running:hover {
+      box-shadow: 0 0 12px var(--glow-running);
+    }
+
+    .pod-element.Pending {
+      background: rgba(255, 183, 77, 0.1);
+      border-color: var(--color-pending);
+      box-shadow: 0 0 6px var(--glow-pending);
+      animation: pulse-glow-pending 1.5s infinite alternate;
+    }
+
+    .pod-element.Failed {
+      background: rgba(239, 83, 80, 0.1);
+      border-color: var(--color-failed);
+      box-shadow: 0 0 6px var(--glow-failed);
+      animation: shake 0.5s ease;
+    }
+
+    .pod-element.Terminating {
+      background: rgba(176, 190, 197, 0.05);
+      border-color: var(--color-terminating);
+      box-shadow: 0 0 6px var(--glow-terminating);
+      opacity: 0.6;
+    }
+
+    .pod-name {
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .pod-version {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: rgba(234, 230, 240, 0.7);
+    }
+
+    .pod-status-text {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .pod-element.Running .pod-status-text { color: var(--color-running); }
+    .pod-element.Pending .pod-status-text { color: var(--color-pending); }
+    .pod-element.Failed .pod-status-text { color: var(--color-failed); }
+    .pod-element.Terminating .pod-status-text { color: var(--color-terminating); }
+
+    /* Pod close button (Simulate Crash) */
+    .crash-btn {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      background: rgba(239, 83, 80, 0.2);
+      border: 1px solid rgba(239, 83, 80, 0.5);
+      color: var(--color-failed);
+      border-radius: 3px;
+      font-size: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      cursor: pointer;
+    }
+
+    .pod-element:hover .crash-btn {
+      opacity: 1;
+    }
+
+    .crash-btn:hover {
+      background: var(--color-failed);
+      color: white;
+    }
+
+    /* Reconciliation steps visualizer */
+    .reconcile-flow {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      background: rgba(15, 12, 30, 0.5);
+      border: 1px solid rgba(186, 104, 200, 0.15);
+      padding: 0.75rem;
+      border-radius: 8px;
+    }
+
+    .flow-step {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      color: rgba(234, 230, 240, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    .flow-step.active {
+      color: var(--purple-light);
+      background: rgba(149, 117, 205, 0.25);
+      border-color: var(--purple-primary);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .flow-arrow {
+      color: rgba(234, 230, 240, 0.2);
+      font-weight: bold;
+    }
+
+    /* Metrics Dashboard Panel */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+
+    .metric-card {
+      background: rgba(15, 12, 30, 0.5);
+      border: 1px solid rgba(186, 104, 200, 0.1);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--purple-light);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .metric-lbl {
+      font-size: 0.65rem;
+      color: rgba(234, 230, 240, 0.5);
+      text-transform: uppercase;
+      margin-top: 0.25rem;
+    }
+
+    /* Logs panel */
+    .logs-panel {
+      grid-column: 1 / span 3;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .console {
+      flex: 1;
+      background: #050408;
+      border: 1px solid rgba(186, 104, 200, 0.2);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #a6e3a1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .log-line {
+      line-height: 1.4;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .log-time {
+      color: #6c7086;
+      user-select: none;
+    }
+
+    .log-tag {
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .log-tag.system { color: #89b4fa; }
+    .log-tag.reconciler { color: #cba6f7; }
+    .log-tag.event { color: #f9e2af; }
+    .log-tag.error { color: #f38ba8; }
+
+    /* Right Panel (Deployments & ReplicaSets) */
+    .history-card {
+      background: rgba(15, 12, 30, 0.5);
+      border: 1px solid rgba(186, 104, 200, 0.15);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .history-card h4 {
+      color: var(--purple-light);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .history-card-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      color: rgba(234, 230, 240, 0.7);
+    }
+
+    /* Scenario Box - Center Panel */
+    .scenario-info-box {
+      background: rgba(30, 20, 50, 0.4);
+      border: 1px solid rgba(186, 104, 200, 0.25);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .scenario-info-box h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e1bee7;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .scenario-info-box p {
+      font-size: 0.85rem;
+      line-height: 1.35;
+      color: rgba(234, 230, 240, 0.8);
+    }
+
+    .scenario-takeaway {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #c5a3ff;
+      border-left: 2px solid var(--purple-primary);
+      padding-left: 0.5rem;
+      margin-top: 0.2rem;
+    }
+
+    /* Scenario Card Menu */
+    .scenario-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .scenario-card {
+      background: rgba(22, 19, 39, 0.35);
+      border: 1px solid rgba(186, 104, 200, 0.1);
+      border-radius: 8px;
+      padding: 0.6rem;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .scenario-card:hover {
+      background: rgba(149, 117, 205, 0.1);
+      border-color: rgba(186, 104, 200, 0.3);
+    }
+
+    .scenario-card.active {
+      background: rgba(149, 117, 205, 0.15);
+      border-color: var(--purple-primary);
+      box-shadow: 0 0 10px rgba(149, 117, 205, 0.15);
+    }
+
+    .scenario-card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--purple-light);
+    }
+
+    .scenario-card-desc {
+      font-size: 0.75rem;
+      color: rgba(234, 230, 240, 0.6);
+      line-height: 1.25;
+    }
+
+    /* State Legend */
+    .legend {
+      display: flex;
+      justify-content: space-between;
+      background: rgba(15, 12, 30, 0.3);
+      padding: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid rgba(186, 104, 200, 0.05);
+      font-size: 0.7rem;
+      font-weight: bold;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .legend-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Animations */
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; box-shadow: 0 0 6px var(--color-running); }
+      50% { transform: scale(1.15); opacity: 0.7; box-shadow: 0 0 12px var(--color-running); }
+      100% { transform: scale(1); opacity: 1; box-shadow: 0 0 6px var(--color-running); }
+    }
+
+    @keyframes pulse-glow-pending {
+      0% { box-shadow: 0 0 3px var(--glow-pending); }
+      100% { box-shadow: 0 0 12px var(--glow-pending); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+
+    /* Keyframes for newly spawned elements */
+    .spawn {
+      animation: zoomIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes zoomIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* Traffic Split Meter */
+    .traffic-bar-container {
+      width: 100%;
+      height: 12px;
+      background: rgba(148, 226, 213, 0.2);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      border: 1px solid rgba(186, 104, 200, 0.1);
+    }
+
+    .traffic-bar-v1 {
+      height: 100%;
+      background: var(--color-running);
+      transition: width 0.5s ease;
+    }
+
+    .traffic-bar-v2 {
+      height: 100%;
+      background: var(--purple-primary);
+      transition: width 0.5s ease;
+    }
+
+    /* Split indicators */
+    .traffic-indicators {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(234, 230, 240, 0.6);
+    }
+
+    .timeline-container {
+      max-height: 200px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.8rem;
+      background: rgba(15, 12, 30, 0.3);
+      padding: 0.4rem 0.6rem;
+      border-left: 3px solid var(--purple-primary);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .timeline-item.warn {
+      border-left-color: var(--color-pending);
+    }
+
+    .timeline-item.danger {
+      border-left-color: var(--color-failed);
+    }
+
+    .timeline-time {
+      font-family: 'JetBrains Mono', monospace;
+      color: rgba(234, 230, 240, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚙️ Kubernetes Rollout & Self-Healing Simulator</h1>
+    <div style="display: flex; gap: 1rem;">
+      <div class="status-badge">
+        <span class="pulse-dot"></span>
+        <span id="reconciler-state-indicator">RECONCILER ACTIVE</span>
+      </div>
+      <div class="status-badge" style="background: rgba(148, 226, 213, 0.1); border-color: var(--color-running); color: var(--color-running);">
+        HEALTHY
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Panel: Guided Learning & Cluster Setup -->
+    <div class="col-panel">
+      <div class="panel-title">1. GUIDED LESSONS</div>
+      
+      <div class="scenario-menu">
+        <!-- Scenario 1: Scaling -->
+        <button class="scenario-card active" id="btn-scen-1" onclick="selectScenario(1)">
+          <span class="scenario-card-title">Scenario 1: Desired State & Scaling</span>
+          <span class="scenario-card-desc">Slide target scale count. Watch reconciler loop detect drift and add/delete Pods.</span>
+        </button>
+        <!-- Scenario 2: Self-Healing -->
+        <button class="scenario-card" id="btn-scen-2" onclick="selectScenario(2)">
+          <span class="scenario-card-title">Scenario 2: Chaos & Self-Healing</span>
+          <span class="scenario-card-desc">Simulate a Container Crash (hover on pod and click ✕) or Node loss and watch the healer replace it.</span>
+        </button>
+        <!-- Scenario 3: Rolling Update -->
+        <button class="scenario-card" id="btn-scen-3" onclick="selectScenario(3)">
+          <span class="scenario-card-title">Scenario 3: Zero-Downtime Rollout</span>
+          <span class="scenario-card-desc">Deploy v2.0.0. Watch the controller roll out v2 pods slowly keeping stable pods serving.</span>
+        </button>
+        <!-- Scenario 4: Stalled Rollout -->
+        <button class="scenario-card" id="btn-scen-4" onclick="selectScenario(4)">
+          <span class="scenario-card-title">Scenario 4: Stalled Bad Rollout</span>
+          <span class="scenario-card-desc">Deploy broken v2.0.0. See how readiness probe failure freezes the rollout. Rollback to fix.</span>
+        </button>
+        <!-- Scenario 5: Canary Split -->
+        <button class="scenario-card" id="btn-scen-5" onclick="selectScenario(5)">
+          <span class="scenario-card-title">Scenario 5: Canary Traffic Split</span>
+          <span class="scenario-card-desc">Route 25% of load to canary v2 to test performance before scaling.</span>
+        </button>
+      </div>
+
+      <div class="panel-title" style="margin-top: 0.5rem;">2. CLUSTER SETUP CONTROLS</div>
+
+      <!-- Scaling Workloads -->
+      <div class="control-group">
+        <label for="replicas-slider">Desired Replicas <span class="range-val" id="replicas-val">3</span></label>
+        <input type="range" id="replicas-slider" min="1" max="8" value="3">
+      </div>
+
+      <!-- Strategy Selection -->
+      <div class="control-group">
+        <label for="strategy-select">Deployment Strategy</label>
+        <select id="strategy-select">
+          <option value="RollingUpdate">RollingUpdate (maxSurge=1, maxUnavail=0)</option>
+          <option value="Recreate">Recreate (Terminate all, spin up new)</option>
+          <option value="Canary">Canary (Traffic Splitting)</option>
+        </select>
+      </div>
+
+      <!-- Deploy / Rollout Trigger -->
+      <div class="control-group">
+        <label>Trigger Workload Rollout</label>
+        <div class="control-row">
+          <button class="primary" onclick="triggerRollout('stable')">Deploy v2.0.0</button>
+          <button class="danger" onclick="triggerRollout('broken')">Deploy Broken v2.0.0</button>
+        </div>
+      </div>
+
+      <!-- Canary Specific controls -->
+      <div class="control-group" id="canary-controls" style="display: none; padding: 0.5rem; background: rgba(149, 117, 205, 0.05); border-radius: 8px; border: 1px solid rgba(149, 117, 205, 0.15);">
+        <label>Canary Split Configuration</label>
+        <div class="traffic-indicators" style="margin-bottom: 0.25rem;">
+          <span style="color: var(--color-running);">Stable (v1): <span id="split-v1-val">100%</span></span>
+          <span style="color: var(--purple-light);">Canary (v2): <span id="split-v2-val">0%</span></span>
+        </div>
+        <div class="traffic-bar-container" style="margin-bottom: 0.5rem;">
+          <div class="traffic-bar-v1" id="traffic-bar-v1" style="width: 100%;"></div>
+          <div class="traffic-bar-v2" id="traffic-bar-v2" style="width: 0%;"></div>
+        </div>
+        <div class="control-row">
+          <button onclick="setCanarySplit(25)">25% Canary</button>
+          <button onclick="setCanarySplit(50)">50% Canary</button>
+        </div>
+      </div>
+
+      <!-- Remediation -->
+      <div class="control-group">
+        <label>Remediation Operations</label>
+        <button class="primary" style="background: linear-gradient(135deg, #ab47bc 0%, #7b1fa2 100%);" onclick="triggerRollback()">Rollback (rollout undo)</button>
+      </div>
+
+      <!-- Chaos Injector -->
+      <div class="control-group" style="margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--border-glow);">
+        <label style="color: var(--color-failed);">⚠️ Fault Injector</label>
+        <div class="control-row" style="margin-top: 0.3rem;">
+          <button class="danger" onclick="killNode(1)">Crash Node 1</button>
+          <button class="danger" onclick="killNode(2)">Crash Node 2</button>
+        </div>
+        <button class="danger" style="width:100%; margin-top:0.4rem;" onclick="recoverNodes()">Recover All Nodes</button>
+      </div>
+    </div>
+
+    <!-- Center Panel: Cluster Topology -->
+    <div class="topology-panel">
+      <!-- Reconciliation state indicator flowchart -->
+      <div class="reconcile-flow">
+        <div class="flow-step" id="flow-observe">Observe</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-step" id="flow-analyze">Analyze</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-step" id="flow-act">Act</div>
+      </div>
+
+      <!-- Live cluster layout -->
+      <div class="cluster-view">
+        <div class="panel-title">LIVE WORKFLOW GRID (WORKER NODES)</div>
+        <div class="nodes-grid">
+          <!-- Node 1 -->
+          <div class="node-card" id="node-1-card">
+            <div class="node-header">
+              <span>WORKER-NODE-1</span>
+              <span class="node-status active" id="node-1-status">READY</span>
+            </div>
+            <div class="pods-container" id="node-1-pods"></div>
+          </div>
+          <!-- Node 2 -->
+          <div class="node-card" id="node-2-card">
+            <div class="node-header">
+              <span>WORKER-NODE-2</span>
+              <span class="node-status active" id="node-2-status">READY</span>
+            </div>
+            <div class="pods-container" id="node-2-pods"></div>
+          </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="legend">
+          <div class="legend-item"><span class="legend-color" style="background:var(--color-running)"></span>Running</div>
+          <div class="legend-item"><span class="legend-color" style="background:var(--color-pending)"></span>Pending</div>
+          <div class="legend-item"><span class="legend-color" style="background:var(--color-failed)"></span>Failed Probe</div>
+          <div class="legend-item"><span class="legend-color" style="background:var(--color-terminating)"></span>Terminating</div>
+        </div>
+      </div>
+
+      <!-- Realtime metrics dashboard -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-val" id="metric-desired">3</div>
+          <div class="metric-lbl">Desired</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="metric-current">3</div>
+          <div class="metric-lbl">Current</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="metric-ready">3</div>
+          <div class="metric-lbl">Ready</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="metric-updated">3</div>
+          <div class="metric-lbl">Updated</div>
+        </div>
+      </div>
+
+      <!-- Scenario Explanation Box -->
+      <div class="scenario-info-box">
+        <h3 id="scenario-title">Scenario 1: Desired State & Scaling</h3>
+        <p id="scenario-observe"><strong>How to Test:</strong> Move the <em>Desired Replicas</em> slider up or down. Look at the live grid.</p>
+        <p id="scenario-explain"><strong>Under the Hood:</strong> The ReplicaSet controller notices a drift between the Desired scale count in the spec and the Actual running pods in the cluster, and triggers creation or termination calls to match it.</p>
+        <div class="scenario-takeaway" id="scenario-takeaway">Takeaway: Kubernetes reconciles drift continuously to enforce desired workloads.</div>
+      </div>
+    </div>
+
+    <!-- Right Panel: History and Event timeline -->
+    <div class="col-panel">
+      <div class="panel-title">DEPLOYMENT DATA</div>
+
+      <!-- Active Deploy metadata -->
+      <div class="control-group">
+        <label>Active Revision Spec</label>
+        <div class="history-card">
+          <h4>Active Deployment</h4>
+          <div class="history-card-details">
+            <div>Deployment Name: <span id="meta-dep-name" style="font-family: 'JetBrains Mono', monospace; font-weight: bold;">payment-processor</span></div>
+            <div>Strategy Type: <span id="meta-strategy" style="font-weight: bold;">RollingUpdate</span></div>
+            <div>Image Tag: <span id="meta-image" style="font-family: 'JetBrains Mono', monospace; font-weight: bold; color: var(--purple-light);">v1.0.0 (Stable)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ReplicaSet revisions -->
+      <div class="control-group">
+        <label>Revision History (ReplicaSets)</label>
+        <div class="history-card" style="display: flex; flex-direction: column; gap: 0.5rem;" id="rs-history-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Cluster Events timeline -->
+      <div class="control-group" style="flex: 1; display: flex; flex-direction: column;">
+        <label>Cluster Events</label>
+        <div class="timeline-container" id="events-timeline" style="flex: 1;">
+          <!-- Dynamically populated events -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Console Logging Panel (Bottom) -->
+    <div class="logs-panel">
+      <div class="panel-title" style="padding-bottom: 0.25rem;">KUBERNETES RECONCILIATION LOOP LOG FEED</div>
+      <div class="console" id="log-terminal"></div>
+    </div>
+  </main>
+
+  <script>
+    // Simulator State Object
+    const state = {
+      desiredReplicas: 3,
+      currentStrategy: 'RollingUpdate', // RollingUpdate, Recreate, Canary
+      activeVersion: 'v1.0.0', // v1.0.0, v2.0.0, v2.0.0-broken
+      rolloutActive: false,
+      rollbackTriggered: false,
+      canaryPercent: 0, // 0%, 25%, 50%, 100%
+      nodes: {
+        1: { name: 'WORKER-NODE-1', active: true },
+        2: { name: 'WORKER-NODE-2', active: true }
+      },
+      pods: [],
+      replicaSets: [
+        { name: 'payment-processor-5b87dc744b', version: 'v1.0.0', target: 3, actual: 3, revision: 1, active: true }
+      ],
+      currentRevision: 1,
+      logs: [],
+      events: [],
+      loopTick: 0,
+      activeScenario: 1
+    };
+
+    // DOM Elements
+    const elements = {
+      replicasSlider: document.getElementById('replicas-slider'),
+      replicasVal: document.getElementById('replicas-val'),
+      strategySelect: document.getElementById('strategy-select'),
+      canaryControls: document.getElementById('canary-controls'),
+      splitV1Val: document.getElementById('split-v1-val'),
+      splitV2Val: document.getElementById('split-v2-val'),
+      trafficBarV1: document.getElementById('traffic-bar-v1'),
+      trafficBarV2: document.getElementById('traffic-bar-v2'),
+      node1Pods: document.getElementById('node-1-pods'),
+      node2Pods: document.getElementById('node-2-pods'),
+      node1Card: document.getElementById('node-1-card'),
+      node2Card: document.getElementById('node-2-card'),
+      node1Status: document.getElementById('node-1-status'),
+      node2Status: document.getElementById('node-2-status'),
+      metricDesired: document.getElementById('metric-desired'),
+      metricCurrent: document.getElementById('metric-current'),
+      metricReady: document.getElementById('metric-ready'),
+      metricUpdated: document.getElementById('metric-updated'),
+      metaStrategy: document.getElementById('meta-strategy'),
+      metaImage: document.getElementById('meta-image'),
+      rsHistoryList: document.getElementById('rs-history-list'),
+      eventsTimeline: document.getElementById('events-timeline'),
+      logTerminal: document.getElementById('log-terminal'),
+      flowObserve: document.getElementById('flow-observe'),
+      flowAnalyze: document.getElementById('flow-analyze'),
+      flowAct: document.getElementById('flow-act'),
+      reconcilerState: document.getElementById('reconciler-state-indicator'),
+      scenarioTitle: document.getElementById('scenario-title'),
+      scenarioObserve: document.getElementById('scenario-observe'),
+      scenarioExplain: document.getElementById('scenario-explain'),
+      scenarioTakeaway: document.getElementById('scenario-takeaway')
+    };
+
+    const scenarios = {
+      1: {
+        title: "Scenario 1: Desired State & Scaling",
+        observe: "<strong>How to Test:</strong> Move the <em>Desired Replicas</em> slider up or down. Observe the live container grid.",
+        explain: "<strong>Under the Hood:</strong> The ReplicaSet controller notices a drift between the Desired scale count in the spec and the Actual running pods in the cluster, and triggers creation or termination calls to match it.",
+        takeaway: "Key Takeaway: Kubernetes reconciles drift continuously to enforce desired workloads."
+      },
+      2: {
+        title: "Scenario 2: Chaos & Self-Healing",
+        observe: "<strong>How to Test:</strong> Hover over a green running Pod and click the <strong>✕</strong> icon, or click <strong>Crash Node 2</strong> in the Fault Injector.",
+        explain: "<strong>Under the Hood:</strong> When a Pod crashes or its Node lease expires, the ReplicaSet controller detects the deficit (Desired count > Actual count) and automatically requests the scheduler to start a replacement on a healthy node.",
+        takeaway: "Key Takeaway: Self-healing runs autonomously without operator manual intervention."
+      },
+      3: {
+        title: "Scenario 3: Zero-Downtime Rollout",
+        observe: "<strong>How to Test:</strong> Click the primary <strong>Deploy v2.0.0</strong> button. Observe the v1 and v2 replicas scaling up and down.",
+        explain: "<strong>Under the Hood:</strong> Under the RollingUpdate strategy, a new ReplicaSet is created. Kubernetes spins up one new v2 Pod (surge) and waits for its health probes to pass. Once ready, it deletes one old v1 Pod. This repeats until all Pods are updated.",
+        takeaway: "Key Takeaway: Zero-downtime upgrades are achieved by verifying new pods are ready before stopping old ones."
+      },
+      4: {
+        title: "Scenario 4: Stalled Bad Rollout",
+        observe: "<strong>How to Test:</strong> Click the red <strong>Deploy Broken v2.0.0</strong> button. Watch the rollout freeze. Then click <strong>Rollback</strong>.",
+        explain: "<strong>Under the Hood:</strong> The broken v2 pods fail their readiness probes, preventing them from joining service endpoints. Since `maxUnavailable` is 0, the controller halts the update, keeping old v1 pods active to protect users. Triggering a Rollback reverts the specs back to v1.",
+        takeaway: "Key Takeaway: Health checks block bad releases, and rollbacks instantly recover stable versions."
+      },
+      5: {
+        title: "Scenario 5: Canary Traffic Split",
+        observe: "<strong>How to Test:</strong> Click <strong>25% Canary</strong>. See the split indicators and how the traffic bar changes.",
+        explain: "<strong>Under the Hood:</strong> In native Kubernetes, we run both stable v1 and canary v2 ReplicaSets simultaneously. The Service routes traffic to both using a shared label selector. By modifying the replica ratio (e.g. 3:1), we split traffic (75% stable, 25% canary) at L4.",
+        takeaway: "Key Takeaway: Canary deployments let you smoke-test a release with small traffic slices before full rollout."
+      }
+    };
+
+    function selectScenario(id) {
+      // Toggle button active classes
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`btn-scen-${i}`).classList.remove('active');
+      }
+      document.getElementById(`btn-scen-${id}`).classList.add('active');
+      
+      state.activeScenario = id;
+      const data = scenarios[id];
+      
+      elements.scenarioTitle.innerText = data.title;
+      elements.scenarioObserve.innerHTML = data.observe;
+      elements.scenarioExplain.innerHTML = data.explain;
+      elements.scenarioTakeaway.innerText = data.takeaway;
+      
+      addLog('system', `Guided Lesson switched to: ${data.title}`);
+      
+      // Auto setup helper state changes to fit the scenario
+      if (id === 1 || id === 2) {
+        elements.strategySelect.value = 'RollingUpdate';
+        elements.strategySelect.dispatchEvent(new Event('change'));
+        state.desiredReplicas = 3;
+        elements.replicasSlider.value = 3;
+        elements.replicasVal.innerText = 3;
+        recoverNodes();
+        resetToStable();
+      } else if (id === 5) {
+        elements.strategySelect.value = 'Canary';
+        elements.strategySelect.dispatchEvent(new Event('change'));
+      }
+    }
+
+    function resetToStable() {
+      // Reset replicasets
+      state.replicaSets = [
+        { name: 'payment-processor-5b87dc744b', version: 'v1.0.0', target: state.desiredReplicas, actual: state.desiredReplicas, revision: 1, active: true }
+      ];
+      state.activeVersion = 'v1.0.0';
+      elements.metaImage.innerText = 'v1.0.0 (Stable)';
+      state.rolloutActive = false;
+      initPods();
+    }
+
+    // Helper functions
+    function generateId() {
+      return Math.random().toString(36).substring(2, 7);
+    }
+
+    function addLog(tag, text) {
+      const time = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      
+      let tagClass = 'system';
+      if (tag === 'reconciler') tagClass = 'reconciler';
+      if (tag === 'event') tagClass = 'event';
+      if (tag === 'error') tagClass = 'error';
+      
+      line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-tag ${tagClass}">[${tag}]</span><span>${text}</span>`;
+      elements.logTerminal.appendChild(line);
+      elements.logTerminal.scrollTop = elements.logTerminal.scrollHeight;
+    }
+
+    function addEvent(text, level = 'info') {
+      const time = new Date().toLocaleTimeString();
+      const item = document.createElement('div');
+      item.className = 'timeline-item';
+      if (level === 'warn') item.className += ' warn';
+      if (level === 'danger') item.className += ' danger';
+      
+      item.innerHTML = `<span class="timeline-time">${time}</span><span>${text}</span>`;
+      elements.eventsTimeline.insertBefore(item, elements.eventsTimeline.firstChild);
+    }
+
+    // Initialize Pods
+    function initPods() {
+      state.pods = [];
+      const activeRS = state.replicaSets.find(rs => rs.active);
+      if (!activeRS) return;
+
+      for (let i = 0; i < state.desiredReplicas; i++) {
+        const nodeId = (i % 2) + 1;
+        state.pods.push({
+          id: `payment-processor-${activeRS.name.split('-')[2]}-${generateId()}`,
+          rsName: activeRS.name,
+          version: activeRS.version,
+          status: 'Running', // Running, Pending, Failed, Terminating
+          nodeId: nodeId,
+          ready: true,
+          tickCount: 0,
+          broken: false
+        });
+      }
+      render();
+    }
+
+    // Set Slider Event
+    elements.replicasSlider.addEventListener('input', (e) => {
+      state.desiredReplicas = parseInt(e.target.value);
+      elements.replicasVal.innerText = state.desiredReplicas;
+      
+      // If canary strategy is active, update targets
+      if (state.currentStrategy === 'Canary') {
+        recalculateCanaryTargets();
+      } else {
+        const activeRS = state.replicaSets.find(rs => rs.active);
+        if (activeRS) activeRS.target = state.desiredReplicas;
+      }
+      
+      addLog('system', `Desired replica scale adjusted to: ${state.desiredReplicas}`);
+      addEvent(`Desired replicas updated to ${state.desiredReplicas}`);
+    });
+
+    // Strategy Change
+    elements.strategySelect.addEventListener('change', (e) => {
+      state.currentStrategy = e.target.value;
+      elements.metaStrategy.innerText = state.currentStrategy;
+      addLog('system', `Deployment strategy changed to: ${state.currentStrategy}`);
+      addEvent(`Deployment strategy set to ${state.currentStrategy}`);
+
+      if (state.currentStrategy === 'Canary') {
+        elements.canaryControls.style.display = 'block';
+        setCanarySplit(25); // Default split
+      } else {
+        elements.canaryControls.style.display = 'none';
+        // Reset replica allocations back to normal
+        const activeRS = state.replicaSets.find(rs => rs.version === state.activeVersion);
+        if (activeRS) {
+          activeRS.target = state.desiredReplicas;
+          activeRS.active = true;
+        }
+        // Set other RS targets to 0
+        state.replicaSets.forEach(rs => {
+          if (rs !== activeRS) {
+            rs.target = 0;
+            rs.active = false;
+          }
+        });
+      }
+    });
+
+    // Recalculate Canary Splits
+    function recalculateCanaryTargets() {
+      const v1RS = state.replicaSets.find(rs => rs.version === 'v1.0.0');
+      const v2RS = state.replicaSets.find(rs => rs.version.startsWith('v2.0.0'));
+      
+      if (!v1RS || !v2RS) return;
+      
+      const v2Target = Math.max(1, Math.round(state.desiredReplicas * (state.canaryPercent / 100)));
+      const v1Target = Math.max(0, state.desiredReplicas - v2Target);
+      
+      v1RS.target = v1Target;
+      v2RS.target = v2Target;
+      
+      v1RS.active = (v1Target > 0);
+      v2RS.active = (v2Target > 0);
+
+      addLog('reconciler', `Canary target split recalculated: Stable v1 target=${v1Target}, Canary v2 target=${v2Target}`);
+    }
+
+    function setCanarySplit(pct) {
+      state.canaryPercent = pct;
+      elements.splitV1Val.innerText = `${100 - pct}%`;
+      elements.splitV2Val.innerText = `${pct}%`;
+      elements.trafficBarV1.style.width = `${100 - pct}%`;
+      elements.trafficBarV2.style.width = `${pct}%`;
+      
+      addEvent(`Canary traffic split updated: Stable ${100 - pct}% / Canary ${pct}%`);
+      
+      // Check if we need to create Canary RS
+      let canaryRS = state.replicaSets.find(rs => rs.version.startsWith('v2.0.0'));
+      if (!canaryRS) {
+        state.currentRevision++;
+        canaryRS = {
+          name: `payment-processor-${generateId()}`,
+          version: 'v2.0.0',
+          target: 0,
+          actual: 0,
+          revision: state.currentRevision,
+          active: false
+        };
+        state.replicaSets.push(canaryRS);
+      }
+      
+      recalculateCanaryTargets();
+    }
+
+    // Trigger Rollout
+    function triggerRollout(type) {
+      if (state.rolloutActive) {
+        addLog('error', 'Cannot trigger new rollout: A rollout sequence is already in progress.');
+        return;
+      }
+
+      state.rolloutActive = true;
+      const nextVersion = (type === 'broken') ? 'v2.0.0-broken' : 'v2.0.0';
+      state.activeVersion = nextVersion;
+      elements.metaImage.innerText = `${nextVersion} (${type === 'broken' ? 'Unhealthy Probes' : 'Healthy'})`;
+      addEvent(`Rollout initialized for version ${nextVersion}`, type === 'broken' ? 'warn' : 'info');
+      addLog('system', `Deploying new version ${nextVersion}. Reconciler initiating rollout...`);
+
+      // Scale down previous active, scale up new one
+      const prevActiveRS = state.replicaSets.find(rs => rs.active && rs.version !== nextVersion);
+      if (prevActiveRS) {
+        prevActiveRS.active = false;
+      }
+
+      state.currentRevision++;
+      const newRS = {
+        name: `payment-processor-${generateId()}`,
+        version: nextVersion,
+        target: state.desiredReplicas,
+        actual: 0,
+        revision: state.currentRevision,
+        active: true
+      };
+      
+      state.replicaSets.push(newRS);
+
+      if (state.currentStrategy === 'Recreate') {
+        // Recreate kills all old ones first
+        if (prevActiveRS) prevActiveRS.target = 0;
+        newRS.target = state.desiredReplicas;
+      } else if (state.currentStrategy === 'RollingUpdate') {
+        // RollingUpdate: target for new RS initially goes up by 1 (maxSurge=1)
+        newRS.target = 1;
+        if (prevActiveRS) prevActiveRS.target = state.desiredReplicas; // Stable stays at desired
+      }
+    }
+
+    // Trigger Rollback
+    function triggerRollback() {
+      addEvent('Rollback operation triggered by user (kubectl rollout undo)', 'warn');
+      addLog('system', 'Reverting to stable configuration revision...');
+
+      // Find stable v1 ReplicaSet
+      const stableRS = state.replicaSets.find(rs => rs.version === 'v1.0.0');
+      if (!stableRS) {
+        addLog('error', 'Rollback failed: No historical stable revisions found.');
+        return;
+      }
+
+      // De-activate current active RS
+      const badRS = state.replicaSets.find(rs => rs.active && rs.version !== 'v1.0.0');
+      if (badRS) {
+        badRS.target = 0;
+        badRS.active = false;
+      }
+
+      stableRS.active = true;
+      stableRS.target = state.desiredReplicas;
+      state.activeVersion = 'v1.0.0';
+      state.rolloutActive = false;
+      elements.metaImage.innerText = 'v1.0.0 (Stable)';
+      
+      addEvent('Rollback complete: Restored version v1.0.0', 'info');
+    }
+
+    // Kill node
+    function killNode(nodeId) {
+      if (!state.nodes[nodeId].active) return;
+      
+      state.nodes[nodeId].active = false;
+      addLog('error', `Node worker-node-${nodeId} crashed! Network heartbeat leases lost.`);
+      addEvent(`Worker Node ${nodeId} entered Offline state`, 'danger');
+      
+      // Mark all pods on this node as Failed/NodeLost
+      state.pods.forEach(pod => {
+        if (pod.nodeId === nodeId) {
+          pod.status = 'Failed';
+          pod.ready = false;
+          addLog('reconciler', `Pod ${pod.id} detected unreachable on crashed node worker-node-${nodeId}`);
+        }
+      });
+      render();
+    }
+
+    // Recover nodes
+    function recoverNodes() {
+      let recovered = false;
+      for (const id in state.nodes) {
+        if (!state.nodes[id].active) {
+          state.nodes[id].active = true;
+          addLog('system', `Node worker-node-${id} recovered and returned to Ready state.`);
+          addEvent(`Worker Node ${id} recovered to Ready`, 'info');
+          recovered = true;
+        }
+      }
+      if (recovered) render();
+    }
+
+    // Kill specific pod
+    function killPod(podId) {
+      const pod = state.pods.find(p => p.id === podId);
+      if (pod) {
+        pod.status = 'Failed';
+        pod.ready = false;
+        addLog('event', `Pod container crash injected on ${podId}`);
+        addEvent(`Pod ${podId} crashed (Exit code 137)`, 'danger');
+        render();
+      }
+    }
+
+    // Reconciler Loop Engine (Executes every 1 second)
+    function runReconciler() {
+      state.loopTick++;
+      
+      // Visual feedback of reconciliation phase transitions
+      setTimeout(() => setFlowStep('observe'), 0);
+      setTimeout(() => setFlowStep('analyze'), 300);
+      setTimeout(() => setFlowStep('act'), 650);
+
+      // 1. Observe: clean up dead pods in Terminating state
+      state.pods = state.pods.filter(pod => {
+        if (pod.status === 'Terminating') {
+          addLog('reconciler', `Garbage collected terminated Pod ${pod.id}`);
+          return false;
+        }
+        return true;
+      });
+
+      // Evict pods on crashed nodes (eviction reconciliation)
+      state.pods.forEach(pod => {
+        if (!state.nodes[pod.nodeId].active && pod.status !== 'Failed') {
+          pod.status = 'Failed';
+          pod.ready = false;
+        }
+      });
+
+      // 2. Reconcile Pod startup time ticks
+      state.pods.forEach(pod => {
+        if (pod.status === 'Pending') {
+          pod.tickCount++;
+          if (pod.tickCount >= 2) { // Takes 2 ticks to start
+            if (pod.broken) {
+              pod.status = 'Failed';
+              pod.ready = false;
+              addLog('error', `Pod ${pod.id} readiness probe failed on path /healthz-broken`);
+              addEvent(`Readiness probe failure on pod ${pod.id}`, 'danger');
+            } else {
+              pod.status = 'Running';
+              pod.ready = true;
+              addLog('reconciler', `Pod ${pod.id} passed liveness and readiness health checks.`);
+            }
+          }
+        }
+      });
+
+      // 3. Sync state between actual pods and ReplicaSet targets
+      state.replicaSets.forEach(rs => {
+        const rsPods = state.pods.filter(p => p.rsName === rs.name && p.status !== 'Failed');
+        rs.actual = rsPods.length;
+        
+        // Scale Up: Desired > Actual
+        if (rs.target > rs.actual) {
+          const spawnCount = rs.target - rs.actual;
+          addLog('reconciler', `ReplicaSet ${rs.name} under-replicated. Target: ${rs.target}, Actual: ${rs.actual}. Creating ${spawnCount} Pods...`);
+          
+          for (let i = 0; i < spawnCount; i++) {
+            // Find active node (must not be crashed)
+            let nodeId = 1;
+            if (state.nodes[2].active && (!state.nodes[1].active || Math.random() > 0.5)) {
+              nodeId = 2;
+            }
+            
+            if (!state.nodes[nodeId].active) {
+              addLog('error', `Scheduling failed: No active Nodes available to schedule Pod.`);
+              addEvent('Scheduling failed: Insufficient node capacity', 'danger');
+              break;
+            }
+
+            const isBroken = (rs.version.endsWith('broken'));
+            const newPod = {
+              id: `${rs.name}-${generateId()}`,
+              rsName: rs.name,
+              version: rs.version,
+              status: 'Pending',
+              nodeId: nodeId,
+              ready: false,
+              tickCount: 0,
+              broken: isBroken
+            };
+            state.pods.push(newPod);
+            addLog('reconciler', `Pod ${newPod.id} scheduled to Node worker-node-${nodeId}`);
+          }
+        }
+        
+        // Scale Down: Desired < Actual
+        if (rs.target < rs.actual) {
+          const killCount = rs.actual - rs.target;
+          addLog('reconciler', `ReplicaSet ${rs.name} over-replicated. Target: ${rs.target}, Actual: ${rs.actual}. Deleting ${killCount} Pods...`);
+          
+          let killed = 0;
+          for (let i = state.pods.length - 1; i >= 0; i--) {
+            const pod = state.pods[i];
+            if (pod.rsName === rs.name && pod.status !== 'Terminating' && pod.status !== 'Failed') {
+              pod.status = 'Terminating';
+              pod.ready = false;
+              killed++;
+              addLog('reconciler', `Dispatched SIGTERM to Pod ${pod.id}. Removing from Endpoint list.`);
+              if (killed >= killCount) break;
+            }
+          }
+        }
+      });
+
+      // 4. Rolling Update Logic controller
+      if (state.rolloutActive && state.currentStrategy === 'RollingUpdate') {
+        const activeRS = state.replicaSets.find(rs => rs.version === state.activeVersion);
+        const oldRS = state.replicaSets.find(rs => rs.version !== state.activeVersion && rs.target > 0);
+        
+        if (activeRS && oldRS) {
+          const activeReadyPods = state.pods.filter(p => p.rsName === activeRS.name && p.ready).length;
+          
+          if (activeRS.target < state.desiredReplicas) {
+            // If the recently spun-up pod is ready, we can progress: scale down old, scale up new
+            if (activeReadyPods === activeRS.target) {
+              activeRS.target++;
+              oldRS.target--;
+              addLog('reconciler', `RollingUpdate Progressing: Incremented new RS target to ${activeRS.target}, decremented old RS target to ${oldRS.target}`);
+            } else {
+              // Wait for probes to pass
+              const activePendingCount = state.pods.filter(p => p.rsName === activeRS.name && p.status === 'Pending').length;
+              const activeFailedCount = state.pods.filter(p => p.rsName === activeRS.name && p.status === 'Failed').length;
+              
+              if (activeFailedCount > 0) {
+                addLog('error', `Rollout Stalled! New replica ${activeRS.name} failed startup check. Rollout budget blocking progress.`);
+                addEvent('Deployment Rollout Stalled due to health probe failures!', 'danger');
+              } else {
+                addLog('reconciler', `RollingUpdate waiting: Booting new Pods (${activePendingCount} pending)...`);
+              }
+            }
+          } else {
+            // Final reconciliation step: set old RS target to 0
+            oldRS.target = 0;
+            if (activeReadyPods === state.desiredReplicas) {
+              state.rolloutActive = false;
+              addLog('reconciler', `Rollout successfully completed: All ${state.desiredReplicas} replicas updated to version ${state.activeVersion}`);
+              addEvent(`Rollout of version ${state.activeVersion} successfully completed`, 'info');
+            }
+          }
+        }
+      }
+
+      // 5. Recreate Strategy Logic
+      if (state.rolloutActive && state.currentStrategy === 'Recreate') {
+        const activeRS = state.replicaSets.find(rs => rs.version === state.activeVersion);
+        const oldRS = state.replicaSets.find(rs => rs.version !== state.activeVersion && rs.actual > 0);
+        
+        // Wait for all old pods to be completely scaled down to 0 before launching new pods
+        if (!oldRS) {
+          const activeReadyPods = state.pods.filter(p => p.rsName === activeRS.name && p.ready).length;
+          if (activeReadyPods === state.desiredReplicas) {
+            state.rolloutActive = false;
+            addLog('reconciler', `Recreate Rollout completed successfully.`);
+            addEvent(`Recreate Rollout completed: ${state.desiredReplicas} pods running ${state.activeVersion}`, 'info');
+          }
+        } else {
+          addLog('reconciler', `Recreate strategy waiting for old ReplicaSet (${oldRS.name}) to hit 0 replicas...`);
+        }
+      }
+
+      // Update metrics
+      render();
+    }
+
+    function setFlowStep(step) {
+      elements.flowObserve.classList.remove('active');
+      elements.flowAnalyze.classList.remove('active');
+      elements.flowAct.classList.remove('active');
+      
+      if (step === 'observe') elements.flowObserve.classList.add('active');
+      if (step === 'analyze') elements.flowAnalyze.classList.add('active');
+      if (step === 'act') elements.flowAct.classList.add('active');
+    }
+
+    // Render state to UI
+    function render() {
+      // Metrics
+      elements.metricDesired.innerText = state.desiredReplicas;
+      
+      const currentCount = state.pods.length;
+      const readyCount = state.pods.filter(p => p.ready).length;
+      
+      const activeRS = state.replicaSets.find(rs => rs.active);
+      const updatedCount = activeRS ? state.pods.filter(p => p.rsName === activeRS.name && p.ready).length : 0;
+      
+      elements.metricCurrent.innerText = currentCount;
+      elements.metricReady.innerText = readyCount;
+      elements.metricUpdated.innerText = updatedCount;
+
+      // Update node cards styling
+      if (state.nodes[1].active) {
+        elements.node1Card.classList.remove('offline');
+        elements.node1Status.innerText = 'READY';
+        elements.node1Status.className = 'node-status active';
+      } else {
+        elements.node1Card.classList.add('offline');
+        elements.node1Status.innerText = 'OFFLINE';
+        elements.node1Status.className = 'node-status dead';
+      }
+
+      if (state.nodes[2].active) {
+        elements.node2Card.classList.remove('offline');
+        elements.node2Status.innerText = 'READY';
+        elements.node2Status.className = 'node-status active';
+      } else {
+        elements.node2Card.classList.add('offline');
+        elements.node2Status.innerText = 'OFFLINE';
+        elements.node2Status.className = 'node-status dead';
+      }
+
+      // Render Pods
+      elements.node1Pods.innerHTML = '';
+      elements.node2Pods.innerHTML = '';
+
+      state.pods.forEach(pod => {
+        const el = document.createElement('div');
+        el.className = `pod-element ${pod.status} spawn`;
+        el.innerHTML = `
+          <div class="crash-btn" title="Simulate Container Crash" onclick="event.stopPropagation(); killPod('${pod.id}')">✕</div>
+          <div class="pod-name">${pod.id}</div>
+          <div class="pod-version">${pod.version}</div>
+          <div class="pod-status-text">${pod.status}${pod.ready ? ' (Ready)' : ' (Unready)'}</div>
+        `;
+        
+        if (pod.nodeId === 1) {
+          elements.node1Pods.appendChild(el);
+        } else {
+          elements.node2Pods.appendChild(el);
+        }
+      });
+
+      // Render ReplicaSet History
+      elements.rsHistoryList.innerHTML = '';
+      // Sort history descending by revision
+      const sortedRS = [...state.replicaSets].sort((a, b) => b.revision - a.revision);
+      sortedRS.forEach(rs => {
+        const item = document.createElement('div');
+        item.style.borderBottom = '1px solid rgba(186, 104, 200, 0.1)';
+        item.style.paddingBottom = '0.35rem';
+        item.innerHTML = `
+          <div style="display:flex; justify-content:space-between; font-weight:bold;">
+            <span style="font-family:'JetBrains Mono', monospace; font-size:0.8rem;">rev.${rs.revision} | ${rs.name.split('-')[2]}</span>
+            <span style="font-size:0.75rem; color:${rs.active ? 'var(--color-running)' : '#6c7086'};">${rs.active ? 'ACTIVE' : 'INACTIVE'}</span>
+          </div>
+          <div style="font-size:0.75rem; color:rgba(234, 230, 240, 0.6); display:flex; justify-content:space-between; margin-top:0.2rem;">
+            <span>Image: ${rs.version}</span>
+            <span>Target/Actual: ${rs.target}/${rs.actual}</span>
+          </div>
+        `;
+        elements.rsHistoryList.appendChild(item);
+      });
+    }
+
+    // Startup
+    initPods();
+    addLog('system', 'API Server connected. Monitoring cluster resources...');
+    addLog('reconciler', 'ReplicaSet controller reconciler loop initialized.');
+    addEvent('Kubernetes cluster simulation started', 'info');
+
+    // Run the main control loop at 1s interval
+    setInterval(runReconciler, 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-processor-canary-svc
+  namespace: default
+  labels:
+    app.kubernetes.io/name: payment-processor-canary
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: payment-processor-canary

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor-canary-v2
+  namespace: default
+  labels:
+    app.kubernetes.io/name: payment-processor-canary
+    version: "2.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-processor-canary
+      version: "2.0.0"
+  template:
+    metadata:
+      labels:
+        app: payment-processor-canary
+        version: "2.0.0"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      containers:
+      - name: payment-api
+        image: nginxinc/nginx-unprivileged:1.25-alpine
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo 'v2' > /usr/share/nginx/html/version"]
