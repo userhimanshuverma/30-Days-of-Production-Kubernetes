@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Networking & Packet Flow Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07050d;
+      --panel-bg: rgba(22, 17, 43, 0.65);
+      --border-glow: rgba(162, 120, 255, 0.25);
+      --accent-glow: rgba(147, 112, 219, 0.4);
+      
+      --purple-light: #e1d8f5;
+      --purple-primary: #9d7cf0;
+      --purple-dark: #623cc4;
+      
+      --color-healthy: #10b981;
+      --color-unhealthy: #ef4444;
+      --color-warn: #f59e0b;
+      --color-vip: #06b6d4;
+      
+      --glow-healthy: rgba(16, 185, 129, 0.35);
+      --glow-unhealthy: rgba(239, 68, 68, 0.35);
+      --glow-vip: rgba(6, 182, 212, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--purple-primary) var(--bg-dark);
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 50%, #15112e 0%, var(--bg-dark) 100%);
+      color: #edeaf5;
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: rgba(9, 7, 18, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-glow);
+      padding: 1.25rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #f3e8ff 0%, var(--purple-primary) 50%, #7c3aed 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(157, 124, 240, 0.15);
+      border: 1px solid var(--purple-primary);
+      padding: 0.35rem 0.75rem;
+      border-radius: 50px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--purple-light);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--color-healthy);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--color-healthy);
+      animation: pulse 1.5s infinite;
+    }
+
+    /* Main Grid Layout */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 360px 1fr 360px;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      max-width: 1920px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Column Panels */
+    .panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--purple-light);
+      border-bottom: 1px solid var(--border-glow);
+      padding-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .help-icon {
+      font-size: 0.75rem;
+      background: rgba(157, 124, 240, 0.2);
+      border: 1px solid var(--purple-primary);
+      color: var(--purple-light);
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-style: normal;
+      font-weight: bold;
+    }
+
+    /* Form Controls */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #c0b3f5;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select, button, input[type="text"] {
+      background: rgba(12, 10, 24, 0.9);
+      border: 1px solid rgba(162, 120, 255, 0.3);
+      color: #edeaf5;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--purple-primary);
+      box-shadow: 0 0 10px rgba(157, 124, 240, 0.3);
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: linear-gradient(135deg, rgba(157, 124, 240, 0.15) 0%, rgba(98, 60, 196, 0.25) 100%);
+    }
+
+    button:hover {
+      border-color: var(--purple-primary);
+      box-shadow: 0 0 10px rgba(157, 124, 240, 0.3);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--purple-primary) 0%, var(--purple-dark) 100%);
+      color: #fff;
+      border: none;
+    }
+
+    button.primary:hover {
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(185, 28, 28, 0.3) 100%);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #ffebeb;
+    }
+
+    button.danger:hover {
+      border-color: var(--color-unhealthy);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+    }
+
+    /* Scenarios list */
+    .scenario-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .scenario-card {
+      background: rgba(18, 14, 38, 0.4);
+      border: 1px solid rgba(162, 120, 255, 0.15);
+      border-radius: 8px;
+      padding: 0.65rem;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      width: 100%;
+    }
+
+    .scenario-card:hover {
+      background: rgba(157, 124, 240, 0.1);
+      border-color: rgba(162, 120, 255, 0.3);
+    }
+
+    .scenario-card.active {
+      background: rgba(157, 124, 240, 0.15);
+      border-color: var(--purple-primary);
+      box-shadow: 0 0 12px rgba(157, 124, 240, 0.2);
+    }
+
+    .scenario-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--purple-light);
+    }
+
+    .scenario-desc {
+      font-size: 0.75rem;
+      color: rgba(237, 234, 245, 0.6);
+      line-height: 1.25;
+    }
+
+    .scenario-info-box {
+      background: rgba(30, 22, 60, 0.45);
+      border: 1px solid rgba(162, 120, 255, 0.25);
+      border-radius: 12px;
+      padding: 1rem;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .scenario-info-box h3 {
+      font-size: 0.9rem;
+      color: #e5dbff;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Central Topology Panel */
+    .topology-container {
+      grid-column: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .cluster-canvas-container {
+      flex: 1;
+      background: rgba(9, 7, 20, 0.75);
+      border: 1px solid rgba(162, 120, 255, 0.15);
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem;
+    }
+
+    /* Absolute Overlay for Packet Animations and Topology lines */
+    #animation-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #svg-connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .packet-dot {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: radial-gradient(circle, #fff 0%, var(--purple-primary) 60%, var(--purple-dark) 100%);
+      border-radius: 50%;
+      box-shadow: 0 0 12px #fff, 0 0 20px var(--purple-primary);
+      transform: translate(-50%, -50%);
+      transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+      z-index: 20;
+    }
+
+    /* Step-by-Step Packet Flow Walkthrough Box */
+    .walkthrough-box {
+      background: rgba(14, 11, 28, 0.8);
+      border: 1px solid rgba(162, 120, 255, 0.2);
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+
+    .walkthrough-title {
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: var(--purple-primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .walkthrough-steps {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .walkthrough-step {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      background: rgba(162, 120, 255, 0.05);
+      border: 1px solid rgba(162, 120, 255, 0.1);
+      color: rgba(237, 234, 245, 0.4);
+      white-space: nowrap;
+      transition: all 0.3s ease;
+    }
+
+    .walkthrough-step.active {
+      background: rgba(157, 124, 240, 0.2);
+      border-color: var(--purple-primary);
+      color: #fff;
+      box-shadow: 0 0 8px rgba(157, 124, 240, 0.25);
+    }
+
+    .walkthrough-step.done {
+      border-color: var(--color-healthy);
+      color: var(--color-healthy);
+    }
+
+    /* Client/External Zones */
+    .client-zone {
+      display: flex;
+      justify-content: center;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px dashed rgba(162, 120, 255, 0.15);
+      position: relative;
+    }
+
+    .external-lb-zone {
+      display: flex;
+      justify-content: center;
+      position: relative;
+      margin: 0.5rem 0;
+    }
+
+    .infrastructure-card {
+      background: rgba(26, 21, 51, 0.85);
+      border: 1px solid var(--border-glow);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      position: relative;
+      min-width: 170px;
+      z-index: 5;
+    }
+
+    .infrastructure-card.vip {
+      border-color: var(--color-vip);
+      box-shadow: 0 0 10px var(--glow-vip);
+    }
+
+    .card-label {
+      font-size: 0.65rem;
+      color: rgba(237, 234, 245, 0.5);
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Nodes */
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+      flex: 1;
+    }
+
+    .node {
+      background: rgba(18, 14, 38, 0.8);
+      border: 1px solid rgba(162, 120, 255, 0.2);
+      border-radius: 14px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: all 0.3s ease;
+      position: relative;
+      z-index: 5;
+    }
+
+    .node.unhealthy {
+      border-color: rgba(239, 68, 68, 0.3);
+      opacity: 0.6;
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      font-size: 0.8rem;
+      color: var(--purple-light);
+      border-bottom: 1px solid rgba(162, 120, 255, 0.1);
+      padding-bottom: 0.25rem;
+    }
+
+    .node-ip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: rgba(237, 234, 245, 0.5);
+    }
+
+    .pod-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      flex: 1;
+      align-content: start;
+    }
+
+    .pod {
+      background: rgba(30, 25, 59, 0.6);
+      border: 1px solid rgba(162, 120, 255, 0.15);
+      border-radius: 10px;
+      padding: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .pod:hover {
+      box-shadow: 0 0 10px rgba(162, 120, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .pod.healthy {
+      border-color: var(--color-healthy);
+      box-shadow: 0 0 6px var(--glow-healthy);
+    }
+
+    .pod.unhealthy {
+      border-color: var(--color-unhealthy);
+      box-shadow: 0 0 6px var(--glow-unhealthy);
+    }
+
+    .pod.terminating {
+      opacity: 0.5;
+      border-style: dashed;
+    }
+
+    .pod-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pod-name {
+      font-size: 0.75rem;
+      font-weight: bold;
+      font-family: 'JetBrains Mono', monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 90px;
+    }
+
+    .pod-ip {
+      font-size: 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: rgba(237, 234, 245, 0.5);
+    }
+
+    .pod-status {
+      font-size: 0.6rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 0.05rem 0.35rem;
+      border-radius: 4px;
+    }
+
+    .pod.healthy .pod-status {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--color-healthy);
+    }
+
+    .pod.unhealthy .pod-status {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--color-unhealthy);
+    }
+
+    .pod-actions {
+      display: flex;
+      gap: 0.25rem;
+      margin-top: 0.25rem;
+      justify-content: flex-end;
+    }
+
+    .pod-action-btn {
+      font-size: 0.6rem;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--color-unhealthy);
+    }
+
+    .pod-action-btn:hover {
+      background: var(--color-unhealthy);
+      color: #fff;
+    }
+
+    /* Right Column: Code views and Help info */
+    .side-card {
+      background: rgba(14, 11, 28, 0.75);
+      border: 1px solid rgba(162, 120, 255, 0.15);
+      border-radius: 10px;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+    }
+
+    .side-card h4 {
+      color: var(--purple-light);
+      margin-bottom: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(162, 120, 255, 0.1);
+      padding-bottom: 0.25rem;
+    }
+
+    .code-view {
+      font-family: 'JetBrains Mono', monospace;
+      background: #040308;
+      padding: 0.5rem;
+      border-radius: 6px;
+      color: #a6e3a1;
+      max-height: 160px;
+      overflow-y: auto;
+      font-size: 0.7rem;
+      white-space: pre-wrap;
+      line-height: 1.35;
+    }
+
+    .endpoint-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.25rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(162, 120, 255, 0.05);
+      margin-bottom: 0.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+    }
+
+    .endpoint-item.ready {
+      border-left: 2px solid var(--color-healthy);
+    }
+
+    .endpoint-item.notready {
+      border-left: 2px solid var(--color-unhealthy);
+      opacity: 0.6;
+    }
+
+    /* Modal Help Tooltips */
+    .tooltip-modal {
+      display: none;
+      position: absolute;
+      background: rgba(11, 8, 25, 0.95);
+      border: 1px solid var(--purple-primary);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+      color: #edeaf5;
+      width: 280px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      z-index: 200;
+      line-height: 1.4;
+    }
+
+    /* Console logs */
+    .console-panel {
+      grid-column: 1 / span 3;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .console {
+      flex: 1;
+      background: #030207;
+      border: 1px solid rgba(162, 120, 255, 0.2);
+      border-radius: 10px;
+      padding: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .log-time { color: #585b70; }
+    .log-tag { font-weight: bold; }
+    .log-tag.client { color: #f9e2af; }
+    .log-tag.kubeproxy { color: #cba6f7; }
+    .log-tag.dns { color: #89b4fa; }
+    .log-tag.apiserver { color: #fab387; }
+
+    /* Legend Box left panel */
+    .legend-box {
+      border: 1px solid rgba(162, 120, 255, 0.15);
+      background: rgba(14, 11, 28, 0.4);
+      padding: 0.75rem;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Animations */
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Explanatory Tooltip Popovers -->
+  <div id="tooltip" class="tooltip-modal"></div>
+
+  <header>
+    <h1>⚙️ Interactive Kubernetes Networking Simulator</h1>
+    <div style="display: flex; gap: 1rem;">
+      <div class="status-badge">
+        <span class="pulse-dot"></span>
+        <span>KUBE-PROXY: ACTIVE</span>
+      </div>
+      <div class="status-badge" style="background: rgba(16, 185, 129, 0.1); border-color: var(--color-healthy); color: var(--color-healthy);">
+        CLUSTER HEALTHY
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Controls & Scenarios -->
+    <div class="panel">
+      <div class="panel-title">1. GUIDED NETWORKING LESSONS</div>
+      
+      <div class="scenario-list">
+        <button class="scenario-card active" id="scen-1" onclick="selectScenario(1)">
+          <span class="scenario-title">1. Direct Pod-to-Pod Traffic</span>
+          <span class="scenario-desc">Simulate direct container IP routing. Compares local bridge routing with cross-node routing.</span>
+        </button>
+        <button class="scenario-card" id="scen-2" onclick="selectScenario(2)">
+          <span class="scenario-title">2. ClusterIP Load Balancing</span>
+          <span class="scenario-desc">Send traffic to Virtual ClusterIP. Observe iptables intercepting the VIP & DNAT-ing to target Pods.</span>
+        </button>
+        <button class="scenario-card" id="scen-3" onclick="selectScenario(3)">
+          <span class="scenario-title">3. NodePort External Access</span>
+          <span class="scenario-desc">Hit worker nodes on port 30080. Watch how traffic is routed and the SNAT cross-node hop occurs.</span>
+        </button>
+        <button class="scenario-card" id="scen-4" onclick="selectScenario(4)">
+          <span class="scenario-title">4. LoadBalancer & Traffic Policy</span>
+          <span class="scenario-desc">Test cloud load balancer. Toggle externalTrafficPolicy to Local to avoid cross-node hops.</span>
+        </button>
+        <button class="scenario-card" id="scen-5" onclick="selectScenario(5)">
+          <span class="scenario-title">5. CoreDNS Resolution & ndots</span>
+          <span class="scenario-desc">Lookup names. Witness the ndots:5 latency penalty when looking up external vs absolute domain names.</span>
+        </button>
+      </div>
+
+      <div class="scenario-info-box" id="scenario-info">
+        <h3 id="info-title">Scenario 1: Direct Pod-to-Pod</h3>
+        <p id="info-desc">Every Pod gets its own real, routable IP. When Pod A calls Pod B on the same node, it travels via the virtual ethernet bridge (cbr0) without leaving the host node. If calling Pod C on Node 2, the packet travels across nodes.</p>
+      </div>
+
+      <div class="legend-box">
+        <div style="font-size: 0.75rem; font-weight: bold; border-bottom: 1px solid rgba(162,120,255,0.2); padding-bottom: 0.2rem;">LEGEND</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--color-healthy);"></span> Healthy Backend Pods (Ready)</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--color-vip);"></span> Virtual IP / CoreDNS System IP</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--purple-primary);"></span> Packet Routing / Active NAT</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--color-unhealthy);"></span> Unhealthy / Terminating Pod</div>
+      </div>
+
+      <div class="panel-title" style="margin-top: 0.2rem;">2. CLUSTER CONTROLS</div>
+      
+      <div class="control-group">
+        <label>Trigger Traffic Source</label>
+        <button class="primary" id="btn-send" onclick="sendTraffic()">Send Request Packet</button>
+      </div>
+
+      <div class="control-group" id="opt-traffic-policy" style="display:none;">
+        <label>externalTrafficPolicy</label>
+        <select id="traffic-policy" onchange="updatePolicy()">
+          <option value="Cluster">Cluster (Default - Adds Hops, masks client IP)</option>
+          <option value="Local">Local (Zero-hop, preserves client IP)</option>
+        </select>
+      </div>
+
+      <div class="control-group" id="opt-dns-lookup" style="display:none;">
+        <label>Domain Resolution Query</label>
+        <input type="text" id="dns-query-input" value="web-backend-service">
+        <button class="primary" onclick="runDNSResolution()">Resolve Name</button>
+      </div>
+
+      <div class="control-group">
+        <label>Scale Deployment Replicas</label>
+        <div style="display:flex; gap: 0.5rem;">
+          <button style="flex:1;" onclick="scaleBackend(1)">Add Pod</button>
+          <button style="flex:1;" class="danger" onclick="scaleBackend(-1)">Remove Pod</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Column: Visual Cluster Topology Map -->
+    <div class="topology-container">
+      <div class="cluster-canvas-container" id="canvas-container">
+        <!-- SVG Connector Lines Overlay -->
+        <svg id="svg-connections">
+          <!-- Lines drawn dynamically by JavaScript -->
+        </svg>
+
+        <div id="animation-overlay"></div>
+
+        <!-- External Traffic Entry Card -->
+        <div class="external-lb-zone" id="lb-zone" style="opacity:0; transition: all 0.3s ease;">
+          <div class="infrastructure-card vip" id="card-cloud-lb">
+            <span class="card-label">Cloud Load Balancer</span>
+            <div class="card-title">IP: 34.120.44.82</div>
+          </div>
+        </div>
+
+        <!-- Client Pod Zone -->
+        <div class="client-zone">
+          <div class="infrastructure-card" id="card-client-pod">
+            <span class="card-label">Client Pod (ns: default)</span>
+            <div class="card-title" id="client-pod-title">dns-debug (10.244.1.50)</div>
+          </div>
+        </div>
+
+        <!-- Virtual ClusterIP service IP card -->
+        <div style="display: flex; justify-content: center; margin: 1rem 0;" id="vip-zone">
+          <div class="infrastructure-card vip" id="card-vip" style="transition: all 0.3s ease;">
+            <span class="card-label">Service (ClusterIP)</span>
+            <div class="card-title" id="vip-title">web-backend-service (10.96.14.22:80)</div>
+          </div>
+        </div>
+
+        <!-- Nodes Area -->
+        <div class="nodes-grid">
+          <!-- Node 1 -->
+          <div class="node" id="node-1">
+            <div class="node-header">
+              <span>Node 1 (cbr0 Bridge)</span>
+              <span class="node-ip">IP: 192.168.1.10</span>
+            </div>
+            
+            <div class="pod-grid" id="node-1-pods">
+              <!-- CoreDNS pod -->
+              <div class="pod healthy" id="pod-coredns" style="grid-column: span 2; background: rgba(6, 182, 212, 0.15); border-color: var(--color-vip);">
+                <div class="pod-header">
+                  <span class="pod-name">coredns-xxx</span>
+                  <span class="pod-status" style="background: rgba(6,182,212,0.2); color: var(--color-vip);">System</span>
+                </div>
+                <div class="pod-ip">10.244.1.2:53</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Node 2 -->
+          <div class="node" id="node-2">
+            <div class="node-header">
+              <span>Node 2 (cbr0 Bridge)</span>
+              <span class="node-ip">IP: 192.168.1.11</span>
+            </div>
+            
+            <div class="pod-grid" id="node-2-pods"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live Packet Flow Stepper Walkthrough -->
+      <div class="walkthrough-box" id="walkthrough-panel">
+        <span class="walkthrough-title">Packet Routing Progress Walkthrough</span>
+        <div class="walkthrough-steps" id="flow-steps">
+          <!-- Populated dynamically by JS -->
+          <span class="walkthrough-step active">1. Ready to trigger traffic...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Kube-proxy program rules & EndpointSlices -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>3. ENDPOINTSLICE BACKENDS</span>
+        <i class="help-icon" onclick="showHelp('ep', event)">?</i>
+      </div>
+      
+      <div class="side-card">
+        <h4>web-backend-service-slice <span style="font-size:0.6rem; color:#89b4fa;">discovery.k8s.io/v1</span></h4>
+        <div id="endpoint-list-container" style="display:flex; flex-direction:column; gap:0.25rem;">
+          <!-- Managed by JS -->
+        </div>
+      </div>
+
+      <div class="panel-title" style="margin-top: 0.5rem;">
+        <span>4. KUBE-PROXY IPTABLES RULES</span>
+        <i class="help-icon" onclick="showHelp('kubeproxy', event)">?</i>
+      </div>
+
+      <div class="side-card" style="display:flex; flex-direction:column; gap:0.5rem;">
+        <h4>NAT Chains: KUBE-SERVICES & KUBE-SVC</h4>
+        <div class="code-view" id="iptables-svc-rules">
+# KUBE-SERVICES Chain Matches ClusterIP
+-A KUBE-SERVICES -d 10.96.14.22/32 -p tcp --dport 80 -j KUBE-SVC-WEB-BACKEND
+
+# KUBE-SVC Chain Distributes Load
+-A KUBE-SVC-WEB-BACKEND -m statistic --mode random --probability 0.50 -j KUBE-SEP-POD1
+-A KUBE-SVC-WEB-BACKEND -j KUBE-SEP-POD2
+        </div>
+      </div>
+
+      <div class="side-card">
+        <h4>DNAT Chains: KUBE-SEP</h4>
+        <div class="code-view" id="iptables-sep-rules">
+-A KUBE-SEP-POD1 -p tcp -j DNAT --to-destination 10.244.1.5:8080
+-A KUBE-SEP-POD2 -p tcp -j DNAT --to-destination 10.244.2.12:8080
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Row: Cluster Event Logs -->
+    <div class="console-panel">
+      <div class="panel-title">5. REAL-TIME PACKET & SYSTEM LOGS</div>
+      <div class="console" id="console-logs">
+        <!-- Logs dynamically updated -->
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // State management
+    const state = {
+      scenario: 1,
+      policy: "Cluster",
+      pods: [
+        { id: "pod-1", name: "web-backend-7b-a", ip: "10.244.1.5", node: 1, healthy: true, status: "Running" },
+        { id: "pod-2", name: "web-backend-7b-b", ip: "10.244.2.12", node: 2, healthy: true, status: "Running" }
+      ],
+      nextPodIdx: 3,
+      ips: ["10.244.1.6", "10.244.2.14", "10.244.1.8", "10.244.2.19"]
+    };
+
+    // Help Glossaries
+    const glossary = {
+      ep: "<b>What is an EndpointSlice?</b><br><br>EndpointSlice is a Kubernetes API resource that tracks healthy target pod IPs. Rather than updating a single huge list of all pods when one changes, Kubernetes creates 'slices' containing up to 100 endpoints each. This dramatically reduces network syncing traffic to worker nodes.",
+      kubeproxy: "<b>kube-proxy iptables rules</b><br><br>These are custom NAT chains written into the Linux kernel netfilter system by kube-proxy. When a packet enters the host, the kernel translates the destination virtual ClusterIP (e.g. 10.96.14.22) to a real, healthy Pod IP (e.g. 10.244.1.5) via Destination NAT (DNAT). The statistic module performs load distribution using probabilistic random offsets."
+    };
+
+    function showHelp(key, event) {
+      event.stopPropagation();
+      const tooltip = document.getElementById("tooltip");
+      tooltip.innerHTML = glossary[key];
+      tooltip.style.display = "block";
+      tooltip.style.left = `${event.clientX - 300}px`;
+      tooltip.style.top = `${event.clientY + 15}px`;
+
+      // Hide when clicking elsewhere
+      document.addEventListener("click", hideHelp);
+    }
+
+    function hideHelp() {
+      document.getElementById("tooltip").style.display = "none";
+      document.removeEventListener("click", hideHelp);
+    }
+
+    // Initialize UI and draw overlay connections
+    function init() {
+      renderPods();
+      renderEndpoints();
+      renderIptables();
+      setTimeout(drawConnectionPaths, 300);
+      window.addEventListener("resize", drawConnectionPaths);
+
+      log("System", "apiserver", "Kubernetes Controller Manager initialized. Watching resources.");
+      log("System", "kubeproxy", "kube-proxy synchronized. Programmed 1 service & 2 endpoints rules.");
+    }
+
+    // Draw connection lines on topology overlay
+    function drawConnectionPaths() {
+      const svg = document.getElementById("svg-connections");
+      svg.innerHTML = ""; // Clear existing lines
+
+      const client = document.getElementById("card-client-pod");
+      const node1 = document.getElementById("node-1");
+      const node2 = document.getElementById("node-2");
+      const lb = document.getElementById("card-cloud-lb");
+
+      if (!client || !node1 || !node2) return;
+
+      const rectClient = client.getBoundingClientRect();
+      const rectNode1 = node1.getBoundingClientRect();
+      const rectNode2 = node2.getBoundingClientRect();
+      const svgRect = svg.getBoundingClientRect();
+
+      const clientX = rectClient.left + rectClient.width / 2 - svgRect.left;
+      const clientY = rectClient.bottom - svgRect.top;
+
+      const node1X = rectNode1.left + rectNode1.width / 2 - svgRect.left;
+      const node1Y = rectNode1.top - svgRect.top;
+
+      const node2X = rectNode2.left + rectNode2.width / 2 - svgRect.left;
+      const node2Y = rectNode2.top - svgRect.top;
+
+      // Draw path from client pod to node virtual bridges
+      createSvgLine(clientX, clientY, node1X, node1Y, "dashed", "veth (veth4b2c)");
+
+      // Draw Node-to-Node cross-node network route
+      createSvgLine(node1X, node1Y + 30, node2X, node2Y + 30, "solid", "VXLAN Overlay Tunnel");
+
+      // Draw Cloud Load Balancer path (only visible if scenario active)
+      if (state.scenario === 3 || state.scenario === 4) {
+        const lbRect = lb.getBoundingClientRect();
+        const lbX = lbRect.left + lbRect.width / 2 - svgRect.left;
+        const lbY = lbRect.bottom - svgRect.top;
+        createSvgLine(lbX, lbY, clientX, rectClient.top - svgRect.top, "solid", "External traffic ingress");
+      }
+    }
+
+    function createSvgLine(x1, y1, x2, y2, style, label) {
+      const svg = document.getElementById("svg-connections");
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", x1);
+      line.setAttribute("y1", y1);
+      line.setAttribute("x2", x2);
+      line.setAttribute("y2", y2);
+      line.setAttribute("stroke", "rgba(162, 120, 255, 0.35)");
+      line.setAttribute("stroke-width", "2");
+      if (style === "dashed") {
+        line.setAttribute("stroke-dasharray", "4 4");
+      }
+      svg.appendChild(line);
+    }
+
+    // Logger
+    function log(tag, type, msg) {
+      const consoleEl = document.getElementById("console-logs");
+      const line = document.createElement("div");
+      line.className = "log-line";
+      const time = new Date().toLocaleTimeString();
+      line.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-tag ${type}">[${tag}]</span> <span>${msg}</span>`;
+      consoleEl.appendChild(line);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    // Render pods
+    function renderPods() {
+      const node1Container = document.getElementById("node-1-pods");
+      const node2Container = document.getElementById("node-2-pods");
+
+      const dnsPod = document.getElementById("pod-coredns");
+      node1Container.innerHTML = "";
+      node1Container.appendChild(dnsPod);
+      node2Container.innerHTML = "";
+
+      state.pods.forEach(pod => {
+        const podEl = document.createElement("div");
+        podEl.className = `pod ${pod.healthy ? 'healthy' : 'unhealthy'} ${pod.status === 'Terminating' ? 'terminating' : ''}`;
+        podEl.id = pod.id;
+        podEl.onclick = () => togglePodHealth(pod.id);
+        
+        podEl.innerHTML = `
+          <div class="pod-header">
+            <span class="pod-name">${pod.name}</span>
+            <span class="pod-status">${pod.status}</span>
+          </div>
+          <div class="pod-ip">${pod.ip}:8080</div>
+          <div class="pod-actions">
+            <button class="pod-action-btn" onclick="event.stopPropagation(); terminatePod('${pod.id}')">Kill</button>
+          </div>
+        `;
+
+        if (pod.node === 1) {
+          node1Container.appendChild(podEl);
+        } else {
+          node2Container.appendChild(podEl);
+        }
+      });
+      setTimeout(drawConnectionPaths, 50);
+    }
+
+    // Render endpoints
+    function renderEndpoints() {
+      const container = document.getElementById("endpoint-list-container");
+      container.innerHTML = "";
+
+      state.pods.forEach(pod => {
+        const item = document.createElement("div");
+        item.className = `endpoint-item ${pod.healthy && pod.status === "Running" ? "ready" : "notready"}`;
+        item.innerHTML = `
+          <span>${pod.ip}:8080</span>
+          <span>${pod.healthy && pod.status === "Running" ? "READY" : "NOT READY"}</span>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    // Update iptables code views
+    function renderIptables() {
+      const svcRules = document.getElementById("iptables-svc-rules");
+      const sepRules = document.getElementById("iptables-sep-rules");
+      const healthyActivePods = state.pods.filter(p => p.healthy && p.status === "Running");
+
+      if (healthyActivePods.length === 0) {
+        svcRules.innerHTML = `# KUBE-SERVICES Chain Matches ClusterIP\n-A KUBE-SERVICES -d 10.96.14.22/32 -p tcp --dport 80 -j KUBE-SVC-WEB-BACKEND\n\n# KUBE-SVC (NO BACKENDS AVAILABLE)\n-A KUBE-SVC-WEB-BACKEND -j REJECT --reject-with icmp-port-unreachable`;
+        sepRules.innerHTML = `# No active backend endpoints mapped`;
+        return;
+      }
+
+      let svcText = `# KUBE-SERVICES Chain Matches ClusterIP\n-A KUBE-SERVICES -d 10.96.14.22/32 -p tcp --dport 80 -j KUBE-SVC-WEB-BACKEND\n\n# KUBE-SVC Chain Distributes Load`;
+      let sepText = `# DNAT Chains: KUBE-SEP`;
+
+      healthyActivePods.forEach((pod, index) => {
+        const sepName = `KUBE-SEP-${pod.id.toUpperCase()}`;
+        if (index < healthyActivePods.length - 1) {
+          const prob = (1 / (healthyActivePods.length - index)).toFixed(2);
+          svcText += `\n-A KUBE-SVC-WEB-BACKEND -m statistic --mode random --probability ${prob} -j ${sepName}`;
+        } else {
+          svcText += `\n-A KUBE-SVC-WEB-BACKEND -j ${sepName}`;
+        }
+
+        sepText += `\n-A ${sepName} -p tcp -j DNAT --to-destination ${pod.ip}:8080`;
+      });
+
+      svcRules.innerText = svcText;
+      sepRules.innerText = sepText;
+    }
+
+    // Toggle Pod Health
+    function togglePodHealth(podId) {
+      const pod = state.pods.find(p => p.id === podId);
+      if (!pod || pod.status === "Terminating") return;
+      
+      pod.healthy = !pod.healthy;
+      pod.status = pod.healthy ? "Running" : "Unhealthy";
+      
+      log("API-Server", "apiserver", `Pod ${pod.name} status updated to: ${pod.status}`);
+      log("Kube-Proxy", "kubeproxy", `EndpointSlice updated. Re-generating routing table rules.`);
+      
+      renderPods();
+      renderEndpoints();
+      renderIptables();
+    }
+
+    // Terminate pod with delay simulation
+    function terminatePod(podId) {
+      const pod = state.pods.find(p => p.id === podId);
+      if (!pod) return;
+
+      pod.status = "Terminating";
+      pod.healthy = false;
+      log("API-Server", "apiserver", `Pod deletion requested for ${pod.name}. Transitioning to Terminating.`);
+      
+      log("Kube-Proxy", "kubeproxy", `EndpointSlice updated. Rebuilding iptables chains.`);
+      renderEndpoints();
+      renderIptables();
+      renderPods();
+
+      setTimeout(() => {
+        state.pods = state.pods.filter(p => p.id !== podId);
+        log("API-Server", "apiserver", `Pod ${pod.name} fully removed from etcd database.`);
+        renderPods();
+        renderEndpoints();
+        renderIptables();
+      }, 2000);
+    }
+
+    // Scale Backend
+    function scaleBackend(amount) {
+      if (amount > 0) {
+        if (state.pods.length >= 6) {
+          log("API-Server", "error", "Max simulation pod limit (6) reached.");
+          return;
+        }
+        const ip = state.ips.pop() || `10.244.1.${Math.floor(Math.random() * 200) + 20}`;
+        const node = state.pods.filter(p => p.node === 1).length <= state.pods.filter(p => p.node === 2).length ? 1 : 2;
+        const newPod = {
+          id: `pod-${state.nextPodIdx++}`,
+          name: `web-backend-7b-${String.fromCharCode(96 + state.nextPodIdx)}`,
+          ip: ip,
+          node: node,
+          healthy: true,
+          status: "Running"
+        };
+        state.pods.push(newPod);
+        log("API-Server", "apiserver", `Scaling deployment: Scale up to ${state.pods.length} replicas. Scheduled ${newPod.name} on Node ${node}.`);
+      } else {
+        if (state.pods.length <= 0) {
+          log("API-Server", "error", "No pods remaining to remove.");
+          return;
+        }
+        const removed = state.pods.pop();
+        log("API-Server", "apiserver", `Scaling deployment: Scale down. Terminating Pod ${removed.name}.`);
+      }
+
+      renderPods();
+      renderEndpoints();
+      renderIptables();
+      setTimeout(() => {
+        log("Kube-Proxy", "kubeproxy", `EndpointSlice synchronized. updated iptables rules on all nodes.`);
+      }, 500);
+    }
+
+    // Update traffic policy selection
+    function updatePolicy() {
+      state.policy = document.getElementById("traffic-policy").value;
+      log("Client", "client", `Adjusted externalTrafficPolicy to: ${state.policy}`);
+    }
+
+    // Set Live Progress Stepper steps
+    function setStepperSteps(stepsArray) {
+      const container = document.getElementById("flow-steps");
+      container.innerHTML = "";
+      stepsArray.forEach((step, idx) => {
+        const item = document.createElement("span");
+        item.className = `walkthrough-step ${idx === 0 ? 'active' : ''}`;
+        item.id = `step-${idx}`;
+        item.innerText = `${idx + 1}. ${step}`;
+        container.appendChild(item);
+      });
+    }
+
+    // Advance stepper progress
+    function advanceStepper(currentIdx) {
+      const stepsCount = document.querySelectorAll(".walkthrough-step").length;
+      for (let i = 0; i < stepsCount; i++) {
+        const el = document.getElementById(`step-${i}`);
+        if (!el) continue;
+        if (i < currentIdx) {
+          el.className = "walkthrough-step done";
+        } else if (i === currentIdx) {
+          el.className = "walkthrough-step active";
+        } else {
+          el.className = "walkthrough-step";
+        }
+      }
+    }
+
+    // Select Scenario
+    function selectScenario(num) {
+      state.scenario = num;
+      
+      // Update active cards
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`scen-${i}`).classList.remove("active");
+      }
+      document.getElementById(`scen-${num}`).classList.add("active");
+
+      // Hide or show optional controls
+      document.getElementById("opt-traffic-policy").style.display = (num === 4) ? "block" : "none";
+      document.getElementById("opt-dns-lookup").style.display = (num === 5) ? "block" : "none";
+      document.getElementById("btn-send").style.display = (num === 5) ? "none" : "block";
+
+      const lbZone = document.getElementById("lb-zone");
+      const vipZone = document.getElementById("vip-zone");
+
+      lbZone.style.opacity = (num === 3 || num === 4) ? "1" : "0";
+      vipZone.style.display = (num === 2) ? "flex" : "none";
+
+      const titles = {
+        1: "Scenario 1: Direct Pod-to-Pod",
+        2: "Scenario 2: ClusterIP Load Balancing",
+        3: "Scenario 3: NodePort Traffic Routing",
+        4: "Scenario 4: LoadBalancer & Traffic Policy",
+        5: "Scenario 5: CoreDNS Resolution & ndots"
+      };
+
+      const descs = {
+        1: "Every Pod gets its own real, routable IP. When Pod A calls Pod B on the same node, it travels via the virtual ethernet bridge (cbr0) without leaving the host node. If calling Pod C on Node 2, the packet travels across nodes.",
+        2: "Clients connect to the virtual Service IP (ClusterIP). kube-proxy programs NAT tables. When a packet hits the node's stack, it selects a backend randomly (DNAT) and routes to the selected Pod IP. Ping does not work since the IP is virtual.",
+        3: "External users hit any node's IP on port 30080. If NodePort selects a Pod located on Node 2, the node performs Source NAT (SNAT) and forwards the packet across nodes. This adds a hop and hides the client's source IP.",
+        4: "Cloud Load Balancers distribute traffic. If externalTrafficPolicy is set to Local, the cloud load balancer health checks nodes and only routes traffic to nodes containing running Pods, saving hops and preserving source IPs.",
+        5: "CoreDNS maps names to IPs. Relative lookups inside containers apply options ndots:5, which triggers multiple failed queries for external domains (e.g. google.com) before resolving. Trailing dots (google.com.) bypass search suffixes."
+      };
+
+      document.getElementById("info-title").innerText = titles[num];
+      document.getElementById("info-desc").innerText = descs[num];
+      log("System", "apiserver", `Switched to ${titles[num]}`);
+
+      // Reset stepper defaults
+      const stepperSteps = {
+        1: ["Client Pod initiates request", "Bridges/Routing checks destination", "Packet delivered to pod"],
+        2: ["Request to Virtual ClusterIP", "Kube-proxy NAT rules intercept", "DNAT selects Pod IP", "Deliver packet"],
+        3: ["Ingress client hits node port", "Node intercept rules matches port", "Route & SNAT cross-node", "Deliver to pod"],
+        4: ["LB hit", "Evaluate Traffic Policy", "Route directly to node with pod", "Zero-hop local DNAT"],
+        5: ["Resolver reads search list", "Query CoreDNS namespaces", "Receive NXDOMAIN error", "Resolve Absolute domain"]
+      };
+      setStepperSteps(stepperSteps[num]);
+      setTimeout(drawConnectionPaths, 150);
+    }
+
+    // Packet animation engine
+    function animatePacket(elementsList, callback, stepTimes = 850) {
+      if (elementsList.length < 2) return;
+      const overlay = document.getElementById("animation-overlay");
+      const dot = document.createElement("div");
+      dot.className = "packet-dot";
+      overlay.appendChild(dot);
+
+      let currentStep = 0;
+
+      function move() {
+        if (currentStep >= elementsList.length) {
+          dot.remove();
+          if (callback) callback();
+          return;
+        }
+
+        const targetEl = document.getElementById(elementsList[currentStep]);
+        if (!targetEl) {
+          dot.remove();
+          return;
+        }
+
+        const rect = targetEl.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        const targetX = rect.left + rect.width / 2 - overlayRect.left;
+        const targetY = rect.top + rect.height / 2 - overlayRect.top;
+
+        dot.style.left = `${targetX}px`;
+        dot.style.top = `${targetY}px`;
+
+        advanceStepper(currentStep);
+        currentStep++;
+        setTimeout(move, stepTimes);
+      }
+
+      // Initialize
+      const startEl = document.getElementById(elementsList[0]);
+      if (startEl) {
+        const rect = startEl.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        dot.style.left = `${rect.left + rect.width / 2 - overlayRect.left}px`;
+        dot.style.top = `${rect.top + rect.height / 2 - overlayRect.top}px`;
+        currentStep = 1;
+        setTimeout(move, 50);
+      }
+    }
+
+    // Send Traffic Flow controller
+    function sendTraffic() {
+      const activePods = state.pods.filter(p => p.healthy && p.status === "Running");
+
+      if (state.scenario === 1) {
+        if (activePods.length === 0) {
+          log("Client", "error", "No active destination backend Pods running in cluster!");
+          return;
+        }
+        const targetPod = activePods[Math.floor(Math.random() * activePods.length)];
+        log("Client", "client", `Pod dns-debug sending direct HTTP request to Pod IP: ${targetPod.ip}:8080`);
+        setStepperSteps(["dns-debug sends packet to bridge", `Packet routed through Node ${targetPod.node}`, `Delivered to target ${targetPod.name}`]);
+        
+        const path = ["card-client-pod", `node-${targetPod.node}`, targetPod.id];
+        animatePacket(path, () => {
+          advanceStepper(3);
+          log("Client", "client", `Direct Connection Successful! Response 200 OK from ${targetPod.name}`);
+        });
+
+      } else if (state.scenario === 2) {
+        log("Client", "client", `Client dns-debug calling Service Virtual IP: 10.96.14.22:80`);
+        setStepperSteps(["Send packet to ClusterIP 10.96.14.22", "iptables intercepts VIP & performs DNAT", "Forward packet to backend pod", "Response 200 returned"]);
+        
+        if (activePods.length === 0) {
+          animatePacket(["card-client-pod", "card-vip"], () => {
+            advanceStepper(2);
+            log("Kube-Proxy", "error", `iptables REJECT: Connection Refused. No endpoints registered.`);
+          });
+          return;
+        }
+        const targetPod = activePods[Math.floor(Math.random() * activePods.length)];
+        
+        animatePacket(["card-client-pod", "card-vip"], () => {
+          log("Kube-Proxy", "kubeproxy", `iptables Intercept! DNAT applied: 10.96.14.22:80 -> ${targetPod.ip}:8080`);
+          advanceStepper(2);
+          animatePacket([`node-1`, `node-${targetPod.node}`, targetPod.id], () => {
+            advanceStepper(4);
+            log("Client", "client", `Response 200 OK received from backend pod ${targetPod.name}`);
+          });
+        });
+
+      } else if (state.scenario === 3) {
+        log("Client", "client", `External client requesting NodePort service on node`);
+        if (activePods.length === 0) {
+          log("Kube-Proxy", "error", `NodePort: Connection dropped. No endpoints available.`);
+          return;
+        }
+        const targetNode = Math.random() > 0.5 ? 1 : 2;
+        const targetPod = activePods[Math.floor(Math.random() * activePods.length)];
+        
+        if (targetPod.node !== targetNode) {
+          setStepperSteps([`Client hits Node ${targetNode} port 30080`, "kube-proxy intercepts and applies DNAT", "Perform SNAT and forward cross-node", "Response 200 OK returned"]);
+          animatePacket(["card-cloud-lb", `node-${targetNode}`], () => {
+            log("Kube-Proxy", "kubeproxy", `Hit NodePort 30080 on Node ${targetNode}. Intercepting rules.`);
+            advanceStepper(2);
+            log("Kube-Proxy", "kubeproxy", `Routing cross-node. Performing SNAT: replacing client IP with Node ${targetNode} IP.`);
+            animatePacket([`node-${targetNode}`, `node-${targetPod.node}`, targetPod.id], () => {
+              advanceStepper(4);
+              log("Client", "client", `Response 200 OK (Hop performed via Node ${targetNode})`);
+            });
+          });
+        } else {
+          setStepperSteps([`Client hits Node ${targetNode} port 30080`, "kube-proxy intercepts and applies DNAT", "Forward directly to local pod", "Response 200 OK returned"]);
+          animatePacket(["card-cloud-lb", `node-${targetNode}`], () => {
+            log("Kube-Proxy", "kubeproxy", `Hit NodePort 30080 on Node ${targetNode}. Intercepting rules.`);
+            advanceStepper(2);
+            animatePacket([`node-${targetNode}`, targetPod.id], () => {
+              advanceStepper(4);
+              log("Client", "client", `Response 200 OK (Direct local routing, zero hops)`);
+            });
+          });
+        }
+
+      } else if (state.scenario === 4) {
+        log("Client", "client", `Requesting Cloud Load Balancer: 34.120.44.82:80`);
+        if (activePods.length === 0) {
+          log("Cloud-LB", "error", "HTTP 503 Service Unavailable (No endpoints healthy)");
+          return;
+        }
+        const targetPod = activePods[Math.floor(Math.random() * activePods.length)];
+        
+        if (state.policy === "Local") {
+          const localNodeId = targetPod.node;
+          setStepperSteps(["LB queries node health (port 10256)", `LB routes exclusively to Node ${localNodeId}`, "DNAT applied to local pod directly", "200 OK returned (Client IP preserved)"]);
+          
+          log("Cloud-LB", "client", `L4 LB routes traffic to Node ${localNodeId} directly (contains local backend replica)`);
+          animatePacket(["card-cloud-lb", `node-${localNodeId}`, targetPod.id], () => {
+            advanceStepper(4);
+            log("Client", "client", `Response 200 OK (Zero cross-node hops, preserved Client IP: 192.168.99.1)`);
+          });
+        } else {
+          const selectedNodeId = Math.random() > 0.5 ? 1 : 2;
+          setStepperSteps(["LB distributes traffic to all nodes", `Forward to arbitrary Node ${selectedNodeId}`, "Perform SNAT and route cross-node", "Response 200 OK returned"]);
+          
+          log("Cloud-LB", "client", `L4 LB distributes traffic to Node ${selectedNodeId}`);
+          animatePacket(["card-cloud-lb", `node-${selectedNodeId}`], () => {
+            advanceStepper(2);
+            if (targetPod.node !== selectedNodeId) {
+              log("Kube-Proxy", "kubeproxy", `No pod on Node ${selectedNodeId}. Route cross-node (SNAT Hop)`);
+              animatePacket([`node-${selectedNodeId}`, `node-${targetPod.node}`, targetPod.id], () => {
+                advanceStepper(4);
+                log("Client", "client", `Response 200 OK (SNAT masked client source IP)`);
+              });
+            } else {
+              animatePacket([`node-${selectedNodeId}`, targetPod.id], () => {
+                advanceStepper(4);
+                log("Client", "client", `Response 200 OK`);
+              });
+            }
+          });
+        }
+      }
+    }
+
+    // Run DNS resolution simulation
+    function runDNSResolution() {
+      const query = document.getElementById("dns-query-input").value.trim();
+      log("Client", "dns", `Resolving query: "${query}"`);
+
+      if (query === "web-backend-service") {
+        setStepperSteps(["Client reads /etc/resolv.conf", "Sends query to CoreDNS", "CoreDNS resolves local database", "IP returned to Client"]);
+        
+        animatePacket(["card-client-pod", "pod-coredns"], () => {
+          log("CoreDNS", "dns", `Searching database for query: "web-backend-service.default.svc.cluster.local"`);
+          advanceStepper(2);
+          animatePacket(["pod-coredns", "card-client-pod"], () => {
+            advanceStepper(4);
+            log("Client", "dns", `Success! resolved "web-backend-service" to ClusterIP: 10.96.14.22`);
+          });
+        });
+      } else if (query.endsWith(".")) {
+        setStepperSteps(["Absolute query detected", "Skip search suffix domain list", "Forward direct to CoreDNS", "Upstream server returned IP"]);
+        log("Client", "dns", `Query contains trailing dot. Skipping search domains. Performing absolute query.`);
+        
+        animatePacket(["card-client-pod", "pod-coredns"], () => {
+          log("CoreDNS", "dns", `Forwarding absolute query "${query.slice(0,-1)}" to upstream DNS server.`);
+          advanceStepper(3);
+          animatePacket(["pod-coredns", "card-client-pod"], () => {
+            advanceStepper(4);
+            log("Client", "dns", `Resolved absolute name to IP: 142.250.190.46`);
+          });
+        });
+      } else {
+        // Relative search suffix path
+        log("Client", "dns", `Query matches fewer than ndots:5. Appending search paths...`);
+        
+        const suffixes = [
+          "default.svc.cluster.local",
+          "svc.cluster.local",
+          "cluster.local"
+        ];
+        
+        setStepperSteps([
+          `Try ${query}.${suffixes[0]}`,
+          `Try ${query}.${suffixes[1]}`,
+          `Try ${query}.${suffixes[2]}`,
+          "Forward absolute lookup upstream",
+          "Receive external IP address"
+        ]);
+
+        let suffixIndex = 0;
+
+        function nextSuffix() {
+          if (suffixIndex >= suffixes.length) {
+            advanceStepper(3);
+            log("Client", "dns", `All local suffixes failed. Forwarding query "${query}" to upstream DNS server.`);
+            animatePacket(["card-client-pod", "pod-coredns"], () => {
+              advanceStepper(4);
+              animatePacket(["pod-coredns", "card-client-pod"], () => {
+                advanceStepper(5);
+                log("Client", "dns", `Resolved name to external IP: 142.250.190.46`);
+              });
+            }, 500);
+            return;
+          }
+
+          const currentQuery = `${query}.${suffixes[suffixIndex]}`;
+          log("Client", "dns", `Querying CoreDNS: "${currentQuery}"`);
+          advanceStepper(suffixIndex);
+          
+          animatePacket(["card-client-pod", "pod-coredns"], () => {
+            log("CoreDNS", "dns", `No record found for "${currentQuery}" (NXDOMAIN)`);
+            animatePacket(["pod-coredns", "card-client-pod"], () => {
+              suffixIndex++;
+              setTimeout(nextSuffix, 250);
+            }, 450);
+          }, 450);
+        }
+
+        nextSuffix();
+      }
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
