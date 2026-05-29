@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor-vol
+  namespace: default
+  labels:
+    app: payment-processor
+    tier: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-processor
+  template:
+    metadata:
+      labels:
+        app: payment-processor
+    spec:
+      securityContext:
+        # Enforce running container process as non-root user (UID 10001)
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+
+      containers:
+        - name: application
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "=== Starting up application ==="
+              echo "Checking environment log level: $LOG_LEVEL"
+              echo "Checking mounted configuration files:"
+              ls -lA /etc/app/config
+              echo "Checking mounted secrets (permissions):"
+              ls -lA /etc/app/secrets
+              echo "Database User: $(cat /etc/app/secrets/db-user)"
+              # Run forever
+              while true; do sleep 3600; done
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            # Mount ConfigMap folder
+            - name: config-volume
+              mountPath: /etc/app/config
+              readOnly: true
+
+            # Mount Secret folder
+            - name: secret-volume
+              mountPath: /etc/app/secrets
+              readOnly: true
+
+      volumes:
+        # ConfigMap volume setup
+        - name: config-volume
+          configMap:
+            name: app-config
+            items:
+              - key: app.properties
+                path: app.properties
+              - key: features.json
+                path: features.json
+            defaultMode: 0640
+
+        # Secret volume setup (Highly locked down: 0400 - owner read-only)
+        - name: secret-volume
+          secret:
+            secretName: app-secrets
+            items:
+              - key: DATABASE_USER
+                path: db-user
+              - key: DATABASE_PASSWORD
+                path: db-password
+            defaultMode: 0400

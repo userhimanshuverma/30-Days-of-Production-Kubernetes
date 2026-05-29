@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor-vault
+  namespace: default
+  labels:
+    app: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-processor
+  template:
+    metadata:
+      labels:
+        app: payment-processor
+      annotations:
+        # 1. Enable Vault Agent Injection Mutating Webhook
+        vault.hashicorp.com/agent-inject: "true"
+
+        # 2. Reference the configured Kubernetes role in Vault
+        vault.hashicorp.com/role: "payment-service-role"
+
+        # 3. Specify the Secret path inside Vault
+        vault.hashicorp.com/agent-inject-secret-database: "secret/data/production/database"
+
+        # 4. Custom template formatting (Consul Template syntax)
+        # Writes the keys out as a connection string or shell export file
+        vault.hashicorp.com/agent-inject-template-database: |
+          {{- with secret "secret/data/production/database" -}}
+          export DB_USER="{{ .Data.data.username }}"
+          export DB_PASSWORD="{{ .Data.data.password }}"
+          export DB_HOST="{{ .Data.data.host }}"
+          {{- end -}}
+
+        # 5. Restrict permissions of the injected file
+        vault.hashicorp.com/secret-volume-path: "/vault/secrets"
+        vault.hashicorp.com/agent-permissions: "0400"
+    spec:
+      serviceAccountName: payment-service-sa
+      containers:
+        - name: application
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "=== Starting Payment Processor (Vault Integration) ==="
+              # Source the secrets injected by Vault Agent before running main process
+              if [ -f /vault/secrets/database ]; then
+                . /vault/secrets/database
+                echo "Successfully sourced database credentials from Vault Agent"
+                echo "DB Host connected: $DB_HOST"
+              else
+                echo "ERROR: Vault secrets file not found. Crashing."
+                exit 1
+              fi
+              # Run infinite loop
+              while true; do sleep 3600; done
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payment-service-sa
+  namespace: default
+  annotations:
+    # Used if running on AWS EKS to bind IAM Role (IRSA)
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/payment-service-vault-reader

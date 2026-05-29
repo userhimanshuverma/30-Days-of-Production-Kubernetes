@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+  labels:
+    app.kubernetes.io/name: payment-service
+    app.kubernetes.io/part-of: 30-days-k8s
+    app.kubernetes.io/version: 1.2.0
+data:
+  # Standard key-value properties
+  LOG_LEVEL: "INFO"
+  DB_MAX_CONNECTIONS: "20"
+  ENABLE_FEATURE_CACHING: "true"
+
+  # Flat configuration file representation (Java Properties Style)
+  app.properties: |
+    server.port=8080
+    server.servlet.context-path=/api/v1
+    metrics.enabled=true
+    metrics.interval=10s
+
+  # Complex JSON configuration payload
+  features.json: |
+    {
+      "payments": {
+        "stripe": {
+          "enabled": true,
+          "timeout_ms": 5000
+        },
+        "paypal": {
+          "enabled": false,
+          "timeout_ms": 3000
+        }
+      },
+      "gateways": ["us-east-1", "eu-west-1"]
+    }

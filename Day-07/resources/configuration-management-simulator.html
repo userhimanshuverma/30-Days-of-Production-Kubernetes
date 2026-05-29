@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Configuration & Secret Management Simulator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts (Outfit & JetBrains Mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f5f3ff',
+              100: '#edd8ff',
+              500: '#9d4edd',
+              600: '#7b2cbf',
+              700: '#5a189a',
+              900: '#240046',
+            },
+            cyber: {
+              dark: '#0b0518',
+              card: 'rgba(24, 15, 41, 0.6)',
+              border: 'rgba(157, 78, 221, 0.25)',
+              neonGreen: '#39ff14',
+              neonPurple: '#d800ff',
+              neonBlue: '#00f6ff',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 50%, #1e0b36 0%, #080212 100%);
+      font-family: 'Outfit', sans-serif;
+    }
+    
+    .glassmorphism {
+      background: rgba(24, 15, 41, 0.55);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(157, 78, 221, 0.18);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    .glass-input {
+      background: rgba(10, 5, 20, 0.6);
+      border: 1px solid rgba(157, 78, 221, 0.3);
+      color: #e2d9f3;
+      transition: all 0.3s ease;
+    }
+
+    .glass-input:focus {
+      outline: none;
+      border-color: rgba(0, 246, 255, 0.8);
+      box-shadow: 0 0 10px rgba(0, 246, 255, 0.25);
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(10, 5, 20, 0.4);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(157, 78, 221, 0.4);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(157, 78, 221, 0.6);
+    }
+  </style>
+</head>
+<body class="text-gray-200 min-h-screen pb-12">
+
+  <!-- Header Banner -->
+  <header class="border-b border-purple-900/40 bg-cyber-dark/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <i class="fa-solid fa-server text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            KUBERNETES CONFIGURATION PLATFORM <span class="text-xs bg-brand-600/50 px-2 py-0.5 rounded text-brand-100 border border-brand-500/40">Day 7 Simulator</span>
+          </h1>
+          <p class="text-xs text-purple-300/70">Interactive Environment Variable, ConfigMap, Secrets, and External Vault Simulator</p>
+        </div>
+      </div>
+      
+      <div class="flex gap-3 items-center">
+        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-500/10 text-green-400 border border-green-500/20 text-xs font-semibold">
+          <span class="h-2.5 w-2.5 rounded-full bg-green-400 animate-pulse"></span>
+          Cluster Connected (K3s-v1.28.2)
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Interactive Guided Tutorial Block -->
+  <div class="max-w-7xl mx-auto px-4 mt-6">
+    <div class="glassmorphism border border-brand-500/30 rounded-xl p-5 relative overflow-hidden bg-gradient-to-r from-brand-900/40 to-cyan-950/20">
+      <div class="absolute right-0 top-0 h-32 w-32 bg-cyan-500/10 rounded-full filter blur-xl pointer-events-none"></div>
+      <div class="absolute left-1/3 bottom-0 h-24 w-24 bg-brand-500/10 rounded-full filter blur-xl pointer-events-none"></div>
+      
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div class="space-y-1 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-cyan-500/20 border border-cyan-400/30 rounded text-[10px] text-cyan-300 font-bold uppercase tracking-wider">Guided Walkthrough</span>
+            <h2 class="text-base font-bold text-white">How Configuration Separation Works in Production</h2>
+          </div>
+          <p class="text-xs text-purple-200/80 leading-relaxed max-w-4xl" id="walkthrough-instructions">
+            Follow the guided step actions below or interact freely with the panels. As you click, the system logs, diffs, and pod states will react dynamically.
+          </p>
+        </div>
+        <!-- Walkthrough Steps Control -->
+        <div class="flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-purple-900/40 w-full md:w-auto justify-between md:justify-start">
+          <button onclick="changeWalkthroughStep(-1)" class="px-3 py-1.5 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/30 text-xs rounded transition flex items-center gap-1">
+            <i class="fa-solid fa-chevron-left text-[9px]"></i> Back
+          </button>
+          <span class="text-xs font-mono px-3 text-cyan-300 font-bold" id="walkthrough-step-counter">Step 1 of 5</span>
+          <button onclick="changeWalkthroughStep(1)" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-xs rounded text-white font-semibold transition flex items-center gap-1">
+            Next <i class="fa-solid fa-chevron-right text-[9px]"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Step Actions Banner -->
+      <div class="mt-4 pt-3.5 border-t border-purple-900/30 grid grid-cols-1 sm:grid-cols-5 gap-3" id="walkthrough-steps-container">
+        <!-- Step Indicators -->
+        <div id="step-indicator-1" onclick="jumpToStep(1)" class="p-2.5 rounded bg-brand-500/20 border border-brand-500/50 cursor-pointer transition">
+          <span class="text-[10px] uppercase font-bold text-brand-300 block">Step 1</span>
+          <span class="text-xs text-white font-medium block">Env Variables</span>
+        </div>
+        <div id="step-indicator-2" onclick="jumpToStep(2)" class="p-2.5 rounded bg-black/30 border border-purple-900/40 cursor-pointer hover:bg-purple-900/10 transition">
+          <span class="text-[10px] uppercase font-bold text-gray-500 block">Step 2</span>
+          <span class="text-xs text-gray-400 font-medium block">Volume Mounts</span>
+        </div>
+        <div id="step-indicator-3" onclick="jumpToStep(3)" class="p-2.5 rounded bg-black/30 border border-purple-900/40 cursor-pointer hover:bg-purple-900/10 transition">
+          <span class="text-[10px] uppercase font-bold text-gray-500 block">Step 3</span>
+          <span class="text-xs text-gray-400 font-medium block">Secret Rotation</span>
+        </div>
+        <div id="step-indicator-4" onclick="jumpToStep(4)" class="p-2.5 rounded bg-black/30 border border-purple-900/40 cursor-pointer hover:bg-purple-900/10 transition">
+          <span class="text-[10px] uppercase font-bold text-gray-500 block">Step 4</span>
+          <span class="text-xs text-gray-400 font-medium block">Vault Mutator</span>
+        </div>
+        <div id="step-indicator-5" onclick="jumpToStep(5)" class="p-2.5 rounded bg-black/30 border border-purple-900/40 cursor-pointer hover:bg-purple-900/10 transition">
+          <span class="text-[10px] uppercase font-bold text-gray-500 block">Step 5</span>
+          <span class="text-xs text-gray-400 font-medium block">ESO Cloud Sync</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT COLUMN: Workspace Config (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-6">
+      
+      <!-- Panel 1: ConfigMap Creator -->
+      <div class="glassmorphism rounded-xl p-5 relative overflow-hidden">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+            <i class="fa-solid fa-gears text-brand-500"></i> ConfigMap: <span class="font-mono text-cyan-400 text-xs" id="display-cm-name">app-config</span>
+          </h2>
+          <span class="text-[10px] text-gray-400 bg-gray-800/80 px-2 py-0.5 rounded font-mono">data: 3 keys</span>
+        </div>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs text-purple-200/70 mb-1 font-mono">LOG_LEVEL</label>
+            <select id="input-log-level" onchange="updateConfigMap()" class="w-full text-xs p-2 rounded glass-input">
+              <option value="DEBUG">DEBUG</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-purple-200/70 mb-1 font-mono">DB_MAX_CONNECTIONS</label>
+            <input type="number" id="input-max-connections" oninput="updateConfigMap()" value="20" class="w-full text-xs p-2 rounded glass-input">
+          </div>
+          <div>
+            <label class="block text-xs text-purple-200/70 mb-1 font-mono">app.properties (Multi-line config)</label>
+            <textarea id="input-properties" oninput="updateConfigMap()" rows="3" class="w-full text-xs p-2 rounded glass-input font-mono">server.port=8080&#10;metrics.enabled=true&#10;cache.ttl=60s</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Secret Creator -->
+      <div class="glassmorphism rounded-xl p-5 relative overflow-hidden">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+            <i class="fa-solid fa-key text-brand-500"></i> Secret: <span class="font-mono text-pink-400 text-xs" id="display-secret-name">app-secrets</span>
+          </h2>
+          <span class="text-[10px] text-gray-400 bg-gray-800/80 px-2 py-0.5 rounded font-mono">type: Opaque</span>
+        </div>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs text-purple-200/70 mb-1 font-mono">DATABASE_USER</label>
+            <input type="text" id="input-db-user" oninput="updateSecret()" value="db_admin" class="w-full text-xs p-2 rounded glass-input font-mono">
+          </div>
+          <div>
+            <label class="block text-xs text-purple-200/70 mb-1 font-mono">DATABASE_PASSWORD</label>
+            <div class="relative">
+              <input type="password" id="input-db-pass" oninput="updateSecret()" value="SuperSecurePass123!" class="w-full text-xs p-2 pr-10 rounded glass-input font-mono">
+              <button onclick="togglePasswordVisibility('input-db-pass', this)" class="absolute right-2.5 top-2 text-purple-300 hover:text-white transition">
+                <i class="fa-regular fa-eye-slash"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-purple-200/70 mb-1 font-mono">STRIPE_SECRET_KEY</label>
+            <div class="relative">
+              <input type="password" id="input-stripe-key" oninput="updateSecret()" value="live_sk_738918239" class="w-full text-xs p-2 pr-10 rounded glass-input font-mono">
+              <button onclick="togglePasswordVisibility('input-stripe-key', this)" class="absolute right-2.5 top-2 text-purple-300 hover:text-white transition">
+                <i class="fa-regular fa-eye-slash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="rotateSecrets()" class="flex-1 text-xs py-2 bg-pink-700/30 hover:bg-pink-700/50 border border-pink-500/40 rounded transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-arrows-rotate"></i> Rotate Credentials
+            </button>
+            <button onclick="triggerExpiration()" class="text-xs px-3 py-2 bg-yellow-700/20 hover:bg-yellow-700/40 border border-yellow-500/40 rounded text-yellow-300 transition">
+              Simulate Expire
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3: External Integrations (Vault & ESO) -->
+      <div class="glassmorphism rounded-xl p-5 relative overflow-hidden">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2 mb-4">
+          <i class="fa-solid fa-cloud-arrow-down text-brand-500"></i> External Secret Stores
+        </h2>
+        
+        <div class="space-y-4">
+          <!-- HashiCorp Vault Option -->
+          <div class="p-3.5 rounded-lg border border-purple-900/50 bg-black/30 flex flex-col gap-2 relative group">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-vault text-amber-500"></i> HashiCorp Vault
+              </span>
+              <span id="vault-status-badge" class="text-[9px] bg-red-900/40 border border-red-500/30 text-red-300 px-2 py-0.5 rounded font-mono">DISCONNECTED</span>
+            </div>
+            <p class="text-[10px] text-gray-400">Uses mutating webhook to inject dynamic credentials directly into `/vault/secrets` memory space via token authorization.</p>
+            <button id="btn-toggle-vault" onclick="toggleVaultConnection()" class="w-full text-xs mt-1 py-1.5 bg-amber-700/30 hover:bg-amber-700/50 border border-amber-500/40 rounded transition">
+              Connect Vault Agent Injector
+            </button>
+          </div>
+
+          <!-- ESO Option -->
+          <div class="p-3.5 rounded-lg border border-purple-900/50 bg-black/30 flex flex-col gap-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-spin text-cyan-400"></i> External Secrets Operator
+              </span>
+              <span id="eso-status-badge" class="text-[9px] bg-yellow-900/40 border border-yellow-500/30 text-yellow-300 px-2 py-0.5 rounded font-mono">STANDBY</span>
+            </div>
+            <p class="text-[10px] text-gray-400">Automates synchronizing external AWS/GCP/Azure key storage APIs into normal, native Kubernetes Secret objects.</p>
+            <button onclick="triggerESOSync()" class="w-full text-xs mt-1 py-1.5 bg-cyan-700/30 hover:bg-cyan-700/50 border border-cyan-500/40 rounded transition">
+              Reconcile ExternalSecret (Sync)
+            </button>
+          </div>
+        </div>
+      </div>
+      
+    </section>
+
+    <!-- RIGHT COLUMN: Simulation Console, Pod View, Audit logs (7 cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-6">
+      
+      <!-- Top Section: Pod Status Display -->
+      <div class="glassmorphism rounded-xl p-5 flex flex-col sm:flex-row justify-between items-center gap-4 border border-brand-500/30">
+        <div class="flex items-center gap-4">
+          <div class="relative">
+            <!-- Simulated Pod Circle -->
+            <div id="pod-status-light" class="h-16 w-16 rounded-full bg-green-500/10 border-4 border-green-500 flex items-center justify-center text-green-400 shadow-lg shadow-green-500/20 transition-all duration-500">
+              <i class="fa-solid fa-cubes text-2xl" id="pod-icon"></i>
+            </div>
+            <!-- Restart Counter Badge -->
+            <span id="pod-restarts-badge" class="absolute -top-1.5 -right-1.5 bg-brand-600 text-white font-mono text-[9px] px-1.5 py-0.5 rounded-full border border-brand-400">Restarts: 0</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold font-mono text-white" id="pod-name-display">payment-processor-7fdc89a2-x8q</span>
+              <span id="pod-status-text" class="text-xs bg-green-900/60 text-green-300 border border-green-500/40 px-2 py-0.5 rounded font-bold">RUNNING</span>
+            </div>
+            <p class="text-xs text-purple-300/80 mt-1 flex items-center gap-1.5">
+              <span>Node: <code class="bg-black/40 px-1 py-0.5 rounded text-[11px] text-cyan-300">worker-node-3</code></span>
+              <span>•</span>
+              <span id="pod-ip-display">IP: 10.244.3.89</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-2 w-full sm:w-auto">
+          <button onclick="restartPod('manual')" class="flex-1 sm:flex-none text-xs px-4 py-2 bg-purple-700/40 hover:bg-purple-700/60 border border-purple-500/40 rounded transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-power-off"></i> Restart Pod
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Dynamic Concept Explanation Helper Banner -->
+      <div id="dynamic-helper-panel" class="p-4 rounded-xl border border-cyan-500/20 bg-cyan-950/20 flex gap-3 items-start">
+        <div class="text-cyan-400 mt-0.5"><i class="fa-solid fa-circle-question text-lg"></i></div>
+        <div class="space-y-1">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-cyan-300" id="dynamic-helper-title">Simulating ConfigMap & Environment Variable Separation</h4>
+          <p class="text-xs text-cyan-100/80 leading-relaxed" id="dynamic-helper-desc">
+            Try modifying the `LOG_LEVEL` ConfigMap key on the left panel. Notice that the value does not change inside the **Container Environment** tab until you click **Restart Pod**. This is because OS environment variables are statically injected once when the container process starts!
+          </p>
+        </div>
+      </div>
+
+      <!-- Tab View Section: Container Env, Mounted Files, Log Stream -->
+      <div class="glassmorphism rounded-xl overflow-hidden flex flex-col flex-1 min-h-[350px]">
+        <!-- Tabs Header -->
+        <div class="flex border-b border-purple-900/40 bg-black/40 text-xs font-semibold">
+          <button onclick="switchTab('env')" id="tab-btn-env" class="flex-1 py-3 px-4 text-center border-b-2 border-brand-500 text-white bg-brand-900/20 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-list-check text-cyan-400"></i> Container Environment
+          </button>
+          <button onclick="switchTab('volumes')" id="tab-btn-volumes" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-purple-950/10 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-folder-open text-pink-400"></i> Mounted Volumes
+          </button>
+          <button onclick="switchTab('logs')" id="tab-btn-logs" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-purple-950/10 transition flex items-center justify-center gap-2 relative">
+            <i class="fa-solid fa-terminal text-green-400"></i> Console Logs
+            <span id="log-count" class="absolute right-2 top-2.5 bg-green-500 text-black text-[8px] font-bold px-1.5 py-0.5 rounded-full hidden">0</span>
+          </button>
+        </div>
+
+        <!-- Tab 1: Container Environment -->
+        <div id="tab-content-env" class="p-5 flex-1 space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <span class="text-xs text-purple-300 font-mono">Process environment block (process.env):</span>
+            <span class="text-[10px] text-yellow-300/80 bg-yellow-900/20 border border-yellow-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <strong>Injected at Startup:</strong> Static variables. Will not react to updates until rollout.
+            </span>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs font-mono">
+              <thead>
+                <tr class="border-b border-purple-900/40 text-purple-300 text-left">
+                  <th class="pb-2 font-semibold">VAR_NAME</th>
+                  <th class="pb-2 font-semibold">VALUE</th>
+                  <th class="pb-2 font-semibold">SOURCE</th>
+                </tr>
+              </thead>
+              <tbody id="env-table-body" class="divide-y divide-purple-900/20">
+                <!-- Javascript will inject environment variables here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 2: Mounted Volumes -->
+        <div id="tab-content-volumes" class="p-5 flex-1 space-y-4 hidden">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <span class="text-xs text-purple-300 font-mono">Filesystem mounts in container namespace:</span>
+            <span class="text-[10px] text-green-300/80 bg-green-900/20 border border-green-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
+              <i class="fa-solid fa-arrows-rotate animate-spin text-[9px]"></i>
+              <strong>Dynamic File Updates:</strong> Kubelet writes file updates automatically without pod restarts!
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- ConfigMap Mount View -->
+            <div class="border border-purple-900/50 rounded-lg p-3 bg-black/40">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[11px] font-bold text-cyan-400 font-mono">/etc/app/config</span>
+                <span class="text-[9px] text-gray-400">Mode: 0640</span>
+              </div>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="border-b border-purple-900/20 pb-2">
+                  <span class="text-[10px] text-purple-300 block">📄 app.properties</span>
+                  <pre id="vol-file-properties" class="text-purple-100 text-[10px] bg-black/50 p-1.5 mt-1 rounded whitespace-pre overflow-x-auto"></pre>
+                </div>
+                <div>
+                  <span class="text-[10px] text-purple-300 block">📄 features.json</span>
+                  <pre id="vol-file-json" class="text-purple-100 text-[10px] bg-black/50 p-1.5 mt-1 rounded whitespace-pre overflow-x-auto"></pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- Secret Mount View -->
+            <div class="border border-purple-900/50 rounded-lg p-3 bg-black/40">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[11px] font-bold text-pink-400 font-mono">/etc/app/secrets (tmpfs)</span>
+                <span class="text-[9px] text-yellow-400 font-mono">Mode: 0400 (Locked)</span>
+              </div>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="border-b border-purple-900/20 pb-2">
+                  <span class="text-[10px] text-purple-300 block">🔑 db-user</span>
+                  <pre id="vol-file-dbuser" class="text-pink-200 text-[10px] bg-black/50 p-1.5 mt-1 rounded"></pre>
+                </div>
+                <div class="border-b border-purple-900/20 pb-2">
+                  <span class="text-[10px] text-purple-300 block">🔑 db-password</span>
+                  <div class="relative mt-1">
+                    <pre id="vol-file-dbpass" class="text-pink-200 text-[10px] bg-black/50 p-1.5 rounded pr-8 filter blur-[3px] transition hover:filter-none"></pre>
+                    <span class="absolute right-1 top-1 text-[8px] bg-gray-700/80 px-1 rounded text-gray-300 select-none pointer-events-none">hover</span>
+                  </div>
+                </div>
+                <div>
+                  <span class="text-[10px] text-purple-300 block">🔑 vault/secrets/database (Vault Mount)</span>
+                  <pre id="vol-file-vault" class="text-amber-300 text-[10px] bg-black/50 p-1.5 mt-1 rounded italic">Vault agent not connected.</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Console Logs -->
+        <div id="tab-content-logs" class="p-4 flex-1 hidden bg-[#070210] font-mono text-xs flex flex-col">
+          <div class="flex justify-between items-center mb-2 text-gray-400 border-b border-purple-900/30 pb-2">
+            <span>stdout logs - payment-processor</span>
+            <button onclick="clearLogs()" class="hover:text-white text-[10px] bg-purple-950/40 px-2 py-0.5 border border-purple-800/30 rounded transition">
+              <i class="fa-solid fa-trash-can"></i> Clear
+            </button>
+          </div>
+          <div id="logs-terminal" class="flex-1 overflow-y-auto space-y-1 max-h-[250px] pr-2">
+            <!-- Simulated application logs appear here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-time Event timeline & Diff Viewer -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Security & Audit Event logs -->
+        <div class="glassmorphism rounded-xl p-5 border border-red-500/10">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-red-400 mb-3 flex items-center gap-1.5">
+            <i class="fa-solid fa-shield-halved text-red-500"></i> Security & Audit Panel
+          </h3>
+          <div class="space-y-3" id="audit-log-container">
+            <!-- Audit records injected here -->
+          </div>
+        </div>
+
+        <!-- Configuration Diff Viewer -->
+        <div class="glassmorphism rounded-xl p-5 border border-cyan-500/10">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
+            <i class="fa-solid fa-code-compare text-cyan-400"></i> Configuration Diff Viewer
+          </h3>
+          <div class="bg-black/60 rounded border border-purple-900/40 p-3 h-[140px] overflow-y-auto font-mono text-[10px] space-y-1" id="diff-viewer">
+            <span class="text-gray-500">// Modify ConfigMap or Secret in Left Panel to see diff comparisons.</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="max-w-7xl mx-auto px-4 mt-8 pt-6 border-t border-purple-900/30 text-center text-xs text-purple-300/40">
+    30 Days of Production Kubernetes • Day 7 Hands-on configuration simulator.
+  </footer>
+
+  <!-- Simulation Logic Script -->
+  <script>
+    // State management
+    const state = {
+      cm: {
+        LOG_LEVEL: "INFO",
+        DB_MAX_CONNECTIONS: "20",
+        properties: "server.port=8080\nmetrics.enabled=true\ncache.ttl=60s"
+      },
+      secret: {
+        DATABASE_USER: "db_admin",
+        DATABASE_PASSWORD: "SuperSecurePass123!",
+        STRIPE_SECRET_KEY: "live_sk_738918239"
+      },
+      pod: {
+        name: "payment-processor-7fdc89a2-x8q",
+        status: "RUNNING",
+        restarts: 0,
+        ip: "10.244.3.89",
+        env: {},
+        vaultConnected: false,
+        esoSynced: false
+      },
+      activeTab: "env",
+      logs: [],
+      audits: [],
+      currentStep: 1
+    };
+
+    // Walkthrough Step Details
+    const stepsData = {
+      1: {
+        title: "Step 1: Injected Environment Variables",
+        desc: "Change the **LOG_LEVEL** select dropdown on the left. Observe that the values in the **Container Environment** table DO NOT change. Click **Restart Pod** to apply the configuration. This illustrates that environment variables are static and fixed at runtime startup.",
+        helperTitle: "Understanding Env Injection",
+        helperDesc: "Environment variables are loaded once when Kubelet initiates the container binary via Kubelet/CRI. To change them, you must recreate the pod (rolling restart)."
+      },
+      2: {
+        title: "Step 2: Dynamic Volume Mounts",
+        desc: "Switch to the **Mounted Volumes** tab. Now change the **LOG_LEVEL** or **DB_MAX_CONNECTIONS** values on the left. Notice that the values inside `features.json` update INSTANTLY without restarting the Pod! This shows Kubelet updating mounted files on disk.",
+        helperTitle: "Dynamic File Mount Updates",
+        helperDesc: "When ConfigMaps/Secrets are mounted as directories, Kubelet runs a watch loop that writes changes directly onto the container disk structure without restarts. Code can use FileWatchers (inotify) to reload them instantly."
+      },
+      3: {
+        title: "Step 3: Secure Secret Rotation",
+        desc: "Click the **Rotate Credentials** button on the Secret panel. Look at the **Mounted Volumes** tab and hover over the `DATABASE_PASSWORD` file. The new password has been synced to disk, preventing credentials from expiring or needing manual rebuilds.",
+        helperTitle: "Secrets at Rest & Memory Mounts",
+        helperDesc: "Secrets mounted as files are placed in a memory-backed file namespace (tmpfs). They never touch the node host's physical hard drive, preserving compliance requirements."
+      },
+      4: {
+        title: "Step 4: Mutual Sidecar Injection with Vault",
+        desc: "Click **Connect Vault Agent Injector** under External Stores. This simulates mutating webhooks injecting the Vault Agent init/sidecar containers. The Sidecar communicates with Vault and mounts credentials to `/vault/secrets/database` automatically.",
+        helperTitle: "Mutating Webhook Sidecars",
+        helperDesc: "Vault Agent abstracts token handling and dynamic secrets, injecting credentials into a shared volume on startup so the application doesn't require Vault SDK code."
+      },
+      5: {
+        title: "Step 5: Cloud Synchronization using ESO",
+        desc: "Click **Reconcile ExternalSecret (Sync)**. This simulates the External Secrets Operator matching external cloud secrets (AWS, GCP, Azure) and safely populating them into Kubernetes Secret resources without developers ever committing passwords to Git.",
+        helperTitle: "GitOps Friendly Secrets",
+        helperDesc: "ESO ensures that you only commit reference manifests (ExternalSecret) to Git. The operator handles the authentication and synchronization of the actual payload securely at runtime."
+      }
+    };
+
+    // Deep clones helper
+    function clone(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    // Toggle Password Input Visibility
+    function togglePasswordVisibility(id, btn) {
+      const input = document.getElementById(id);
+      const icon = btn.querySelector('i');
+      if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      } else {
+        input.type = "password";
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      }
+    }
+
+    // Tab Switcher
+    function switchTab(tabName) {
+      state.activeTab = tabName;
+      document.getElementById("tab-content-env").classList.add("hidden");
+      document.getElementById("tab-content-volumes").classList.add("hidden");
+      document.getElementById("tab-content-logs").classList.add("hidden");
+      
+      document.getElementById("tab-btn-env").className = "flex-1 py-3 px-4 text-center border-b-2 " + (tabName === 'env' ? 'border-brand-500 text-white bg-brand-900/20' : 'border-transparent text-gray-400 hover:text-white');
+      document.getElementById("tab-btn-volumes").className = "flex-1 py-3 px-4 text-center border-b-2 " + (tabName === 'volumes' ? 'border-brand-500 text-white bg-brand-900/20' : 'border-transparent text-gray-400 hover:text-white');
+      document.getElementById("tab-btn-logs").className = "flex-1 py-3 px-4 text-center border-b-2 " + (tabName === 'logs' ? 'border-brand-500 text-white bg-brand-900/20 relative' : 'border-transparent text-gray-400 hover:text-white relative');
+      
+      document.getElementById(`tab-content-${tabName}`).classList.remove("hidden");
+      
+      if (tabName === 'logs') {
+        document.getElementById("log-count").classList.add("hidden");
+        document.getElementById("log-count").innerText = "0";
+      }
+    }
+
+    // Guided Walkthrough Steps Navigation
+    function changeWalkthroughStep(offset) {
+      let step = state.currentStep + offset;
+      if (step < 1) step = 1;
+      if (step > 5) step = 5;
+      jumpToStep(step);
+    }
+
+    function jumpToStep(step) {
+      state.currentStep = step;
+      
+      // Update step indicator buttons UI
+      for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById(`step-indicator-${i}`);
+        if (i === step) {
+          el.className = "p-2.5 rounded bg-brand-500/20 border border-brand-500/50 cursor-pointer transition";
+          el.querySelector('span:first-child').className = "text-[10px] uppercase font-bold text-brand-300 block";
+          el.querySelector('span:last-child').className = "text-xs text-white font-medium block";
+        } else {
+          el.className = "p-2.5 rounded bg-black/30 border border-purple-900/40 cursor-pointer hover:bg-purple-900/10 transition";
+          el.querySelector('span:first-child').className = "text-[10px] uppercase font-bold text-gray-500 block";
+          el.querySelector('span:last-child').className = "text-xs text-gray-400 font-medium block";
+        }
+      }
+
+      // Update instructions text
+      const stepData = stepsData[step];
+      document.getElementById("walkthrough-instructions").innerHTML = `
+        <strong class="text-cyan-300 font-bold block mb-1">${stepData.title}</strong>
+        ${stepData.desc}
+      `;
+      
+      // Update step numbers
+      document.getElementById("walkthrough-step-counter").innerText = `Step ${step} of 5`;
+
+      // Update dynamic helper descriptions
+      document.getElementById("dynamic-helper-title").innerText = stepData.helperTitle;
+      document.getElementById("dynamic-helper-desc").innerText = stepData.helperDesc;
+      
+      // Auto-switch tabs to show appropriate output panel
+      if (step === 1) {
+        switchTab("env");
+      } else if (step === 2 || step === 3) {
+        switchTab("volumes");
+      }
+      
+      addLog(`Walkthrough guided mode transitioned to step: ${step}`);
+    }
+
+    // Logs helper
+    function addLog(text, type = "info") {
+      const time = new Date().toLocaleTimeString();
+      let colorClass = "text-purple-300";
+      let icon = "⚙️";
+      if (type === "success") { colorClass = "text-green-400"; icon = "✅"; }
+      if (type === "warning") { colorClass = "text-yellow-400"; icon = "⚠️"; }
+      if (type === "error") { colorClass = "text-red-400"; icon = "🚨"; }
+      if (type === "system") { colorClass = "text-cyan-400"; icon = "🌐"; }
+      
+      state.logs.push({ time, text, colorClass, icon });
+      
+      const term = document.getElementById("logs-terminal");
+      if (term) {
+        const div = document.createElement("div");
+        div.className = `${colorClass} py-0.5 leading-relaxed`;
+        div.innerHTML = `<span class="text-gray-600">[${time}]</span> ${icon} ${text}`;
+        term.appendChild(div);
+        term.scrollTop = term.scrollHeight;
+      }
+      
+      // Update badge if not active
+      if (state.activeTab !== 'logs') {
+        const badge = document.getElementById("log-count");
+        badge.classList.remove("hidden");
+        badge.innerText = parseInt(badge.innerText || "0") + 1;
+      }
+    }
+
+    function clearLogs() {
+      state.logs = [];
+      document.getElementById("logs-terminal").innerHTML = "";
+    }
+
+    // Audit logs helper
+    function addAudit(event, action, status = "success") {
+      const time = new Date().toLocaleTimeString();
+      const severityColor = status === "success" ? "text-green-400" : (status === "denied" ? "text-red-400" : "text-yellow-400");
+      const bg = status === "success" ? "bg-green-500/5" : (status === "denied" ? "bg-red-500/5" : "bg-yellow-500/5");
+      const border = status === "success" ? "border-green-500/10" : (status === "denied" ? "border-red-500/15" : "border-yellow-500/15");
+      
+      const container = document.getElementById("audit-log-container");
+      const html = `
+        <div class="p-2.5 rounded border ${border} ${bg} text-[11px] font-mono">
+          <div class="flex justify-between items-center mb-1">
+            <span class="font-bold text-gray-300">${event}</span>
+            <span class="${severityColor} text-[10px] uppercase font-bold">${status}</span>
+          </div>
+          <p class="text-gray-400">${action}</p>
+          <span class="text-[9px] text-gray-500 block mt-1">Operator API Access Token Verified • ${time}</span>
+        </div>
+      `;
+      container.insertAdjacentHTML('afterbegin', html);
+    }
+
+    // Refresh UI files (Volume Mounting tabs representation)
+    function refreshVolumeFiles() {
+      // CM files
+      document.getElementById("vol-file-properties").innerText = state.cm.properties;
+      
+      // JSON pretty format
+      try {
+        const testJson = {
+          "LOG_LEVEL": state.cm.LOG_LEVEL,
+          "DB_MAX_CONNECTIONS": parseInt(state.cm.DB_MAX_CONNECTIONS),
+          "features": {
+            "caching": true,
+            "stripe_mode": "test"
+          }
+        };
+        document.getElementById("vol-file-json").innerText = JSON.stringify(testJson, null, 2);
+      } catch(e) {
+        document.getElementById("vol-file-json").innerText = `{\n  "LOG_LEVEL": "${state.cm.LOG_LEVEL}"\n}`;
+      }
+
+      // Secrets files
+      document.getElementById("vol-file-dbuser").innerText = state.secret.DATABASE_USER;
+      document.getElementById("vol-file-dbpass").innerText = "*".repeat(state.secret.DATABASE_PASSWORD.length) + ` (${state.secret.DATABASE_PASSWORD})`;
+      
+      // Vault injection file
+      if (state.pod.vaultConnected) {
+        document.getElementById("vol-file-vault").innerText = `export DB_USER="vault_token_app"\nexport DB_PASSWORD="hvs.CAESIJ9_9V0fG..."\nexport DB_HOST="vault-cluster-prod"`;
+      } else {
+        document.getElementById("vol-file-vault").innerText = `Vault agent not connected.\nFile does not exist.`;
+      }
+    }
+
+    // Update configmaps from form inputs
+    function updateConfigMap() {
+      const prev = clone(state.cm);
+      state.cm.LOG_LEVEL = document.getElementById("input-log-level").value;
+      state.cm.DB_MAX_CONNECTIONS = document.getElementById("input-max-connections").value;
+      state.cm.properties = document.getElementById("input-properties").value;
+
+      refreshVolumeFiles();
+      
+      // Generate Diff
+      generateDiff("ConfigMap: app-config", prev, state.cm);
+      
+      addLog("Kubelet Volume Manager: Detected ConfigMap update, synchronizing node cache directory...");
+      addAudit("CONFIGMAP_UPDATE", `User modified config keys in namespace default`, "success");
+    }
+
+    // Update secrets from form inputs
+    function updateSecret() {
+      const prev = clone(state.secret);
+      state.secret.DATABASE_USER = document.getElementById("input-db-user").value;
+      state.secret.DATABASE_PASSWORD = document.getElementById("input-db-pass").value;
+      state.secret.STRIPE_SECRET_KEY = document.getElementById("input-stripe-key").value;
+
+      refreshVolumeFiles();
+
+      generateDiff("Secret: app-secrets", prev, state.secret);
+      addLog("Kubernetes Secret updated in etcd storage layer.", "warning");
+      addAudit("SECRET_APPLIED", "Modified raw data fields, base64 payload refreshed", "warning");
+    }
+
+    // Render environment table to show static vars mapping
+    function renderEnvironmentTable() {
+      const tbody = document.getElementById("env-table-body");
+      tbody.innerHTML = "";
+      
+      const vars = [
+        { name: "LOG_LEVEL", value: state.pod.env.LOG_LEVEL || "INFO", source: "ConfigMap (app-config)" },
+        { name: "DB_MAX_CONNECTIONS", value: state.pod.env.DB_MAX_CONNECTIONS || "20", source: "ConfigMap (app-config)" },
+        { name: "DATABASE_USER", value: state.pod.env.DATABASE_USER || "db_admin", source: "Secret (app-secrets)" },
+        { name: "DATABASE_PASSWORD", value: "*".repeat((state.pod.env.DATABASE_PASSWORD || "").length) || "*********", source: "Secret (app-secrets)" },
+        { name: "STRIPE_SECRET_KEY", value: "*".repeat((state.pod.env.STRIPE_SECRET_KEY || "").length) || "*********", source: "Secret (app-secrets)" },
+        { name: "VAULT_ADDR", value: state.pod.vaultConnected ? "https://vault.corp:8200" : "N/A", source: state.pod.vaultConnected ? "Vault Injector Sidecar" : "Unset" },
+        { name: "KUBERNETES_PORT", value: "tcp://10.96.0.1:443", source: "Cluster Default" }
+      ];
+
+      vars.forEach(v => {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-purple-950/15";
+        tr.innerHTML = `
+          <td class="py-2.5 font-bold text-gray-300 font-mono text-[11px]">${v.name}</td>
+          <td class="py-2.5 text-cyan-300 font-mono text-[11px] truncate max-w-[200px]">${v.value}</td>
+          <td class="py-2.5 text-purple-300/80 text-[10px]">${v.source}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Rotate Secrets action
+    function rotateSecrets() {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+      let newPass = "";
+      for (let i = 0; i < 18; i++) {
+        newPass += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+      }
+      
+      document.getElementById("input-db-pass").value = newPass;
+      updateSecret();
+      addLog("Rotating credentials... Triggering DB client sync.", "warning");
+    }
+
+    // Trigger Expiration Warning
+    function triggerExpiration() {
+      addLog("Secret Expiration Alert: Secret app-secrets has active keys older than 90 days!", "error");
+      addAudit("SECURITY_RULE_VIOLATION", "Compliance warning: Unrotated secrets (SOC2 rule 4.3)", "denied");
+      
+      // Flash status bar
+      const statusText = document.getElementById("pod-status-text");
+      statusText.innerText = "COMPLIANCE_WARN";
+      statusText.className = "text-xs bg-yellow-900/60 text-yellow-300 border border-yellow-500/40 px-2 py-0.5 rounded font-bold animate-pulse";
+      
+      setTimeout(() => {
+        statusText.innerText = "RUNNING";
+        statusText.className = "text-xs bg-green-900/60 text-green-300 border border-green-500/40 px-2 py-0.5 rounded font-bold";
+      }, 5000);
+    }
+
+    // Connect / Disconnect HashiCorp Vault
+    function toggleVaultConnection() {
+      state.pod.vaultConnected = !state.pod.vaultConnected;
+      const badge = document.getElementById("vault-status-badge");
+      const btn = document.getElementById("btn-toggle-vault");
+      
+      if (state.pod.vaultConnected) {
+        badge.innerText = "ACTIVE_INJECTOR";
+        badge.className = "text-[9px] bg-green-900/40 border border-green-500/30 text-green-300 px-2 py-0.5 rounded font-mono";
+        btn.innerText = "Disable Vault Injector";
+        addLog("Vault Mutating Webhook injected sidecars into deployment payment-processor.", "success");
+        addAudit("VAULT_AGENT_INJECTED", "Vault Agent mutating webhook successfully bound token mounts", "success");
+        
+        // Dynamic reload logs
+        addLog("Vault Agent: Authenticating with SA token... login success.");
+        addLog("Vault Agent: Dynamic secrets populated to /vault/secrets/database", "success");
+      } else {
+        badge.innerText = "DISCONNECTED";
+        badge.className = "text-[9px] bg-red-900/40 border border-red-500/30 text-red-300 px-2 py-0.5 rounded font-mono";
+        btn.innerText = "Connect Vault Agent Injector";
+        addLog("Vault Agent removed from Pod template specification.");
+        addAudit("VAULT_AGENT_REMOVED", "Workload rolling update completed", "warning");
+      }
+      
+      // Auto restart to simulate config reload
+      restartPod("vault");
+    }
+
+    // Trigger ESO Sync
+    function triggerESOSync() {
+      const badge = document.getElementById("eso-status-badge");
+      badge.innerText = "RECONCILING...";
+      badge.className = "text-[9px] bg-cyan-900/40 border border-cyan-500/30 text-cyan-300 px-2 py-0.5 rounded font-mono animate-pulse";
+      
+      addLog("ESO: Reconciling ExternalSecret 'payment-db-secret' against AWS Secrets Manager...");
+      
+      setTimeout(() => {
+        badge.innerText = "SYNCED";
+        badge.className = "text-[9px] bg-green-900/40 border border-green-500/30 text-green-300 px-2 py-0.5 rounded font-mono";
+        addLog("ESO: AWS secrets fetched successfully. Updating Kubernetes Opaque Secret 'app-secrets'.", "success");
+        addAudit("ESO_SYNC_COMPLETED", "SecretStore AWS token refresh completed successfully", "success");
+        
+        // Auto update input pass with simulated AWS rotated value
+        document.getElementById("input-db-pass").value = "aws-sync-pwd-" + Math.floor(Math.random() * 9000 + 1000);
+        updateSecret();
+      }, 1500);
+    }
+
+    // Restart Pod (Simulates Rollout)
+    function restartPod(reason = "manual") {
+      state.pod.status = "RESTARTING";
+      const light = document.getElementById("pod-status-light");
+      const text = document.getElementById("pod-status-text");
+      const icon = document.getElementById("pod-icon");
+      
+      light.className = "h-16 w-16 rounded-full bg-yellow-500/10 border-4 border-yellow-500 flex items-center justify-center text-yellow-400 shadow-lg shadow-yellow-500/20 transition-all duration-300";
+      text.innerText = "TERMINATING";
+      text.className = "text-xs bg-yellow-900/60 text-yellow-300 border border-yellow-500/40 px-2 py-0.5 rounded font-bold";
+      
+      addLog(`Kubelet: SIGTERM signal sent to container. Initiating graceful shutdown...`, "warning");
+      
+      setTimeout(() => {
+        text.innerText = "CONTAINER_CREATING";
+        addLog("Kubelet: Recreating container from container image cache...", "system");
+        
+        setTimeout(() => {
+          // Commit inputs to active env
+          state.pod.env = clone(state.cm);
+          state.pod.env.DATABASE_USER = state.secret.DATABASE_USER;
+          state.pod.env.DATABASE_PASSWORD = state.secret.DATABASE_PASSWORD;
+          state.pod.env.STRIPE_SECRET_KEY = state.secret.STRIPE_SECRET_KEY;
+          
+          state.pod.restarts += 1;
+          document.getElementById("pod-restarts-badge").innerText = `Restarts: ${state.pod.restarts}`;
+          
+          // Generate new IP to simulate new pod
+          state.pod.ip = `10.244.3.${Math.floor(Math.random() * 250 + 2)}`;
+          document.getElementById("pod-ip-display").innerText = `IP: ${state.pod.ip}`;
+          
+          state.pod.status = "RUNNING";
+          light.className = "h-16 w-16 rounded-full bg-green-500/10 border-4 border-green-500 flex items-center justify-center text-green-400 shadow-lg shadow-green-500/20 transition-all duration-300";
+          text.innerText = "RUNNING";
+          text.className = "text-xs bg-green-900/60 text-green-300 border border-green-500/40 px-2 py-0.5 rounded font-bold";
+          
+          addLog("Container boot sequence completed. Port 8080 listening.", "success");
+          addLog(`Injected DB_USER = ${state.pod.env.DATABASE_USER}`);
+          addLog(`Injected LOG_LEVEL = ${state.pod.env.LOG_LEVEL}`);
+          
+          renderEnvironmentTable();
+          refreshVolumeFiles();
+          addAudit("POD_RESTART_SUCCESS", `Pod rolling update complete, reason: ${reason}`, "success");
+        }, 1200);
+      }, 1000);
+    }
+
+    // Config Diff Visualizer
+    function generateDiff(title, prev, current) {
+      const diffViewer = document.getElementById("diff-viewer");
+      diffViewer.innerHTML = `<span class="text-yellow-400 font-bold block mb-1">=== DIFF WATCH: ${title} ===</span>`;
+      
+      let hasChanges = false;
+      for (const k in current) {
+        if (prev[k] !== current[k]) {
+          hasChanges = true;
+          const oldVal = String(prev[k]).substring(0, 20);
+          const newVal = String(current[k]).substring(0, 20);
+          
+          const div = document.createElement("div");
+          div.innerHTML = `
+            <span class="text-red-400 block">- "${k}": "${oldVal}"</span>
+            <span class="text-green-400 block">+ "${k}": "${newVal}"</span>
+          `;
+          diffViewer.appendChild(div);
+        }
+      }
+      
+      if (!hasChanges) {
+        diffViewer.innerHTML += `<span class="text-gray-500">// No modifications detected</span>`;
+      }
+    }
+
+    // Initialize Simulator
+    window.addEventListener("DOMContentLoaded", () => {
+      // Copy initial config to active pod env
+      state.pod.env = clone(state.cm);
+      state.pod.env.DATABASE_USER = state.secret.DATABASE_USER;
+      state.pod.env.DATABASE_PASSWORD = state.secret.DATABASE_PASSWORD;
+      state.pod.env.STRIPE_SECRET_KEY = state.secret.STRIPE_SECRET_KEY;
+      
+      renderEnvironmentTable();
+      refreshVolumeFiles();
+      
+      // Set initial tutorial step
+      jumpToStep(1);
+      
+      // Welcome logs
+      addLog("Welcome to the Kubernetes Configuration Management Simulator.", "system");
+      addLog("Initializing Kubelet volume manager and container startup routine...");
+      addLog("Application process loaded standard configuration schema.", "success");
+      
+      addAudit("SIMULATOR_BOOT", "API Server connected, RBAC bindings applied", "success");
+    });
+  </script>
+</body>
+</html>

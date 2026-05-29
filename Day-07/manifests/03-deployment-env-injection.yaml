@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor-env
+  namespace: default
+  labels:
+    app: payment-processor
+    tier: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-processor
+  template:
+    metadata:
+      labels:
+        app: payment-processor
+    spec:
+      containers:
+        - name: application
+          image: hashicorp/http-echo:latest
+          args:
+            - "-text=Payment Processor started successfully with Environment Variables."
+          ports:
+            - containerPort: 5678
+          env:
+            # 1. Individual Key Reference from ConfigMap
+            - name: APP_LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: LOG_LEVEL
+
+            # 2. Individual Key Reference from Secret (SENSITIVE)
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DATABASE_PASSWORD
+
+            # 3. Direct plaintext env definition (non-sensitive)
+            - name: ENVIRONMENT
+              value: "production"
+
+          # 4. Inject ALL variables from a ConfigMap as env vars automatically
+          envFrom:
+            - configMapRef:
+                name: app-config
