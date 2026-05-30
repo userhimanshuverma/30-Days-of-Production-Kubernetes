@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Storage Simulator — Day 08</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0c081e;
+            --panel-bg: rgba(20, 15, 45, 0.65);
+            --border-color: rgba(138, 43, 226, 0.25);
+            --accent-primary: #8a2be2;
+            --accent-secondary: #c77dff;
+            --glow-color: rgba(138, 43, 226, 0.4);
+            --text-main: #f3f0ff;
+            --text-muted: #b8b2d2;
+            --status-success: #00e676;
+            --status-warning: #ffd600;
+            --status-danger: #ff1744;
+            --status-info: #00b0ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--bg-color);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(25, 10, 60, 0.5) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(55, 10, 90, 0.4) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            background: rgba(10, 5, 25, 0.8);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .logo-section h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #c77dff, #8a2be2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-section p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 15px;
+        }
+
+        .badge {
+            background: rgba(138, 43, 226, 0.15);
+            border: 1px solid var(--border-color);
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-live::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--status-success);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--status-success);
+            animation: pulse 1.5s infinite;
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr 380px;
+            gap: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Panels Shared CSS */
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .panel-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-main);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Sidebar Control Center */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sc-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+        }
+
+        .sc-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .sc-card:hover {
+            border-color: var(--accent-primary);
+            background: rgba(138, 43, 226, 0.05);
+        }
+
+        .sc-card.active {
+            border-color: var(--accent-primary);
+            background: rgba(138, 43, 226, 0.15);
+            box-shadow: 0 0 10px rgba(138, 43, 226, 0.25);
+        }
+
+        .sc-card h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .sc-card p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        input, select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            padding: 0.8rem 1rem;
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent-secondary);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--accent-primary), #4b0082);
+            color: #fff;
+            border: none;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(138, 43, 226, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-outline-danger {
+            background: rgba(255, 23, 68, 0.1);
+            border: 1px solid var(--status-danger);
+            color: var(--status-danger);
+            box-shadow: none;
+        }
+
+        .btn-outline-danger:hover {
+            background: var(--status-danger);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255, 23, 68, 0.3);
+        }
+
+        .btn-outline-warning {
+            background: rgba(255, 214, 0, 0.1);
+            border: 1px solid var(--status-warning);
+            color: var(--status-warning);
+            box-shadow: none;
+        }
+
+        .btn-outline-warning:hover {
+            background: var(--status-warning);
+            color: #000;
+            box-shadow: 0 4px 15px rgba(255, 214, 0, 0.3);
+        }
+
+        /* Center Topology Panel */
+        .topology-panel {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        .topo-canvas {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            padding: 1.5rem 0;
+            min-height: 480px;
+            position: relative;
+        }
+
+        .topo-node {
+            background: rgba(18, 12, 38, 0.85);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            width: 320px;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        .topo-node.active-mount {
+            border-color: var(--status-success);
+            box-shadow: 0 0 15px rgba(0, 230, 118, 0.25);
+        }
+
+        .topo-node.crashed {
+            border-color: var(--status-danger);
+            box-shadow: 0 0 15px rgba(255, 23, 68, 0.3);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        .topo-node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.4rem;
+        }
+
+        .topo-node-name {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .topo-node-meta {
+            font-size: 0.8rem;
+            margin-top: 0.4rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.active { background-color: var(--status-success); box-shadow: 0 0 6px var(--status-success); }
+        .status-dot.pending { background-color: var(--status-warning); box-shadow: 0 0 6px var(--status-warning); }
+        .status-dot.crashed { background-color: var(--status-danger); box-shadow: 0 0 6px var(--status-danger); }
+        .status-dot.offline { background-color: var(--text-muted); }
+
+        /* Dynamic linking lines using SVG */
+        .line-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .mount-line {
+            stroke: var(--border-color);
+            stroke-width: 2.5;
+            fill: none;
+            stroke-dasharray: 6;
+            transition: all 0.5s;
+        }
+
+        .mount-line.active {
+            stroke: var(--status-success);
+            stroke-dasharray: 8 4;
+            animation: dash 30s linear infinite;
+        }
+
+        .mount-line.crashed {
+            stroke: var(--status-danger);
+            stroke-dasharray: 4;
+        }
+
+        /* Database State / Persistence Inspector */
+        .db-state-panel {
+            background: rgba(10, 5, 25, 0.4);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            font-size: 0.85rem;
+            height: 160px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .db-header {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            color: var(--accent-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .db-row {
+            display: flex;
+            gap: 15px;
+            padding: 4px 6px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+        }
+
+        .db-row span.time { color: var(--text-muted); }
+        .db-row span.val { color: var(--status-success); }
+
+        /* Right Panel: Timeline & Logs */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .timeline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .timeline-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.6rem;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .timeline-step.completed {
+            border-color: rgba(0, 230, 118, 0.3);
+            background: rgba(0, 230, 118, 0.05);
+        }
+
+        .timeline-step.completed .step-icon {
+            background: var(--status-success);
+            color: #000;
+            box-shadow: 0 0 8px var(--status-success);
+        }
+
+        .timeline-step.active {
+            border-color: rgba(255, 214, 0, 0.3);
+            background: rgba(255, 214, 0, 0.05);
+        }
+
+        .timeline-step.active .step-icon {
+            background: var(--status-warning);
+            color: #000;
+            box-shadow: 0 0 8px var(--status-warning);
+        }
+
+        .step-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            font-size: 0.75rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: var(--text-muted);
+        }
+
+        /* Terminal Console */
+        .terminal-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            min-height: 320px;
+        }
+
+        .terminal-console {
+            background: #060410;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            padding: 1rem;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: #90caf9;
+        }
+
+        .terminal-line {
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .terminal-line.cmd { color: #81c784; }
+        .terminal-line.cmd::before { content: "$ "; color: #e57373; }
+        .terminal-line.err { color: #ff5252; }
+        .terminal-line.sys { color: #b388ff; }
+
+        /* Animations */
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.5; }
+        }
+
+        @keyframes dash {
+            to { stroke-dashoffset: -1000; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
+        .pulse-effect {
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { border-color: var(--border-color); }
+            50% { border-color: var(--status-success); }
+            100% { border-color: var(--border-color); }
+        }
+
+        .learning-guide-card {
+            background: rgba(138, 43, 226, 0.08);
+            border: 1px solid rgba(138, 43, 226, 0.25);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .guide-header {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--accent-secondary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .tour-tasks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .tour-task {
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .tour-task.completed {
+            border-color: var(--status-success);
+            color: var(--status-success);
+            background: rgba(0, 230, 118, 0.05);
+        }
+
+        .tour-task.active {
+            border-color: var(--status-warning);
+            color: var(--status-warning);
+            background: rgba(255, 214, 0, 0.05);
+        }
+
+        .lesson-text {
+            font-size: 0.82rem;
+            line-height: 1.45;
+            color: var(--text-main);
+            background: rgba(0,0,0,0.25);
+            border-radius: 8px;
+            padding: 8px 12px;
+            border-left: 3px solid var(--accent-primary);
+        }
+
+        /* Responsiveness */
+        @media (max-width: 1200px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+            .topology-panel {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Kubernetes Storage Engine</h1>
+            <p>Phase 2: Day 8 — PV, PVC, & CSI Runtime Operations Simulator</p>
+        </div>
+        <div class="header-meta">
+            <div class="badge badge-live">Simulator Running</div>
+            <div class="badge" id="current-node-name">Active Host: Node-A</div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Control panel (Left) -->
+        <section class="glass-panel">
+            <h2 class="panel-title">Resource Controller</h2>
+            
+            <div class="control-group">
+                <label>1. Select StorageClass</label>
+                <div class="sc-selector">
+                    <div class="sc-card active" onclick="selectSC('gp3')" id="sc-gp3">
+                        <h4>gp3</h4>
+                        <p>AWS EBS SSD</p>
+                    </div>
+                    <div class="sc-card" onclick="selectSC('efs-sc')" id="sc-efs">
+                        <h4>efs-sc</h4>
+                        <p>AWS EFS Shared</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>2. Define Storage Claim (PVC)</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="pvc-name-input" value="postgres-pvc" placeholder="Claim Name">
+                    <select id="pvc-size-input" style="width: 100px;">
+                        <option value="10">10 Gi</option>
+                        <option value="20">20 Gi</option>
+                        <option value="50">50 Gi</option>
+                    </select>
+                </div>
+                <button class="btn" id="create-pvc-btn" onclick="triggerCreatePVC()">
+                    Create PVC Claim
+                </button>
+            </div>
+
+            <div class="control-group">
+                <label>3. Schedule database Pod</label>
+                <input type="text" id="pod-name-input" value="postgres-0" placeholder="Pod Name">
+                <button class="btn" id="create-pod-btn" onclick="triggerCreatePod()" disabled>
+                    Deploy Pod & Mount PVC
+                </button>
+            </div>
+
+            <div class="control-group" style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+                <label>Chaos Operations</label>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+                    <button class="btn btn-outline-danger" id="crash-pod-btn" onclick="triggerCrashPod()" disabled>
+                        Simulate Pod Crash
+                    </button>
+                    <button class="btn btn-outline-warning" id="node-fail-btn" onclick="triggerNodeFailure()" disabled>
+                        Simulate Node-A Failure
+                    </button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Volume Resizing (Live Expansion)</label>
+                <div style="display: flex; gap: 8px;">
+                    <select id="resize-size-input">
+                        <option value="20">Expand to 20 Gi</option>
+                        <option value="50">Expand to 50 Gi</option>
+                        <option value="100">Expand to 100 Gi</option>
+                    </select>
+                    <button class="btn btn-outline-warning" id="resize-btn" onclick="triggerResizeVolume()" disabled style="padding: 0.5rem 1rem;">
+                        Resize
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual Topology (Center) -->
+        <section class="glass-panel topology-panel">
+            <h2 class="panel-title">Storage Topology Visualizer</h2>
+            
+            <!-- Guided Learning Tour & Architecture Lesson -->
+            <div class="learning-guide-card">
+                <div class="guide-header">🎓 Guided Learning Tour & Architecture Lesson</div>
+                <div class="tour-tasks">
+                    <span class="tour-task" id="task-pvc">⭕ 1. Create PVC</span>
+                    <span class="tour-task" id="task-pod">⭕ 2. Deploy Pod & Mount</span>
+                    <span class="tour-task" id="task-crash">⭕ 3. Crash Pod</span>
+                    <span class="tour-task" id="task-recreate">⭕ 4. Recreate Pod</span>
+                    <span class="tour-task" id="task-node">⭕ 5. Fail Node-A</span>
+                    <span class="tour-task" id="task-resize">⭕ 6. Resize PVC</span>
+                </div>
+                <div class="lesson-text" id="lesson-box">
+                    <strong>Welcome to the Storage Playground!</strong> Start by choosing a StorageClass and clicking <strong>"Create PVC Claim"</strong> to trigger dynamic provisioning.
+                </div>
+            </div>
+            
+            <div class="topo-canvas" id="topo-canvas">
+                <svg class="line-overlay" id="svg-lines">
+                    <path id="line-pod-pvc" class="mount-line" d="M0,0 Q0,0 0,0"></path>
+                    <path id="line-pvc-pv" class="mount-line" d="M0,0 Q0,0 0,0"></path>
+                    <path id="line-pv-disk" class="mount-line" d="M0,0 Q0,0 0,0"></path>
+                </svg>
+
+                <!-- Pod Node -->
+                <div class="topo-node" id="node-pod">
+                    <div class="topo-node-header">
+                        <span>Pod (Compute)</span>
+                        <div class="badge" style="padding: 2px 6px; font-size: 0.65rem;">Ephemeral</div>
+                    </div>
+                    <div class="topo-node-name" id="topo-pod-name">-</div>
+                    <div class="topo-node-meta">
+                        <span>Status: <span class="status-dot offline" id="pod-status-dot"></span> <b id="topo-pod-status">Offline</b></span>
+                        <span id="topo-pod-node">Node: -</span>
+                    </div>
+                </div>
+
+                <!-- PVC Node -->
+                <div class="topo-node" id="node-pvc">
+                    <div class="topo-node-header">
+                        <span>PersistentVolumeClaim</span>
+                        <div class="badge" style="padding: 2px 6px; font-size: 0.65rem; background: rgba(0, 176, 255, 0.15);">Logical Request</div>
+                    </div>
+                    <div class="topo-node-name" id="topo-pvc-name">-</div>
+                    <div class="topo-node-meta">
+                        <span>Status: <span class="status-dot offline" id="pvc-status-dot"></span> <b id="topo-pvc-status">Offline</b></span>
+                        <span id="topo-pvc-size">Size: -</span>
+                    </div>
+                </div>
+
+                <!-- PV Node -->
+                <div class="topo-node" id="node-pv">
+                    <div class="topo-node-header">
+                        <span>PersistentVolume</span>
+                        <div class="badge" style="padding: 2px 6px; font-size: 0.65rem; background: rgba(138, 43, 226, 0.15);">Cluster Resource</div>
+                    </div>
+                    <div class="topo-node-name" id="topo-pv-name">-</div>
+                    <div class="topo-node-meta">
+                        <span>Status: <span class="status-dot offline" id="pv-status-dot"></span> <b id="topo-pv-status">Offline</b></span>
+                        <span id="topo-pv-reclaim">Policy: -</span>
+                    </div>
+                </div>
+
+                <!-- Physical Storage Node -->
+                <div class="topo-node" id="node-disk">
+                    <div class="topo-node-header">
+                        <span>Physical Storage (Cloud Disk)</span>
+                        <div class="badge" style="padding: 2px 6px; font-size: 0.65rem; background: rgba(0, 230, 118, 0.15);">Durable Infrastructure</div>
+                    </div>
+                    <div class="topo-node-name" id="topo-disk-name">-</div>
+                    <div class="topo-node-meta">
+                        <span>Size: <b id="topo-disk-size">-</b></span>
+                        <span>Tier: <b id="topo-disk-sc">-</b></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Inspector -->
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <h3 class="db-header">
+                    <span>💾 Live Postgres DB logs (/var/lib/postgresql/data/logs.db)</span>
+                    <span id="db-status-label" style="font-size: 0.75rem; color: var(--text-muted);">Disconnected</span>
+                </h3>
+                <div class="db-state-panel" id="db-state-inspector">
+                    <div style="color: var(--text-muted); text-align: center; margin-top: 30px;">
+                        No database connection. Mount a volume and start the Pod to record state.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CSI Events & Logs (Right) -->
+        <section class="glass-panel right-panel">
+            <div class="timeline-container">
+                <h2 class="panel-title">Volume Binding Steps</h2>
+                
+                <div class="timeline-step" id="step-claim">
+                    <div class="step-icon">1</div>
+                    <div>
+                        <strong>PVC Created</strong>
+                        <p style="font-size: 0.75rem; color: var(--text-muted);">User requests storage quota</p>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step-prov">
+                    <div class="step-icon">2</div>
+                    <div>
+                        <strong>CSI Dynamic Provisioning</strong>
+                        <p style="font-size: 0.75rem; color: var(--text-muted);">CSI External-Provisioner calls Cloud API</p>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step-bind">
+                    <div class="step-icon">3</div>
+                    <div>
+                        <strong>PV Bound</strong>
+                        <p style="font-size: 0.75rem; color: var(--text-muted);">1:1 binding maps PVC to active PV</p>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step-attach">
+                    <div class="step-icon">4</div>
+                    <div>
+                        <strong>Volume Attached</strong>
+                        <p style="font-size: 0.75rem; color: var(--text-muted);">CSI Attacher connects disk to Node OS</p>
+                    </div>
+                </div>
+                <div class="timeline-step" id="step-mount">
+                    <div class="step-icon">5</div>
+                    <div>
+                        <strong>Kubelet OS Mount</strong>
+                        <p style="font-size: 0.75rem; color: var(--text-muted);">Local mount stage complete. Pod starts.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="terminal-panel">
+                <h2 class="panel-title">CSI Driver & Kubectl Logs</h2>
+                <div class="terminal-console" id="terminal-console">
+                    <div class="terminal-line sys">Kubernetes Storage Engine Simulator v1.0.0 initialized.</div>
+                    <div class="terminal-line sys">Select a StorageClass and trigger "Create PVC" to begin.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // System state variables
+        let selectedSC = 'gp3';
+        let currentHostNode = 'Node-A';
+        let stepCount = 0;
+        
+        let state = {
+            pvc: null,
+            pv: null,
+            pod: null,
+            disk: null,
+            dbLogs: [],
+            terminalLogs: []
+        };
+
+        let dbInterval = null;
+        let dbLogCounter = 0;
+
+        const taskLabels = {
+            pvc: '1. Create PVC',
+            pod: '2. Deploy Pod & Mount',
+            crash: '3. Crash Pod',
+            recreate: '4. Recreate Pod',
+            node: '5. Fail Node-A',
+            resize: '6. Resize PVC'
+        };
+
+        function updateLesson(text, activeTaskId = null, completedTaskIds = []) {
+            document.getElementById('lesson-box').innerHTML = text;
+            const taskIds = ['pvc', 'pod', 'crash', 'recreate', 'node', 'resize'];
+            
+            taskIds.forEach(id => {
+                const el = document.getElementById(`task-${id}`);
+                el.className = 'tour-task';
+                if (id === activeTaskId) {
+                    el.classList.add('active');
+                    el.innerHTML = `⚡ ${taskLabels[id]}`;
+                } else if (completedTaskIds.includes(id)) {
+                    el.classList.add('completed');
+                    el.innerHTML = `✔ ${taskLabels[id]}`;
+                } else {
+                    el.innerHTML = `⭕ ${taskLabels[id]}`;
+                }
+            });
+        }
+
+        // Initialize first guide step on script load
+        window.addEventListener('DOMContentLoaded', () => {
+            updateLesson('<strong>Welcome to the Storage Playground!</strong> Start by choosing a StorageClass (gp3 SSD vs efs-sc Shared FS) and clicking <strong>"Create PVC Claim"</strong> to trigger dynamic provisioning.', 'pvc', []);
+        });
+
+        function selectSC(sc) {
+            selectedSC = sc;
+            document.getElementById('sc-gp3').classList.remove('active');
+            document.getElementById('sc-efs').classList.remove('active');
+            
+            if (sc === 'gp3') {
+                document.getElementById('sc-gp3').classList.add('active');
+                logTerminal('Selected AWS gp3 (Block device storage - ReadWriteOnce)', 'sys');
+            } else {
+                document.getElementById('sc-efs').classList.add('active');
+                logTerminal('Selected AWS efs-sc (Shared filesystem storage - ReadWriteMany)', 'sys');
+            }
+        }
+
+        function logTerminal(message, type = 'cmd') {
+            const consoleEl = document.getElementById('terminal-console');
+            const line = document.createElement('div');
+            line.className = `terminal-line ${type}`;
+            line.innerText = message;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function setStepActive(stepId, stateClass) {
+            const stepEl = document.getElementById(stepId);
+            stepEl.className = 'timeline-step';
+            if (stateClass) stepEl.classList.add(stateClass);
+        }
+
+        // Draw connections between topology components
+        function updateConnectionLines() {
+            const svg = document.getElementById('svg-lines');
+            const linePodPvc = document.getElementById('line-pod-pvc');
+            const linePvcPv = document.getElementById('line-pvc-pv');
+            const linePvDisk = document.getElementById('line-pv-disk');
+
+            const podEl = document.getElementById('node-pod');
+            const pvcEl = document.getElementById('node-pvc');
+            const pvEl = document.getElementById('node-pv');
+            const diskEl = document.getElementById('node-disk');
+
+            const getCenterCoordinates = (element) => {
+                const rect = element.getBoundingClientRect();
+                const canvasRect = svg.getBoundingClientRect();
+                return {
+                    x: rect.left + rect.width / 2 - canvasRect.left,
+                    y: rect.top + rect.height / 2 - canvasRect.top
+                };
+            };
+
+            const drawCurve = (line, p1, p2, activeStatus) => {
+                line.setAttribute('d', `M${p1.x},${p1.y} L${p2.x},${p2.y}`);
+                line.className.baseVal = 'mount-line';
+                if (activeStatus === 'Bound' || activeStatus === 'Running') {
+                    line.classList.add('active');
+                } else if (activeStatus === 'Crashed') {
+                    line.classList.add('crashed');
+                }
+            };
+
+            if (state.pod && state.pvc) {
+                drawCurve(linePodPvc, getCenterCoordinates(podEl), getCenterCoordinates(pvcEl), state.pod.status);
+            } else {
+                linePodPvc.setAttribute('d', 'M0,0 L0,0');
+            }
+
+            if (state.pvc && state.pv) {
+                drawCurve(linePvcPv, getCenterCoordinates(pvcEl), getCenterCoordinates(pvEl), state.pvc.status);
+            } else {
+                linePvcPv.setAttribute('d', 'M0,0 L0,0');
+            }
+
+            if (state.pv && state.disk) {
+                drawCurve(linePvDisk, getCenterCoordinates(pvEl), getCenterCoordinates(diskEl), state.pv.status);
+            } else {
+                linePvDisk.setAttribute('d', 'M0,0 L0,0');
+            }
+        }
+
+        // Trigger PVC Creation Flow
+        function triggerCreatePVC() {
+            const name = document.getElementById('pvc-name-input').value.trim();
+            const size = document.getElementById('pvc-size-input').value;
+            
+            if (!name) return alert('Enter a valid PVC name');
+
+            // Reset UI timeline
+            ['step-claim', 'step-prov', 'step-bind', 'step-attach', 'step-mount'].forEach(step => {
+                setStepActive(step, '');
+            });
+
+            logTerminal(`kubectl apply -f - <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: ${name}\nspec:\n  storageClassName: ${selectedSC}\n  accessModes: [ReadWriteOnce]\n  resources: { requests: { storage: ${size}Gi } }\nEOF`, 'cmd');
+
+            state.pvc = {
+                name: name,
+                size: `${size}Gi`,
+                sc: selectedSC,
+                status: 'Pending',
+                pvName: null
+            };
+
+            // Update PVC Topology
+            document.getElementById('topo-pvc-name').innerText = name;
+            document.getElementById('topo-pvc-status').innerText = 'Pending';
+            document.getElementById('topo-pvc-size').innerText = `Size: ${size}Gi`;
+            document.getElementById('pvc-status-dot').className = 'status-dot pending';
+            document.getElementById('node-pvc').classList.add('pulse-effect');
+            
+            setStepActive('step-claim', 'active');
+            updateConnectionLines();
+
+            // Disable buttons during transition
+            document.getElementById('create-pvc-btn').disabled = true;
+
+            setTimeout(() => {
+                // Step 2: CSI Provisioner intercept
+                setStepActive('step-claim', 'completed');
+                setStepActive('step-prov', 'active');
+                logTerminal(`CSI External-Provisioner: intercepted PVC claim '${name}'. Invoking CreateVolume() on CSI controller...`, 'sys');
+                
+                state.disk = {
+                    id: 'vol-' + Math.random().toString(36).substr(2, 9),
+                    status: 'Creating',
+                    size: `${size}Gi`
+                };
+
+                document.getElementById('topo-disk-name').innerText = state.disk.id;
+                document.getElementById('topo-disk-size').innerText = `${size}Gi`;
+                document.getElementById('topo-disk-sc').innerText = selectedSC;
+                
+                updateConnectionLines();
+            }, 1200);
+
+            setTimeout(() => {
+                // Step 3: Physical Disk and PV Created & Bound
+                setStepActive('step-prov', 'completed');
+                setStepActive('step-bind', 'active');
+                
+                const pvName = `pv-${state.disk.id}`;
+                state.pv = {
+                    name: pvName,
+                    size: `${size}Gi`,
+                    sc: selectedSC,
+                    status: 'Bound',
+                    reclaim: 'Delete'
+                };
+
+                state.pvc.status = 'Bound';
+                state.pvc.pvName = pvName;
+
+                // Update PV Topology
+                document.getElementById('topo-pv-name').innerText = pvName;
+                document.getElementById('topo-pv-status').innerText = 'Bound';
+                document.getElementById('topo-pv-reclaim').innerText = 'Policy: Delete';
+                document.getElementById('pv-status-dot').className = 'status-dot active';
+                document.getElementById('node-pv').classList.add('active-mount');
+
+                // Update PVC Status
+                document.getElementById('topo-pvc-status').innerText = 'Bound';
+                document.getElementById('pvc-status-dot').className = 'status-dot active';
+                document.getElementById('node-pvc').classList.remove('pulse-effect');
+                document.getElementById('node-pvc').classList.add('active-mount');
+
+                logTerminal(`CSI Controller: Disk resource ${state.disk.id} successfully created.`, 'sys');
+                logTerminal(`Kubernetes PV Controller: Registered PersistentVolume '${pvName}'. Bound to PVC '${name}' 1:1.`, 'sys');
+
+                setStepActive('step-bind', 'completed');
+                
+                // Allow Pod scheduling
+                document.getElementById('create-pod-btn').disabled = false;
+                document.getElementById('create-pvc-btn').disabled = false;
+                
+                updateLesson(`🎉 <strong>PVC Claim Bound!</strong> The CSI controller provisioned cloud disk <code>${state.disk.id}</code> and mapped it to PersistentVolume <code>${pvName}</code>. Now, click <strong>"Deploy Pod & Mount PVC"</strong> to schedule the container on Node-A and attach the disk.`, 'pod', ['pvc']);
+                
+                updateConnectionLines();
+            }, 2500);
+        }
+
+        // Trigger Pod Deployment Flow
+        function triggerCreatePod() {
+            if (!state.pvc) return;
+
+            const name = document.getElementById('pod-name-input').value.trim();
+            if (!name) return alert('Enter a valid Pod name');
+
+            document.getElementById('node-pod').classList.remove('crashed');
+
+            logTerminal(`kubectl apply -f - <<EOF\napiVersion: v1\nkind: Pod\nmetadata:\n  name: ${name}\nspec:\n  containers:\n  - name: db-app\n    image: postgres:15-alpine\n    volumeMounts:\n    - mountPath: /var/lib/postgresql/data\n      name: db-volume\n  volumes:\n  - name: db-volume\n    persistentVolumeClaim:\n      claimName: ${state.pvc.name}\nEOF`, 'cmd');
+
+            state.pod = {
+                name: name,
+                status: 'Pending',
+                node: currentHostNode,
+                pvcName: state.pvc.name
+            };
+
+            document.getElementById('topo-pod-name').innerText = name;
+            document.getElementById('topo-pod-status').innerText = 'Pending';
+            document.getElementById('topo-pod-node').innerText = `Node: Scheduler Matching...`;
+            document.getElementById('pod-status-dot').className = 'status-dot pending';
+            document.getElementById('node-pod').classList.add('pulse-effect');
+
+            document.getElementById('create-pod-btn').disabled = true;
+            updateConnectionLines();
+
+            // Timeline actions
+            setStepActive('step-attach', 'active');
+
+            setTimeout(() => {
+                // Attach volume to node
+                document.getElementById('topo-pod-node').innerText = `Node: ${currentHostNode}`;
+                logTerminal(`Scheduler: Matched Pod '${name}' on target host node ${currentHostNode}.`, 'sys');
+                logTerminal(`CSI External-Attacher: Detected Pod binding. Calling ControllerPublishVolume() to attach disk ${state.disk.id} to ${currentHostNode}...`, 'sys');
+                
+                setStepActive('step-attach', 'completed');
+                setStepActive('step-mount', 'active');
+            }, 1000);
+
+            setTimeout(() => {
+                // OS Mount & Run
+                logTerminal(`Kubelet [${currentHostNode}]: Detected block attachment. Invoking NodeStageVolume() [Format & Partition Ext4].`, 'sys');
+                logTerminal(`Kubelet [${currentHostNode}]: Invoking NodePublishVolume() [Mount bind device to container volume namespace].`, 'sys');
+                
+                state.pod.status = 'Running';
+                document.getElementById('topo-pod-status').innerText = 'Running';
+                document.getElementById('pod-status-dot').className = 'status-dot active';
+                document.getElementById('node-pod').classList.remove('pulse-effect');
+                document.getElementById('node-pod').classList.add('active-mount');
+
+                setStepActive('step-mount', 'completed');
+                logTerminal(`Pod ${name} started container runtime successfully. Status: RUNNING`, 'sys');
+
+                // Enable chaos buttons
+                document.getElementById('crash-pod-btn').disabled = false;
+                document.getElementById('node-fail-btn').disabled = false;
+                document.getElementById('resize-btn').disabled = false;
+
+                startDatabaseWrites();
+                
+                if (state.dbLogs.length > 0) {
+                    updateLesson(`🔄 <strong>Data Preserved!</strong> The restarted Pod successfully mounted the exact same claim and retrieved all previous database logs. Now click <strong>"Simulate Node-A Failure"</strong> to test cross-node storage migrations.`, 'node', ['pvc', 'pod', 'crash', 'recreate']);
+                } else {
+                    updateLesson(`🚀 <strong>Pod Running!</strong> Kubelet mounted the disk at <code>/var/lib/postgresql/data</code>. Note the active data updates in the DB Log panel. Now, click <strong>"Simulate Pod Crash"</strong> to test resilience.`, 'crash', ['pvc', 'pod']);
+                }
+                
+                updateConnectionLines();
+            }, 2200);
+        }
+
+        // Database simulator writes records periodically
+        function startDatabaseWrites() {
+            if (dbInterval) clearInterval(dbInterval);
+            
+            document.getElementById('db-status-label').innerText = "CONNECTED (Writing Data)";
+            document.getElementById('db-status-label').style.color = "var(--status-success)";
+            
+            const dbInspector = document.getElementById('db-state-inspector');
+            if (state.dbLogs.length === 0) {
+                dbInspector.innerHTML = "";
+            }
+
+            dbInterval = setInterval(() => {
+                dbLogCounter++;
+                const timeString = new Date().toLocaleTimeString();
+                const logMsg = `Transaction ID ${10000 + dbLogCounter}: postgres write successful (fsync verify)`;
+                
+                state.dbLogs.push({ id: dbLogCounter, time: timeString, text: logMsg });
+                
+                const row = document.createElement('div');
+                row.className = 'db-row';
+                row.innerHTML = `<span class="time">[${timeString}]</span><span class="val">${logMsg}</span>`;
+                dbInspector.appendChild(row);
+                dbInspector.scrollTop = dbInspector.scrollHeight;
+
+                if (state.dbLogs.length > 50) {
+                    state.dbLogs.shift();
+                    dbInspector.removeChild(dbInspector.firstChild);
+                }
+            }, 2500);
+        }
+
+        function stopDatabaseWrites() {
+            if (dbInterval) {
+                clearInterval(dbInterval);
+                dbInterval = null;
+            }
+            document.getElementById('db-status-label').innerText = "DISCONNECTED";
+            document.getElementById('db-status-label').style.color = "var(--status-danger)";
+        }
+
+        // Crash the Pod container
+        function triggerCrashPod() {
+            if (!state.pod) return;
+
+            logTerminal(`kubectl delete pod ${state.pod.name} --now`, 'cmd');
+            stopDatabaseWrites();
+
+            state.pod.status = 'Crashed';
+            document.getElementById('topo-pod-status').innerText = 'Crashed / Dead';
+            document.getElementById('pod-status-dot').className = 'status-dot crashed';
+            document.getElementById('node-pod').classList.remove('active-mount');
+            document.getElementById('node-pod').classList.add('crashed');
+
+            logTerminal(`Pod ${state.pod.name} container terminated unexpectedly. status -> Dead.`, 'err');
+            logTerminal(`[VERIFICATION]: Note that PVC, PV, and Cloud Disk remain Bound and ACTIVE. Data is fully preserved on disk!`, 'sys');
+
+            document.getElementById('crash-pod-btn').disabled = true;
+            document.getElementById('node-fail-btn').disabled = true;
+            
+            // Allow user to deploy another pod or restart
+            document.getElementById('create-pod-btn').disabled = false;
+            document.getElementById('create-pod-btn').innerText = "Recreate Pod (Mount Same Claim)";
+            
+            updateLesson(`💥 <strong>Pod Terminated!</strong> The container is gone and database writes have stopped. However, notice that the **PVC and PV remain Bound and active**. Click <strong>"Recreate Pod"</strong> to spin up a new Pod and verify persistence.`, 'recreate', ['pvc', 'pod', 'crash']);
+            
+            updateConnectionLines();
+        }
+
+        // Simulate complete node failure (migrates pod from Node-A to Node-B)
+        function triggerNodeFailure() {
+            if (!state.pod) return;
+
+            logTerminal(`kubectl drain Node-A --ignore-daemonsets --delete-emptydir-data --force`, 'cmd');
+            stopDatabaseWrites();
+
+            // Set node states
+            state.pod.status = 'Pending';
+            currentHostNode = 'Node-B';
+            document.getElementById('current-node-name').innerText = "Active Host: Node-B";
+            document.getElementById('current-node-name').style.background = "var(--status-danger)";
+
+            document.getElementById('topo-pod-status').innerText = 'Evicting...';
+            document.getElementById('topo-pod-node').innerText = 'Node: Lost (Node-A)';
+            document.getElementById('pod-status-dot').className = 'status-dot crashed';
+            document.getElementById('node-pod').classList.remove('active-mount');
+
+            logTerminal(`Node-A reported NotReady. Evicting Pod ${state.pod.name} from failed node Node-A...`, 'err');
+            logTerminal(`CSI Controller: Force-detaching volume ${state.disk.id} from failed host Node-A...`, 'sys');
+
+            document.getElementById('node-fail-btn').disabled = true;
+            document.getElementById('crash-pod-btn').disabled = true;
+
+            setTimeout(() => {
+                logTerminal(`CSI Attacher: Re-attaching volume ${state.disk.id} to new host Node-B (ControllerPublishVolume)...`, 'sys');
+                document.getElementById('topo-pod-node').innerText = 'Node: Rescheduling (Node-B)';
+            }, 1500);
+
+            setTimeout(() => {
+                logTerminal(`Kubelet [Node-B]: Mounting block device to Pod volume namespace. Starting container...`, 'sys');
+                state.pod.status = 'Running';
+                state.pod.node = 'Node-B';
+                document.getElementById('topo-pod-status').innerText = 'Running';
+                document.getElementById('topo-pod-node').innerText = 'Node: Node-B';
+                document.getElementById('pod-status-dot').className = 'status-dot active';
+                document.getElementById('node-pod').classList.add('active-mount');
+
+                logTerminal(`Pod ${state.pod.name} successfully rescheduled and started on Node-B. Resume db checks...`, 'sys');
+                logTerminal(`[DURABILITY VERIFICATION]: DB files mounted successfully. All previous database logs remain intact!`, 'sys');
+
+                document.getElementById('node-pod').classList.remove('crashed');
+                document.getElementById('crash-pod-btn').disabled = false;
+                startDatabaseWrites();
+                updateLesson(`🛡️ <strong>Disaster Recovery Complete!</strong> Node-A crashed. The CSI Attacher force-detached the volume from Node-A and attached it to Node-B. The Pod resumed writing on Node-B with data intact! Finally, select a size and click <strong>"Resize"</strong> to test volume expansion.`, 'resize', ['pvc', 'pod', 'crash', 'recreate', 'node']);
+                updateConnectionLines();
+            }, 3000);
+        }
+
+        // Live Volume Expansion
+        function triggerResizeVolume() {
+            if (!state.pvc) return;
+
+            const newSize = document.getElementById('resize-size-input').value;
+            logTerminal(`kubectl patch pvc ${state.pvc.name} -p '{"spec":{"resources":{"requests":{"storage":"${newSize}Gi"}}}}'`, 'cmd');
+            
+            logTerminal(`CSI Resizer: detected spec capacity increase. Triggering ControllerExpandVolume() to resize physical cloud disk to ${newSize}Gi...`, 'sys');
+            
+            document.getElementById('topo-pvc-status').innerText = 'Resizing...';
+            document.getElementById('pvc-status-dot').className = 'status-dot pending';
+            document.getElementById('node-pvc').classList.add('pulse-effect');
+            
+            document.getElementById('resize-btn').disabled = true;
+
+            setTimeout(() => {
+                // Cloud disk resized
+                state.disk.size = `${newSize}Gi`;
+                document.getElementById('topo-disk-size').innerText = `${newSize}Gi`;
+                logTerminal(`CSI Driver: Physical disk expanded successfully. System waiting for host filesystem expansion...`, 'sys');
+            }, 1200);
+
+            setTimeout(() => {
+                // Host system resized
+                state.pvc.size = `${newSize}Gi`;
+                state.pvc.status = 'Bound';
+                state.pv.size = `${newSize}Gi`;
+                
+                document.getElementById('topo-pvc-name').innerText = state.pvc.name;
+                document.getElementById('topo-pvc-status').innerText = 'Bound';
+                document.getElementById('topo-pvc-size').innerText = `Size: ${newSize}Gi`;
+                document.getElementById('pvc-status-dot').className = 'status-dot active';
+                document.getElementById('node-pvc').classList.remove('pulse-effect');
+
+                document.getElementById('topo-pv-name').innerText = state.pv.name;
+                document.getElementById('topo-pv-status').innerText = 'Bound';
+
+                logTerminal(`Kubelet [${currentHostNode}]: Resized filesystem dynamically. Mount updated to ${newSize}Gi.`, 'sys');
+                document.getElementById('resize-btn').disabled = false;
+                updateLesson(`📈 <strong>Dynamic Volume Expansion Successful!</strong> The CSI Resizer expanded the cloud disk, and Kubelet resized the file system online without stopping the container. <strong>Congratulations, you have completed the Storage Tour!</strong>`, null, ['pvc', 'pod', 'crash', 'recreate', 'node', 'resize']);
+                updateConnectionLines();
+            }, 2500);
+        }
+
+        // Listen for canvas resizes to keep lines accurate
+        window.addEventListener('load', updateConnectionLines);
+        window.addEventListener('resize', updateConnectionLines);
+    </script>
+</body>
+</html>

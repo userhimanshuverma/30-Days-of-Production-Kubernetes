@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-dynamic-storage
+spec:
+  containers:
+    - name: data-writer
+      image: alpine:3.18
+      command: ["/bin/sh", "-c", "while true; do echo $(date) - Dynamic Storage Live Write >> /mnt/storage/status.txt; sleep 5; done"]
+      volumeMounts:
+        - name: dynamic-vol
+          mountPath: /mnt/storage
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  volumes:
+    - name: dynamic-vol
+      persistentVolumeClaim:
+        claimName: dynamic-pvc-day08
