@@ -1,0 +1,108 @@
+# 03-kafka.yaml
+# Course: 30 Days of Production Kubernetes
+# Day 9 — StatefulSets & Distributed Databases
+#
+# Deploying a 3-node Apache Kafka cluster using KRaft (Kafka Raft Metadata Mode) 
+# instead of ZooKeeper. KRaft manages cluster consensus internally, which is 
+# now standard practice in production. 
+# We use bitnami/kafka:3.4.0, which allows configuration via env vars. We dynamically 
+# parse the Pod's ordinal index (0, 1, 2) from its hostname to assign the broker node.id.
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: default
+  labels:
+    app: kafka
+    course: 30-days-of-k8s
+spec:
+  serviceName: kafka-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      securityContext:
+        fsGroup: 1001 # Bitnami containers run as user 1001
+      containers:
+        - name: kafka
+          image: bitnami/kafka:3.4.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -ec
+            - |
+              # Dynamic extraction of node ID from stateful ordinal (kafka-0 -> 0)
+              export KAFKA_CFG_NODE_ID=${HOSTNAME##*-}
+              # Broadcast address for internal broker communication using headless DNS
+              export KAFKA_CFG_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.kafka-headless.default.svc.cluster.local:9092"
+              # Let bitnami's entrypoint run standard initialization
+              /opt/bitnami/scripts/kafka/entrypoint.sh /opt/bitnami/scripts/kafka/run.sh
+          env:
+            # Enable KRaft mode
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_CFG_LISTENERS
+              value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            # Define voter members of the KRaft consensus group (pointing to headless DNS names)
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: "0@kafka-0.kafka-headless.default.svc.cluster.local:9093,1@kafka-1.kafka-headless.default.svc.cluster.local:9093,2@kafka-2.kafka-headless.default.svc.cluster.local:9093"
+            # Broker auto-creation configuration
+            - name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "3"
+            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "3"
+            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "2"
+            # Path to store commit logs
+            - name: KAFKA_CFG_LOG_DIRS
+              value: /bitnami/kafka/data
+            # Unique cluster ID (required for KRaft cluster initialization)
+            - name: KAFKA_KRAFT_CLUSTER_ID
+              value: "4L62xdw2T1G6sppJ4v8b1Q"
+          ports:
+            - containerPort: 9092
+              name: client
+            - containerPort: 9093
+              name: controller
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          readinessProbe:
+            # Simple check if port 9092 is listening
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          volumeMounts:
+            - name: kafka-data
+              mountPath: /bitnami/kafka
+  volumeClaimTemplates:
+    - metadata:
+        name: kafka-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Gi

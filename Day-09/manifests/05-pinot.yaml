@@ -1,0 +1,211 @@
+# 05-pinot.yaml
+# Course: 30 Days of Production Kubernetes
+# Day 9 — StatefulSets & Distributed Databases
+#
+# Apache Pinot is a real-time distributed OLAP datastore designed for low-latency queries.
+# Its architecture is composed of multiple components, showing how Kubernetes manages 
+# different lifecycle roles:
+# 1. ZooKeeper: Coordinates metadata and cluster state.
+# 2. Pinot Controller (StatefulSet): Manages Pinot tables, segments, and cluster state.
+# 3. Pinot Broker (Deployment): Stateless query router.
+# 4. Pinot Server (StatefulSet): Stores segment data locally and performs query execution.
+
+---
+# ZooKeeper (Metadata Coordinator)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinot-zookeeper
+  namespace: default
+  labels:
+    app: pinot-zookeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-zookeeper
+  template:
+    metadata:
+      labels:
+        app: pinot-zookeeper
+    spec:
+      containers:
+        - name: zookeeper
+          image: zookeeper:3.8.0
+          ports:
+            - containerPort: 2181
+              name: client
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinot-zookeeper-service
+  namespace: default
+spec:
+  ports:
+    - port: 2181
+      targetPort: 2181
+  selector:
+    app: pinot-zookeeper
+
+---
+# Pinot Controller (StatefulSet)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pinot-controller
+  namespace: default
+  labels:
+    app: pinot-controller
+spec:
+  serviceName: pinot-controller-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-controller
+  template:
+    metadata:
+      labels:
+        app: pinot-controller
+    spec:
+      containers:
+        - name: controller
+          image: apachepinot/pinot:0.12.0
+          command:
+            - ./bin/pinot-admin.sh
+            - StartController
+            - -zkAddress
+            - pinot-zookeeper-service:2181
+            - -clusterName
+            - PinotCluster
+            - -controllerPort
+            - "9000"
+            - -dataDir
+            - /data/pinot-controller/data
+          ports:
+            - containerPort: 9000
+              name: controller
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: controller-data
+              mountPath: /data/pinot-controller/data
+  volumeClaimTemplates:
+    - metadata:
+        name: controller-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 5Gi
+
+---
+# Pinot Broker (Deployment - Queries are stateless)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinot-broker
+  namespace: default
+  labels:
+    app: pinot-broker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-broker
+  template:
+    metadata:
+      labels:
+        app: pinot-broker
+    spec:
+      containers:
+        - name: broker
+          image: apachepinot/pinot:0.12.0
+          command:
+            - ./bin/pinot-admin.sh
+            - StartBroker
+            - -zkAddress
+            - pinot-zookeeper-service:2181
+            - -clusterName
+            - PinotCluster
+          ports:
+            - containerPort: 8099
+              name: broker-port
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+---
+# Pinot Server (StatefulSet - Stores segments and processes shards)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pinot-server
+  namespace: default
+  labels:
+    app: pinot-server
+spec:
+  serviceName: pinot-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pinot-server
+  template:
+    metadata:
+      labels:
+        app: pinot-server
+    spec:
+      containers:
+        - name: server
+          image: apachepinot/pinot:0.12.0
+          command:
+            - ./bin/pinot-admin.sh
+            - StartServer
+            - -zkAddress
+            - pinot-zookeeper-service:2181
+            - -clusterName
+            - PinotCluster
+            - -dataDir
+            - /data/pinot-server/data
+            - -segmentDir
+            - /data/pinot-server/segments
+          ports:
+            - containerPort: 8098
+              name: server-query
+            - containerPort: 8097
+              name: server-admin
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: server-data
+              mountPath: /data/pinot-server
+  volumeClaimTemplates:
+    - metadata:
+        name: server-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 20Gi

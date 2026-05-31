@@ -1,0 +1,156 @@
+# 02-postgres.yaml
+# Course: 30 Days of Production Kubernetes
+# Day 9 — StatefulSets & Distributed Databases
+#
+# This manifest defines a production-focused PostgreSQL StatefulSet.
+# In production, StatefulSets guarantee that Pods are created, updated, and deleted 
+# in strict sequential order (0, 1, 2, ...), and that each Pod retains its 
+# persistent volume mount when rescheduled.
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: default
+  labels:
+    app: postgres
+    course: 30-days-of-k8s
+type: Opaque
+stringData:
+  POSTGRES_USER: k8s_admin
+  POSTGRES_PASSWORD: SuperSecurePassword123!
+  POSTGRES_DB: production_db
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: default
+  labels:
+    app: postgres
+    course: 30-days-of-k8s
+data:
+  # Basic PostgreSQL tuning params for container environments
+  postgresql.conf: |
+    max_connections = 100
+    shared_buffers = 256MB
+    effective_cache_size = 768MB
+    maintenance_work_mem = 64MB
+    checkpoint_completion_target = 0.9
+    wal_buffers = 7864kB
+    default_statistics_target = 100
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    work_mem = 2621kB
+    min_wal_size = 1GB
+    max_wal_size = 4GB
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: default
+  labels:
+    app: postgres
+    course: 30-days-of-k8s
+spec:
+  serviceName: postgres-headless # Pairs the StatefulSet with the Headless Service for DNS routing
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres
+  updateStrategy:
+    type: RollingUpdate # Updates pods in reverse order (e.g., 2 then 1 then 0)
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999 # Runs as postgres user (UID/GID 999) to read/write persistent storage volumes
+      containers:
+        - name: postgres
+          image: postgres:15.5-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgresql
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          startupProbe:
+            # Databases take time to initialize on their first boot. A startup probe protects it.
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - k8s_admin
+                - -d
+                - production_db
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 15
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - k8s_admin
+                - -d
+                - production_db
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - k8s_admin
+                - -d
+                - production_db
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: pg-storage
+              mountPath: /var/lib/postgresql/data
+            - name: pg-config
+              mountPath: /etc/postgresql
+      volumes:
+        - name: pg-config
+          configMap:
+            name: postgres-config
+  volumeClaimTemplates: # Automatically provisions a unique PVC for each Pod index
+    - metadata:
+        name: pg-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        # In a real environment, we'd specify a StorageClass here, e.g.gp3.
+        # If left empty, it uses the cluster's default StorageClass.
+        resources:
+          requests:
+            storage: 5Gi

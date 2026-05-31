@@ -1,0 +1,113 @@
+# 01-headless-services.yaml
+# Course: 30 Days of Production Kubernetes
+# Day 9 — StatefulSets & Distributed Databases
+#
+# Headless Services are the networking backbone of StatefulSets. 
+# By setting 'clusterIP: None', we tell the Kubernetes Control Plane NOT to allocate 
+# a single cluster virtual IP. Instead, kube-dns/CoreDNS returns the direct Pod IP 
+# addresses via A records for each healthy Pod matched by the selector.
+# This enables individual Pods to be addressable via stable DNS hostnames:
+# <pod-name>.<service-name>.<namespace>.svc.cluster.local
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: default
+  labels:
+    app: postgres
+    course: 30-days-of-k8s
+spec:
+  clusterIP: None # Defines this service as Headless
+  selector:
+    app: postgres
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: default
+  labels:
+    app: kafka
+    course: 30-days-of-k8s
+spec:
+  clusterIP: None # Defines this service as Headless
+  selector:
+    app: kafka
+  ports:
+    - name: client
+      port: 9092
+      targetPort: 9092
+    - name: controller
+      port: 9093
+      targetPort: 9093
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-headless
+  namespace: default
+  labels:
+    app: elasticsearch
+    course: 30-days-of-k8s
+spec:
+  clusterIP: None # Defines this service as Headless
+  selector:
+    app: elasticsearch
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: transport # Used for node-to-node cluster communication
+      port: 9300
+      targetPort: 9300
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinot-headless
+  namespace: default
+  labels:
+    app: pinot-server
+    course: 30-days-of-k8s
+spec:
+  clusterIP: None # Defines this service as Headless
+  selector:
+    app: pinot-server
+  ports:
+    - name: admin
+      port: 8090
+      targetPort: 8090
+    - name: query
+      port: 8098
+      targetPort: 8098
+    - name: grpc
+      port: 8099
+      targetPort: 8099
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinot-controller-headless
+  namespace: default
+  labels:
+    app: pinot-controller
+    course: 30-days-of-k8s
+spec:
+  clusterIP: None # Defines this service as Headless
+  selector:
+    app: pinot-controller
+  ports:
+    - name: controller
+      port: 9000
+      targetPort: 9000
+

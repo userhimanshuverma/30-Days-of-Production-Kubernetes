@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stateful Workload Simulator — Day 9 Production K8s</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #06050b;
+      --card-bg: rgba(15, 12, 30, 0.7);
+      --card-border: rgba(179, 136, 255, 0.15);
+      --primary-gradient: linear-gradient(135deg, #7c4dff, #b388ff);
+      --primary-color: #9d4edd;
+      --text-main: #f3f0f7;
+      --text-muted: #a5a1b8;
+      --neon-green: #00e676;
+      --neon-red: #ff1744;
+      --neon-yellow: #ffd600;
+      --neon-blue: #00e5ff;
+      --console-bg: #090810;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Ambient background glow */
+    body::before {
+      content: '';
+      position: absolute;
+      top: -10%;
+      left: -10%;
+      width: 50%;
+      height: 50%;
+      background: radial-gradient(circle, rgba(124, 77, 255, 0.15) 0%, transparent 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: absolute;
+      bottom: -10%;
+      right: -10%;
+      width: 50%;
+      height: 50%;
+      background: radial-gradient(circle, rgba(0, 229, 255, 0.1) 0%, transparent 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    header {
+      background: rgba(10, 8, 20, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 24px;
+      height: 24px;
+      background: var(--primary-gradient);
+      border-radius: 6px;
+      display: inline-block;
+      box-shadow: 0 0 15px rgba(124, 77, 255, 0.5);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: 0.5px;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-left: 1px solid var(--card-border);
+      padding-left: 0.75rem;
+      margin-left: 0.25rem;
+    }
+
+    .container {
+      flex: 1;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 1.5rem;
+    }
+
+    /* Sidebar controls */
+    .sidebar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      height: fit-content;
+    }
+
+    .section-title {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .workload-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .workload-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      color: var(--text-muted);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .workload-btn:hover {
+      background: rgba(124, 77, 255, 0.1);
+      color: var(--text-main);
+      border-color: rgba(124, 77, 255, 0.3);
+    }
+
+    .workload-btn.active {
+      background: var(--primary-gradient);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3);
+    }
+
+    .workload-icon {
+      font-size: 1.2rem;
+    }
+
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      border-top: 1px solid var(--card-border);
+      padding-top: 1.25rem;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      position: relative;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--text-muted);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary-gradient);
+      border-color: transparent;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 0 15px rgba(124, 77, 255, 0.4);
+    }
+
+    .btn.highlight::after {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      right: -4px;
+      bottom: -4px;
+      border: 2px solid var(--neon-yellow);
+      border-radius: 12px;
+      animation: highlight-pulse 1s infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes highlight-pulse {
+      from { transform: scale(1); opacity: 0.8; }
+      to { transform: scale(1.05); opacity: 0.2; }
+    }
+
+    /* Main Simulator Space */
+    .main-workspace {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Lessons selector bar */
+    .lessons-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .lessons-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .lessons-pills {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .lesson-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .lesson-pill:hover {
+      background: rgba(124, 77, 255, 0.08);
+      color: var(--text-main);
+    }
+
+    .lesson-pill.active {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: var(--neon-blue);
+      color: var(--neon-blue);
+    }
+
+    .instructions-box {
+      background: rgba(0, 229, 255, 0.05);
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .instructions-icon {
+      font-size: 1.1rem;
+      animation: bounce 1s infinite alternate;
+    }
+
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to { transform: translateY(-4px); }
+    }
+
+    .dashboard-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff, #c8c5db);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-indicator {
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      margin-top: 0.25rem;
+    }
+
+    .indicator-active {
+      color: var(--neon-green);
+    }
+
+    .indicator-warning {
+      color: var(--neon-yellow);
+    }
+
+    .indicator-error {
+      color: var(--neon-red);
+    }
+
+    /* Visual Canvas */
+    .canvas-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 2rem;
+      min-height: 460px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      backdrop-filter: blur(8px);
+      position: relative;
+    }
+
+    .canvas-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      z-index: 10;
+    }
+
+    .canvas-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .canvas-legend {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.8rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-muted);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Topologies visual rendering */
+    .topology-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 3rem;
+      width: 100%;
+      z-index: 10;
+    }
+
+    .dns-layer {
+      width: 80%;
+      height: 40px;
+      background: rgba(124, 77, 255, 0.05);
+      border: 1px dashed rgba(124, 77, 255, 0.3);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: var(--neon-blue);
+      font-weight: 600;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .dns-layer.active {
+      background: rgba(0, 229, 255, 0.1);
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    }
+
+    .pods-row {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      width: 100%;
+    }
+
+    .stateful-pod {
+      width: 170px;
+      background: rgba(20, 18, 38, 0.9);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .stateful-pod::after {
+      content: 'CLICK TO CRASH';
+      position: absolute;
+      top: -20px;
+      font-size: 0.65rem;
+      background: var(--neon-red);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+
+    .stateful-pod.highlight::before {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      right: -4px;
+      bottom: -4px;
+      border: 2px solid var(--neon-yellow);
+      border-radius: 16px;
+      animation: highlight-pulse 1s infinite alternate;
+      pointer-events: none;
+    }
+
+    .stateful-pod:hover {
+      transform: translateY(-5px);
+      border-color: rgba(124, 77, 255, 0.5);
+      box-shadow: 0 8px 25px rgba(124, 77, 255, 0.15);
+    }
+
+    .stateful-pod:hover::after {
+      opacity: 1;
+    }
+
+    .pod-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pod-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--neon-green);
+      box-shadow: 0 0 10px var(--neon-green);
+      transition: all 0.3s ease;
+    }
+
+    .pod-ordinal {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    .pod-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.5px;
+    }
+
+    .pod-badge {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-leader {
+      background: rgba(0, 229, 255, 0.15);
+      color: var(--neon-blue);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+    }
+
+    .badge-replica {
+      background: rgba(179, 136, 255, 0.1);
+      color: var(--text-muted);
+      border: 1px solid rgba(179, 136, 255, 0.2);
+    }
+
+    .badge-controller {
+      background: rgba(255, 214, 0, 0.15);
+      color: var(--neon-yellow);
+      border: 1px solid rgba(255, 214, 0, 0.3);
+    }
+
+    .badge-stateless {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Volume Attachment */
+    .attached-volume {
+      width: 100%;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .volume-title {
+      font-family: 'Fira Code', monospace;
+      color: var(--neon-blue);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .volume-data-size {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* Node States styling */
+    .stateful-pod.crashed {
+      border-color: rgba(255, 23, 68, 0.4);
+      background: rgba(30, 10, 15, 0.9);
+      box-shadow: 0 0 20px rgba(255, 23, 68, 0.1);
+    }
+
+    .stateful-pod.crashed .pod-status-dot {
+      background-color: var(--neon-red);
+      box-shadow: 0 0 10px var(--neon-red);
+    }
+
+    .stateful-pod.crashed:hover::after {
+      content: 'SCHEDULING RECOVERY...';
+      background: var(--neon-yellow);
+      color: #000;
+    }
+
+    .stateful-pod.pending {
+      border-color: rgba(255, 214, 0, 0.4);
+      background: rgba(30, 28, 10, 0.9);
+      animation: pulse-border 1.5s infinite;
+    }
+
+    .stateful-pod.pending .pod-status-dot {
+      background-color: var(--neon-yellow);
+      box-shadow: 0 0 10px var(--neon-yellow);
+    }
+
+    @keyframes pulse-border {
+      0% { border-color: rgba(255, 214, 0, 0.2); }
+      50% { border-color: rgba(255, 214, 0, 0.7); }
+      100% { border-color: rgba(255, 214, 0, 0.2); }
+    }
+
+    /* Console & Event HUD splitter layout */
+    .bottom-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 1.5rem;
+    }
+
+    /* Real-time console logs */
+    .console-panel {
+      background: var(--console-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      height: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      overflow-y: auto;
+      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+    }
+
+    .console-log-line {
+      display: flex;
+      gap: 0.75rem;
+      line-height: 1.4;
+    }
+
+    .log-time {
+      color: #6e6b82;
+      flex-shrink: 0;
+    }
+
+    .log-source {
+      color: var(--primary-color);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .log-msg {
+      color: var(--text-main);
+    }
+
+    .log-msg.error {
+      color: var(--neon-red);
+    }
+
+    .log-msg.success {
+      color: var(--neon-green);
+    }
+
+    .log-msg.info {
+      color: var(--neon-blue);
+    }
+
+    /* Event Inspector Card (Self-Explainable Details) */
+    .event-inspector-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      backdrop-filter: blur(8px);
+      height: 200px;
+    }
+
+    .inspector-label {
+      font-size: 0.8rem;
+      color: var(--neon-blue);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .inspector-event {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .inspector-description {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      overflow-y: auto;
+    }
+
+    /* Explanation HUD card at side */
+    .edu-hud {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .hud-title {
+      font-weight: 600;
+      color: var(--neon-blue);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Grid overlay for lines */
+    .connecting-lines-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .connecting-lines-svg path {
+      stroke: rgba(124, 77, 255, 0.15);
+      stroke-width: 1.5;
+      fill: none;
+      stroke-dasharray: 4 4;
+      animation: dash 30s linear infinite;
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo"></div>
+      <div>
+        <span class="brand-title">30 Days of Production K8s</span>
+        <span class="brand-subtitle">Day 9 StatefulSet Sandbox</span>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      Cluster Status: <span style="color: var(--neon-green); font-weight: 600;">ACTIVE (Kind-Local)</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- SIDEBAR CONTROL CENTER -->
+    <div class="sidebar">
+      <div>
+        <h3 class="section-title">Select Database</h3>
+        <div class="workload-selector">
+          <button class="workload-btn active" onclick="selectWorkload('postgres')" id="btn-postgres">
+            <span class="workload-icon">🐘</span> PostgreSQL
+          </button>
+          <button class="workload-btn" onclick="selectWorkload('kafka')" id="btn-kafka">
+            <span class="workload-icon">🪵</span> Apache Kafka
+          </button>
+          <button class="workload-btn" onclick="selectWorkload('elasticsearch')" id="btn-elasticsearch">
+            <span class="workload-icon">🔍</span> Elasticsearch
+          </button>
+          <button class="workload-btn" onclick="selectWorkload('pinot')" id="btn-pinot">
+            <span class="workload-icon">🍷</span> Apache Pinot
+          </button>
+        </div>
+      </div>
+
+      <div class="control-panel">
+        <h3 class="section-title">Stateful Actions</h3>
+        <button class="btn btn-primary" onclick="deployCluster()" id="btn-deploy">Deploy StatefulSet</button>
+        <button class="btn" onclick="triggerRollingUpgrade()" id="btn-upgrade" disabled>Rolling Upgrade</button>
+        <button class="btn" onclick="simulateNetworkPartition()" id="btn-partition" disabled>Trigger Partition</button>
+        <button class="btn" onclick="teardownCluster()" id="btn-teardown" disabled>Delete StatefulSet</button>
+      </div>
+
+      <div class="edu-hud">
+        <h4 class="hud-title">💡 Database Context</h4>
+        <p id="edu-text">PostgreSQL uses active-passive streaming replication. All write traffic resolves directly to the Leader pod. Click on the Leader pod (postgres-0) to trigger a leader election.</p>
+      </div>
+    </div>
+
+    <!-- MAIN WORKSPACE -->
+    <div class="main-workspace">
+      <!-- LESSONS BAR -->
+      <div class="lessons-bar">
+        <div class="lessons-header">
+          <span class="section-title" style="margin-bottom:0;">🎓 Interactive Lessons</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Select a lesson to guide your learning</span>
+        </div>
+        <div class="lessons-pills">
+          <button class="lesson-pill active" onclick="selectLesson(1)" id="btn-lesson-1">1. Sequential Startup</button>
+          <button class="lesson-pill" onclick="selectLesson(2)" id="btn-lesson-2">2. Storage Persistence</button>
+          <button class="lesson-pill" onclick="selectLesson(3)" id="btn-lesson-3">3. Failover & Consensus</button>
+          <button class="lesson-pill" onclick="selectLesson(4)" id="btn-lesson-4">4. Rolling Upgrades</button>
+        </div>
+        <div class="instructions-box">
+          <span class="instructions-icon" id="instruction-icon">👉</span>
+          <span id="instruction-text">Welcome! Let's examine how StatefulSets spin up. Select PostgreSQL, then click the highlighted **Deploy StatefulSet** button on the left to watch sequential startup.</span>
+        </div>
+      </div>
+
+      <!-- STATS DISPLAY -->
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <span class="stat-label">Active Replicas</span>
+          <span class="stat-value" id="stat-replicas">0 / 0</span>
+          <div class="stat-indicator" id="stat-replicas-desc">StatefulSet inactive</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Quorum Status</span>
+          <span class="stat-value" id="stat-quorum">OFFLINE</span>
+          <div class="stat-indicator" id="stat-quorum-desc">No consensus available</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Replication Lag</span>
+          <span class="stat-value" id="stat-lag">N/A</span>
+          <div class="stat-indicator" id="stat-lag-desc">No replication sync active</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Total Durable Data</span>
+          <span class="stat-value" id="stat-data">0 MB</span>
+          <div class="stat-indicator" id="stat-data-desc">Persistent volumes empty</div>
+        </div>
+      </div>
+
+      <!-- VISUAL CANVAS -->
+      <div class="canvas-panel">
+        <svg class="connecting-lines-svg" id="svg-connections">
+          <!-- Dynamic paths drawn by JS -->
+        </svg>
+
+        <div class="canvas-header">
+          <span class="canvas-title" id="canvas-workload-title">POSTGRESQL StatefulSet Topology Map</span>
+          <div class="canvas-legend">
+            <div class="legend-item"><div class="legend-dot" style="background-color: var(--neon-green);"></div>Ready</div>
+            <div class="legend-item"><div class="legend-dot" style="background-color: var(--neon-yellow);"></div>Resync/Pending</div>
+            <div class="legend-item"><div class="legend-dot" style="background-color: var(--neon-red);"></div>Crashed</div>
+          </div>
+        </div>
+
+        <div class="topology-container">
+          <div class="dns-layer" id="dns-record-badge">
+            DNS Headless Service Layer (Endpoints lookup disabled)
+          </div>
+          
+          <div class="pods-row" id="pods-render-space">
+            <div style="color: var(--text-muted); font-style: italic;">Select a database workload and click 'Deploy StatefulSet' to start.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM SPLIT LOGS + EVENT INSPECTOR -->
+      <div class="bottom-layout">
+        <!-- LOG PANEL -->
+        <div class="console-panel" id="console-logs">
+          <div class="console-log-line">
+            <span class="log-time">[18:11:59]</span>
+            <span class="log-source">[SYSTEM]</span>
+            <span class="log-msg">StatefulSet simulation sandbox ready. Choose a guided lesson above to start.</span>
+          </div>
+        </div>
+
+        <!-- EVENT INSPECTOR -->
+        <div class="event-inspector-card">
+          <span class="inspector-label">Kubernetes Event Inspector</span>
+          <div class="inspector-event" id="inspector-title">System Idle</div>
+          <div class="inspector-description" id="inspector-desc">
+            No Kubernetes events are currently executing. Trigger a state change (Deploy, Crash, Upgrade, or Partition) to view underlying API control loops in action.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // System state
+    let activeWorkload = 'postgres';
+    let clusterState = 'OFFLINE'; // OFFLINE, DEPLOYING, HEALTHY, PARTITIONED, UPGRADING
+    let pods = [];
+    let persistentStorage = {}; // Holds durable volume sizes (survives pod crashes!)
+    let dataTimer = null;
+    let currentLesson = 1;
+    let isUpgradeCompleted = false;
+
+    // Database configurations
+    const configs = {
+      postgres: {
+        replicas: 3,
+        serviceName: 'postgres-headless',
+        podPrefix: 'postgres',
+        roles: ['Leader', 'Replica', 'Replica'],
+        baseVol: 'pg-storage',
+        edu: 'PostgreSQL uses active-passive streaming replication. All write traffic resolves directly to the Leader pod. Click on the Leader pod (postgres-0) to trigger a leader election.'
+      },
+      kafka: {
+        replicas: 3,
+        serviceName: 'kafka-headless',
+        podPrefix: 'kafka',
+        roles: ['Controller/Broker', 'Controller/Broker', 'Controller/Broker'],
+        baseVol: 'kafka-data',
+        edu: 'Kafka runs in ZooKeeperless KRaft Mode. Node-0, 1, 2 coordinate Metadata consensus via Raft over port 9093. Crash a broker and observe Kafka retaining partition ISR.'
+      },
+      elasticsearch: {
+        replicas: 3,
+        serviceName: 'elasticsearch-headless',
+        podPrefix: 'elasticsearch',
+        roles: ['Master/Data', 'Master/Data', 'Master/Data'],
+        baseVol: 'elastic-data',
+        edu: 'Elasticsearch distributes index shards dynamically across nodes. Zen discovery utilizes Headless DNS to bootstrap master elections. Crash any node; shard replication handles state.'
+      },
+      pinot: {
+        replicas: 5, 
+        serviceName: 'pinot-headless',
+        podPrefix: 'pinot',
+        roles: ['ZooKeeper', 'Controller', 'Broker (Stateless)', 'Server', 'Server'],
+        baseVol: 'pinot-data',
+        edu: 'Pinot shows stateless/stateful separation. The Broker is stateless (no persistent volume templates), Pinot Controller (metadata) and Servers (analytics segments) run as StatefulSets.'
+      }
+    };
+
+    // Lesson instructions database
+    const lessonInstructions = {
+      1: "Let's examine how StatefulSets spin up. Select PostgreSQL, then click the highlighted **Deploy StatefulSet** button on the left to watch sequential startup.",
+      2: "StatefulSets guarantee storage durability. Click on any running Pod to crash it. Notice that its data count stops. When the StatefulSet Controller recovers it, the Pod rebinds to the **exact same storage volume**, recovering its previous data count!",
+      3: "Distributed databases rely on quorum. Select PostgreSQL and make sure it is deployed. Click the **postgres-0** (Leader) pod to crash it. Notice the replication lag and see how the replica **postgres-1** is elected as the new write Leader!",
+      4: "Upgrades are performed sequentially to preserve uptime. With a healthy cluster deployed, click **Rolling Upgrade**. Notice how it upgrades the nodes in **reverse ordinal order** (Pod-2 first, then Pod-1, then the Leader Pod-0)."
+    };
+
+    // Initialize UI
+    function selectWorkload(type) {
+      if (clusterState !== 'OFFLINE') {
+        alert('Please delete the current StatefulSet (click Delete StatefulSet) before changing databases.');
+        return;
+      }
+      activeWorkload = type;
+      
+      // Update buttons
+      document.querySelectorAll('.workload-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`btn-${type}`).classList.add('active');
+
+      document.getElementById('canvas-workload-title').innerText = `${configs[type].podPrefix.toUpperCase()} StatefulSet Topology Map`;
+      document.getElementById('edu-text').innerText = configs[type].edu;
+
+      // Clear workspace
+      document.getElementById('pods-render-space').innerHTML = `<div style="color: var(--text-muted); font-style: italic;">Select a database workload and click 'Deploy StatefulSet' to start.</div>`;
+      document.getElementById('dns-record-badge').innerText = `DNS Headless Service Layer (Endpoints lookup disabled)`;
+      document.getElementById('dns-record-badge').classList.remove('active');
+    }
+
+    // Logger
+    function log(source, message, type = 'info') {
+      const consolePanel = document.getElementById('console-logs');
+      const now = new Date();
+      const timeStr = `[${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}]`;
+      
+      const line = document.createElement('div');
+      line.className = 'console-log-line';
+      line.innerHTML = `
+        <span class="log-time">${timeStr}</span>
+        <span class="log-source">[${source}]</span>
+        <span class="log-msg ${type}">${message}</span>
+      `;
+      consolePanel.appendChild(line);
+      consolePanel.scrollTop = consolePanel.scrollHeight;
+    }
+
+    // Update Event Inspector Card
+    function updateInspector(title, description) {
+      document.getElementById('inspector-title').innerText = title;
+      document.getElementById('inspector-desc').innerText = description;
+    }
+
+    // Lesson selection
+    function selectLesson(num) {
+      currentLesson = num;
+      document.querySelectorAll('.lesson-pill').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`btn-lesson-${num}`).classList.add('active');
+      
+      document.getElementById('instruction-text').innerHTML = lessonInstructions[num];
+      
+      teardownCluster();
+      
+      // Highlight target button based on lesson
+      removeHighlights();
+      if (num === 1 || num === 2 || num === 3) {
+        document.getElementById('btn-deploy').classList.add('highlight');
+      } else if (num === 4) {
+        document.getElementById('btn-deploy').classList.add('highlight');
+      }
+    }
+
+    function removeHighlights() {
+      document.getElementById('btn-deploy').classList.remove('highlight');
+      document.getElementById('btn-upgrade').classList.remove('highlight');
+      document.querySelectorAll('.stateful-pod').forEach(p => p.classList.remove('highlight'));
+    }
+
+    // Deploy Cluster sequential startup simulation
+    function deployCluster() {
+      if (clusterState !== 'OFFLINE') return;
+      
+      removeHighlights();
+      clusterState = 'DEPLOYING';
+      document.getElementById('btn-deploy').disabled = true;
+      
+      const config = configs[activeWorkload];
+      pods = [];
+      document.getElementById('pods-render-space').innerHTML = '';
+      
+      document.getElementById('dns-record-badge').innerText = `DNS Headless Service: ${config.serviceName}.default.svc.cluster.local (Endpoints lookup active)`;
+      document.getElementById('dns-record-badge').classList.add('active');
+
+      log('K8S-CONTROLLER', `Creating StatefulSet "${config.podPrefix}" with ${config.replicas} replicas.`, 'info');
+      log('K8S-CONTROLLER', `Using volumeClaimTemplates for dynamic PV allocation.`, 'info');
+
+      updateInspector("StatefulSet Creation", `The StatefulSet Controller initiates pod creation in strict sequential order. It will scale from 0 to ${config.replicas}. Each pod must pass its readiness probe before the controller issues a create request for the next ordinal pod.`);
+
+      let currentIdx = 0;
+
+      function spawnNextPod() {
+        if (currentIdx >= config.replicas) {
+          clusterState = 'HEALTHY';
+          log('K8S-CONTROLLER', `StatefulSet "${config.podPrefix}" is fully deployed and healthy!`, 'success');
+          enableButtons();
+          startDataSimulation();
+          
+          // Guide next step based on lesson
+          if (currentLesson === 1) {
+            document.getElementById('instruction-text').innerHTML = "🟢 **Startup Complete!** Notice how the pods booted one by one. Now, choose **Lesson 2: Storage Persistence** to test database crashes.";
+          } else if (currentLesson === 2) {
+            document.getElementById('instruction-text').innerHTML = "👉 **Next Step**: Click on any running Pod below to crash it, and watch the CSI driver re-attach the volume.";
+          } else if (currentLesson === 3) {
+            // Highlight postgres-0
+            document.getElementById('instruction-text').innerHTML = "👉 **Next Step**: Click on the Leader pod **postgres-0** to crash it and force replica promotion.";
+            const leaderPod = document.querySelector('.stateful-pod');
+            if (leaderPod) leaderPod.classList.add('highlight');
+          } else if (currentLesson === 4) {
+            document.getElementById('instruction-text').innerHTML = "👉 **Next Step**: Click the highlighted **Rolling Upgrade** button on the left to trigger the container update loop.";
+            document.getElementById('btn-upgrade').classList.add('highlight');
+          }
+          
+          updateInspector("Cluster Healthy", "All pods inside the StatefulSet are running, ready, and connected to the Headless Service endpoints. Peer-to-peer clustering and replication loops are now active.");
+          return;
+        }
+
+        const podName = `${config.podPrefix}-${currentIdx}`;
+        log('K8S-CONTROLLER', `Provisioning Pod: ${podName} (Ordinal ${currentIdx})`, 'info');
+        
+        // PVC storage allocation
+        const pvcName = `${config.baseVol}-${podName}`;
+        let storageAttachedDesc = "";
+        if (!persistentStorage[pvcName]) {
+          persistentStorage[pvcName] = 0; // Initialize PV count
+          log('CSI-PROVISIONER', `Dynamic Provision: volume ${pvcName} created and bound to PV.`, 'success');
+          storageAttachedDesc = `Created a new volume (${pvcName}) for pod ordinal ${currentIdx}.`;
+        } else {
+          log('CSI-PROVISIONER', `Existing Volume detected for ${podName}. Reattaching ${pvcName} (Durable data: ${persistentStorage[pvcName]}MB).`, 'success');
+          storageAttachedDesc = `Discovered existing volume (${pvcName}) containing ${persistentStorage[pvcName]} MB. Re-mounting to preserve files.`;
+        }
+
+        updateInspector(`Deploying Ordinal: ${currentIdx}`, `Scheduler assigned pod ${podName} to host node. CSI Driver is executing mount parameters: ${storageAttachedDesc} Waiting for Kubelet readiness probe...`);
+
+        // Add to active state
+        pods.push({
+          name: podName,
+          ordinal: currentIdx,
+          role: config.roles[currentIdx],
+          status: 'pending',
+          dataSize: persistentStorage[pvcName],
+          isStateless: config.podPrefix === 'pinot' && currentIdx === 2
+        });
+
+        renderPods();
+
+        setTimeout(() => {
+          const pod = pods.find(p => p.name === podName);
+          if (pod) {
+            pod.status = 'running';
+            log('KUBELET', `Pod ${podName} successfully running on host. Liveness & Readiness checks passed.`, 'success');
+            log('COREDNS', `Registered headless DNS: ${podName}.${config.serviceName}.default.svc.cluster.local`, 'info');
+            renderPods();
+            
+            // Advance sequential startup after Pod is Ready
+            currentIdx++;
+            setTimeout(spawnNextPod, 1500);
+          }
+        }, 1500);
+      }
+
+      spawnNextPod();
+    }
+
+    // Render pods on GUI
+    function renderPods() {
+      const renderSpace = document.getElementById('pods-render-space');
+      renderSpace.innerHTML = '';
+      
+      const config = configs[activeWorkload];
+
+      pods.forEach(pod => {
+        const card = document.createElement('div');
+        card.className = `stateful-pod ${pod.status}`;
+        card.onclick = () => crashNode(pod.name);
+
+        let badgeClass = 'badge-replica';
+        if (pod.role === 'Leader') badgeClass = 'badge-leader';
+        if (pod.role.includes('Controller') || pod.role === 'ZooKeeper') badgeClass = 'badge-controller';
+        if (pod.isStateless) badgeClass = 'badge-stateless';
+
+        const pvcName = `${config.baseVol}-${pod.name}`;
+        const dataCount = pod.isStateless ? 'N/A (Stateless)' : `${pod.dataSize} MB`;
+
+        card.innerHTML = `
+          <div class="pod-header">
+            <span class="pod-status-dot"></span>
+            <span class="pod-ordinal">${pod.ordinal}</span>
+          </div>
+          <span class="pod-label">${pod.name}</span>
+          <span class="pod-badge ${badgeClass}">${pod.role}</span>
+          <div class="attached-volume">
+            <span class="volume-title">
+              <span>VOL:</span>
+              <span style="font-size:0.55rem; color:#fff;">${pod.isStateless ? 'None' : pvcName}</span>
+            </span>
+            <span style="display:flex; justify-content:space-between;">
+              <span>Data size:</span>
+              <span class="volume-data-size">${dataCount}</span>
+            </span>
+          </div>
+        `;
+        renderSpace.appendChild(card);
+      });
+
+      // Maintain highlights
+      if (currentLesson === 3 && clusterState === 'HEALTHY') {
+        const firstPod = renderSpace.firstElementChild;
+        if (firstPod) firstPod.classList.add('highlight');
+      }
+
+      drawConnections();
+      updateDashboard();
+    }
+
+    // Draw active cluster connection paths
+    function drawConnections() {
+      const svg = document.getElementById('svg-connections');
+      svg.innerHTML = '';
+      
+      if (clusterState === 'OFFLINE' || pods.length === 0) return;
+
+      const dnsBadge = document.getElementById('dns-record-badge');
+      const dnsRect = dnsBadge.getBoundingClientRect();
+      const canvasRect = document.querySelector('.canvas-panel').getBoundingClientRect();
+      
+      const dnsY = dnsRect.bottom - canvasRect.top;
+      
+      pods.forEach(pod => {
+        const podEl = Array.from(document.querySelectorAll('.stateful-pod')).find(
+          el => el.querySelector('.pod-label').innerText === pod.name
+        );
+        
+        if (!podEl) return;
+        
+        const podRect = podEl.getBoundingClientRect();
+        const podX = (podRect.left + podRect.right) / 2 - canvasRect.left;
+        const podY = podRect.top - canvasRect.top;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        
+        // Standard vertical path connecting dns layer down to pods
+        const startX = (dnsRect.left + dnsRect.right) / 2 - canvasRect.left;
+        
+        // Simple cubic bezier curve
+        path.setAttribute('d', `M ${podX} ${dnsY} C ${podX} ${(dnsY + podY)/2}, ${podX} ${(dnsY + podY)/2}, ${podX} ${podY}`);
+        
+        if (pod.status === 'running') {
+          path.setAttribute('style', 'stroke: var(--neon-blue); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none;');
+        } else if (pod.status === 'pending') {
+          path.setAttribute('style', 'stroke: var(--neon-yellow); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none;');
+        } else {
+          path.setAttribute('style', 'stroke: var(--neon-red); stroke-width: 1; fill: none;');
+        }
+
+        svg.appendChild(path);
+      });
+    }
+
+    // Trigger simulation of data increment
+    function startDataSimulation() {
+      if (dataTimer) clearInterval(dataTimer);
+      
+      dataTimer = setInterval(() => {
+        if (clusterState === 'OFFLINE') return;
+        
+        const config = configs[activeWorkload];
+        
+        // Identify leader or active master to increment data
+        let targetPods = [];
+        if (activeWorkload === 'postgres') {
+          const leader = pods.find(p => p.role === 'Leader' && p.status === 'running');
+          if (leader) {
+            leader.dataSize += 5;
+            persistentStorage[`${config.baseVol}-${leader.name}`] = leader.dataSize;
+            
+            // Replicas pull with lag
+            pods.forEach(p => {
+              if (p.role === 'Replica' && p.status === 'running') {
+                setTimeout(() => {
+                  p.dataSize = leader.dataSize;
+                  persistentStorage[`${config.baseVol}-${p.name}`] = p.dataSize;
+                }, 1000);
+              }
+            });
+          }
+        } else {
+          pods.forEach(p => {
+            if (p.status === 'running' && !p.isStateless) {
+              p.dataSize += 2;
+              persistentStorage[`${config.baseVol}-${p.name}`] = p.dataSize;
+            }
+          });
+        }
+        
+        renderPods();
+      }, 2000);
+    }
+
+    // Crash simulation
+    function crashNode(podName) {
+      const pod = pods.find(p => p.name === podName);
+      if (!pod || pod.status === 'crashed' || pod.status === 'pending') return;
+
+      removeHighlights();
+      const config = configs[activeWorkload];
+      pod.status = 'crashed';
+      
+      log('FAILURE-INJECTION', `Manual fail-injection triggered for Pod: ${podName}`, 'error');
+      log('KUBELET', `Host Node reporting hardware fault. Pod ${podName} terminated.`, 'error');
+      log('COREDNS', `Deregistered DNS endpoint: ${podName}.${config.serviceName}.default.svc.cluster.local`, 'error');
+
+      updateInspector("Pod Terminated / Crashed", `Kubelet noticed pod ${podName} stopped responding. CoreDNS removed its DNS endpoint to stop query routing. Since this is a StatefulSet, the PVC "${config.baseVol}-${pod.name}" is RETAINED. No data is lost!`);
+
+      // PostgreSQL Leader Election
+      if (activeWorkload === 'postgres' && pod.role === 'Leader') {
+        log('PATRONI-CONSENSUS', 'Master went offline! Starting leader election...', 'error');
+        
+        const nextLeaderCandidate = pods.find(p => p.role === 'Replica' && p.status === 'running');
+        if (nextLeaderCandidate) {
+          setTimeout(() => {
+            pod.role = 'Replica';
+            nextLeaderCandidate.role = 'Leader';
+            log('PATRONI-CONSENSUS', `Consensus reached. Promoted ${nextLeaderCandidate.name} to LEADER. Cluster write traffic restored.`, 'success');
+            
+            updateInspector("Leader Failover Complete", `Replication manager (Patroni) detected loss of master lease in etcd. It promoted "${nextLeaderCandidate.name}" to LEADER. The crashed node will join as a replica when it recovers.`);
+            renderPods();
+          }, 2000);
+        } else {
+          log('PATRONI-CONSENSUS', 'Quorum lost! No healthy replicas available to elect as leader.', 'error');
+          updateInspector("Consensus Lost", "All database replicas are offline. No leader election can be performed. The database cluster is entirely unavailable.");
+        }
+      }
+
+      renderPods();
+
+      // Trigger automatic StatefulSet controller recovery reschedule
+      setTimeout(() => {
+        log('K8S-CONTROLLER', `Reconciling StatefulSet. Detecting crashed ordinal pod ${pod.ordinal}. Rescheduling pod...`, 'info');
+        pod.status = 'pending';
+        renderPods();
+
+        updateInspector("Rescheduling Ordinal Pod", `StatefulSet Controller detected that ordinal index ${pod.ordinal} is missing. It requests the Scheduler to recreate the Pod with the EXACT SAME hostname: ${pod.name}.`);
+
+        setTimeout(() => {
+          pod.status = 'running';
+          const pvcName = `${config.baseVol}-${pod.name}`;
+          pod.dataSize = persistentStorage[pvcName] || 0; // RECLAIM DATA STATE
+          
+          log('CSI-PROVISIONER', `Re-attached volume ${pvcName} to node. Durable data restored intact (${pod.dataSize} MB)`, 'success');
+          log('KUBELET', `Pod ${pod.name} restarted and running. Liveness probe passed.`, 'success');
+          log('COREDNS', `Registered network DNS: ${pod.name}.${config.serviceName}.default.svc.cluster.local`, 'info');
+          
+          if (activeWorkload === 'postgres' && pod.role === 'Replica') {
+            log('DB-ENGINE', `PostgreSQL streaming replica syncing WAL checkpoints from current Leader.`, 'info');
+          }
+
+          updateInspector("Volume Re-attached & Ready", `The CSI Driver re-attached PVC "${pvcName}". The container started up, re-read its data from disk (Size: ${pod.dataSize} MB), and updated Headless DNS. Storage persistence is verified!`);
+          
+          if (currentLesson === 2) {
+            document.getElementById('instruction-text').innerHTML = "🟢 **Persistence Verified!** Notice how the crashed pod returned with its data count intact. Now, choose **Lesson 3: Failover & Consensus** to witness leader elections.";
+          } else if (currentLesson === 3) {
+            document.getElementById('instruction-text').innerHTML = "🟢 **Failover Complete!** The old leader postgres-0 recovered and automatically rejoined the cluster as a read-only replica, syncing from the new leader postgres-1. Now choose **Lesson 4: Rolling Upgrades**.";
+          }
+
+          renderPods();
+        }, 3000);
+
+      }, 3000);
+    }
+
+    // Trigger Rolling Upgrade
+    function triggerRollingUpgrade() {
+      if (clusterState !== 'HEALTHY') return;
+      
+      removeHighlights();
+      clusterState = 'UPGRADING';
+      disableButtons();
+      
+      const config = configs[activeWorkload];
+      log('K8S-CONTROLLER', `Initiating rolling upgrade to version tag v2.0.0. Processing in reverse-ordinal order...`, 'info');
+
+      let upgradeIdx = config.replicas - 1; // Start from N-1 down to 0
+
+      function upgradeNext() {
+        if (upgradeIdx < 0) {
+          clusterState = 'HEALTHY';
+          log('K8S-CONTROLLER', `StatefulSet upgrade complete! All replicas updated successfully.`, 'success');
+          enableButtons();
+          
+          document.getElementById('instruction-text').innerHTML = "🟢 **Upgrade Complete!** The rolling upgrade executed in reverse order. The Leader (postgres-0) was upgraded last, minimizing write downtime. You have mastered StatefulSets!";
+          updateInspector("Rolling Upgrade Complete", "All Pods have been updated sequentially down to ordinal 0. The workload remained available throughout the process, and all volumes were preserved.");
+          return;
+        }
+
+        const podName = `${config.podPrefix}-${upgradeIdx}`;
+        const pod = pods.find(p => p.name === podName);
+        
+        log('K8S-CONTROLLER', `Upgrading Pod: ${podName} (Ordinal ${upgradeIdx})`, 'info');
+        pod.status = 'pending';
+        renderPods();
+
+        updateInspector(`Upgrading Ordinal: ${upgradeIdx}`, `The StatefulSet Controller terminated "${podName}" to update its image tag. The controller will halt the rollout if this pod fails to return to "Ready" status, safeguarding the remaining nodes.`);
+
+        setTimeout(() => {
+          pod.status = 'running';
+          log('KUBELET', `Pod ${podName} successfully restarted. Running new image. Readiness probe passed.`, 'success');
+          renderPods();
+          
+          upgradeIdx--;
+          setTimeout(upgradeNext, 2000);
+        }, 2000);
+      }
+
+      upgradeNext();
+    }
+
+    // Network partition
+    function simulateNetworkPartition() {
+      if (clusterState !== 'HEALTHY') return;
+      
+      clusterState = 'PARTITIONED';
+      log('NETWORK-CONTROLLER', 'Applying NetworkPolicy isolating Node-0 (postgres-0 / kafka-0).', 'error');
+
+      const isolatedPod = pods.find(p => p.ordinal === 0);
+      isolatedPod.status = 'crashed';
+      
+      log('CONSENSUS', `Node ${isolatedPod.name} lost communication with the rest of the quorum.`, 'error');
+      
+      if (activeWorkload === 'postgres') {
+        log('PATRONI', 'postgres-0 failed to renew lease in etcd. Forcefully stepping down to replica read-only.', 'error');
+        isolatedPod.role = 'Replica';
+        
+        const nextLeader = pods.find(p => p.ordinal === 1);
+        nextLeader.role = 'Leader';
+        log('CONSENSUS', `Healthy partition elected postgres-1 as the new Leader.`, 'success');
+      }
+      
+      renderPods();
+
+      setTimeout(() => {
+        log('NETWORK-CONTROLLER', 'Removing NetworkPolicy partition. Healing network topology...', 'success');
+        clusterState = 'HEALTHY';
+        isolatedPod.status = 'running';
+        log('CONSENSUS', `${isolatedPod.name} rejoined the cluster. Resynchronizing checkpoints.`, 'info');
+        renderPods();
+      }, 5000);
+    }
+
+    // Teardown
+    function teardownCluster() {
+      if (clusterState === 'OFFLINE' || clusterState === 'DEPLOYING') return;
+
+      clusterState = 'OFFLINE';
+      if (dataTimer) clearInterval(dataTimer);
+      
+      log('K8S-CONTROLLER', `Deleting StatefulSet "${configs[activeWorkload].podPrefix}"...`, 'info');
+      
+      pods = [];
+      document.getElementById('pods-render-space').innerHTML = `<div style="color: var(--text-muted); font-style: italic;">Select a database workload and click 'Deploy StatefulSet' to start.</div>`;
+      document.getElementById('dns-record-badge').innerText = `DNS Headless Service Layer (Endpoints lookup disabled)`;
+      document.getElementById('dns-record-badge').classList.remove('active');
+      
+      log('K8S-CONTROLLER', 'StatefulSet pods terminated.', 'success');
+      log('CSI-DRIVER', 'Durable PersistentVolumeClaims retained (data-safety policy). PVC files are intact in S3/Block storage.', 'success');
+
+      updateInspector("StatefulSet Deleted", "Kubernetes terminated all StatefulSet pods. Notice that the PV volumes are RETAINED in persistentStorage. Deleting a StatefulSet never deletes the PVC claims to safeguard data.");
+
+      disableButtons();
+      document.getElementById('btn-deploy').disabled = false;
+      
+      updateDashboard();
+      drawConnections();
+    }
+
+    // Enable/Disable buttons
+    function enableButtons() {
+      document.getElementById('btn-upgrade').disabled = false;
+      document.getElementById('btn-partition').disabled = false;
+      document.getElementById('btn-teardown').disabled = false;
+      document.getElementById('btn-deploy').disabled = true;
+    }
+
+    function disableButtons() {
+      document.getElementById('btn-upgrade').disabled = true;
+      document.getElementById('btn-partition').disabled = true;
+      document.getElementById('btn-teardown').disabled = true;
+      document.getElementById('btn-deploy').disabled = true;
+    }
+
+    // Dashboard HUD update
+    function updateDashboard() {
+      const config = configs[activeWorkload];
+      
+      if (clusterState === 'OFFLINE') {
+        document.getElementById('stat-replicas').innerText = '0 / 0';
+        document.getElementById('stat-replicas-desc').innerHTML = `<span class="indicator-error">●</span> StatefulSet offline`;
+        document.getElementById('stat-quorum').innerText = 'OFFLINE';
+        document.getElementById('stat-quorum-desc').innerHTML = `<span class="indicator-error">●</span> No consensus`;
+        document.getElementById('stat-lag').innerText = 'N/A';
+        document.getElementById('stat-lag-desc').innerText = 'No sync process active';
+        document.getElementById('stat-data').innerText = '0 MB';
+        document.getElementById('stat-data-desc').innerText = 'Volumes empty';
+        return;
+      }
+
+      // Replicas active
+      const runningCount = pods.filter(p => p.status === 'running').length;
+      document.getElementById('stat-replicas').innerText = `${runningCount} / ${pods.length}`;
+      
+      if (runningCount === pods.length) {
+        document.getElementById('stat-replicas-desc').innerHTML = `<span class="indicator-active">●</span> StatefulSet healthy`;
+      } else {
+        document.getElementById('stat-replicas-desc').innerHTML = `<span class="indicator-warning">●</span> Reconciling ordinals...`;
+      }
+
+      // Quorum status
+      const quorumReq = Math.floor(config.replicas / 2) + 1;
+      const runningVoters = pods.filter(p => p.status === 'running' && !p.isStateless).length;
+      
+      if (runningVoters >= quorumReq) {
+        document.getElementById('stat-quorum').innerText = 'HEALTHY';
+        document.getElementById('stat-quorum-desc').innerHTML = `<span class="indicator-active">●</span> Quorum OK (${runningVoters}/${config.replicas} voters)`;
+      } else {
+        document.getElementById('stat-quorum').innerText = 'LOST';
+        document.getElementById('stat-quorum-desc').innerHTML = `<span class="indicator-error">●</span> Consensus Lost (< ${quorumReq} voters)`;
+      }
+
+      // Replication lag
+      if (runningCount === pods.length) {
+        document.getElementById('stat-lag').innerText = '0 ms';
+        document.getElementById('stat-lag-desc').innerHTML = `<span class="indicator-active">●</span> Active replica sync`;
+      } else if (runningCount > 1) {
+        document.getElementById('stat-lag').innerText = '1,280 ms';
+        document.getElementById('stat-lag-desc').innerHTML = `<span class="indicator-warning">●</span> Node replication catching up`;
+      } else {
+        document.getElementById('stat-lag').innerText = 'N/A';
+        document.getElementById('stat-lag-desc').innerText = 'Insufficient healthy peers';
+      }
+
+      // Total data size
+      let totalData = 0;
+      pods.forEach(p => {
+        if (!p.isStateless) totalData += p.dataSize;
+      });
+      document.getElementById('stat-data').innerText = `${totalData} MB`;
+      document.getElementById('stat-data-desc').innerText = `Aggregated across all PVCs`;
+    }
+
+    // Set default highlights
+    window.onload = () => {
+      document.getElementById('btn-deploy').classList.add('highlight');
+    };
+
+    // Redraw paths on window resize
+    window.addEventListener('resize', drawConnections);
+  </script>
+</body>
+</html>

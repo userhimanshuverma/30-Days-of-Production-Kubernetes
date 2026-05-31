@@ -1,0 +1,108 @@
+# 04-elasticsearch.yaml
+# Course: 30 Days of Production Kubernetes
+# Day 9 — StatefulSets & Distributed Databases
+#
+# A 3-node Elasticsearch cluster. 
+# Elasticsearch requires a privileged initContainer to modify the host node's 
+# kernel settings (sysctl vm.max_map_count) to prevent memory allocation out-of-memory errors. 
+# We define seed hosts and initial master nodes using Headless Service DNS addresses 
+# to coordinate cluster discovery.
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: default
+  labels:
+    app: elasticsearch
+    course: 30-days-of-k8s
+spec:
+  serviceName: elasticsearch-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      initContainers:
+        # Elasticsearch requires vm.max_map_count to be at least 262144 on the host node.
+        # This init container runs as root and updates host settings before Elasticsearch boots.
+        - name: sysctl-init
+          image: busybox:1.36
+          command:
+            - sysctl
+            - -w
+            - vm.max_map_count=262144
+          securityContext:
+            privileged: true # Requires privileged access to modify host sysctl
+        # Fix permissions on the mounted directory (Elasticsearch runs as UID 1000)
+        - name: fix-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - chown -R 1000:1000 /usr/share/elasticsearch/data
+          volumeMounts:
+            - name: elastic-data
+              mountPath: /usr/share/elasticsearch/data
+      containers:
+        - name: elasticsearch
+          image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: cluster.name
+              value: k8s-elk-cluster
+            # Identify itself using its stateful hostname
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # Seed hosts for cluster discovery pointing to headless service DNS
+            - name: discovery.seed_hosts
+              value: "elasticsearch-0.elasticsearch-headless.default.svc.cluster.local,elasticsearch-1.elasticsearch-headless.default.svc.cluster.local,elasticsearch-2.elasticsearch-headless.default.svc.cluster.local"
+            # Define which nodes can initiate cluster election
+            - name: cluster.initial_master_nodes
+              value: "elasticsearch-0,elasticsearch-1,elasticsearch-2"
+            # JVM settings: JVM heap size must match 50% of container memory limits
+            - name: ES_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9300
+              name: transport
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "1.5Gi"
+          readinessProbe:
+            # Check if Elasticsearch REST interface is active
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - name: elastic-data
+              mountPath: /usr/share/elasticsearch/data
+  volumeClaimTemplates:
+    - metadata:
+        name: elastic-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Gi
