@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: academy-tls-secret
+  namespace: default
+type: kubernetes.io/tls
+# These are mock base64 keys for reference. In the lab, we will generate real ones using openssl.
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURkekNDQWx1Z0F3SUJBZ0lVSlR4ckJkc2JqZmh4bk43bmt2UXphc1c4akpvd0RRWUpLb1pJaHZjTkFRRUwKQlFBd1JkRUxNQWtHQTFVRUJoTUNRVlV4RXpBUkJnTlZCQWdNQ2xOdmJXV2xkR2h5WVRFU01CQUdBMVVFQnd3SgpRMkYwWlhNdVEwRXhHekFaQmdOVkJBb01Ga041Y21WbFkyOXdNUjR3SEFZRFZRUUREQVZ5WldkcGMzUnllUzVoWTJGagpaVzF5TG1sdWRHVnlibUZzTUI0WERUSTJORFl3TVRFNE1ETTFPVm9YRFRJM05EWXdNVEU0TURJMU9Wb1dSRUVMCk1Ba0dBMVVFQmhNQ1ZVVHhFekFSQmdOVkJBZ01DbE52YldXbGRHaHlZVEVTTUJBR0ExVUVCd3dKUTJGMFpYTXUKUTBFeEd6QVpCZ05WQkFvTUZkRDVjbVZsWTI5d01SNHdIQVlEVlFRRERBVnlad2RwYzNSeWVTVTVaMkZqWlcxeQpMbWx1ZEdWeWJtRnNNSUlCSS1BTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQTBvYWhxSjl2CmdYdkpBcnpSc1ZheUV6OG0xbnh5UXhNdnUrYlNYUzdnckZheDcyZnp4UkdPM09Vbnd4M3MvUGlyM1M2UjlNcm8KeXpSazNDOU1yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdnIxdmQya29KdzV6NURreUNkR1g1NG55a00zNQpoTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdnIxdmQya29KdzV6NURreUNkCkdYNTRueWtNMzVvTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdnIxdmQya28KSnc1ejVEa3lDZEdYNTRueWtNMzVvTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEYKZHZyMXZkMmtvSnc1ejVEa3lDZEdYNTRueWtNMzVvTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OApyMThDQVdFQUFhTlRNRkV3SFFZRFZSME9CQllFRk9mMW1sZkU0Qy9hUkMxUGYxbWxmRTRDL2FSQ01COEdBMVVkCkl3UVlNQmFBRk9mMW1sZkU0Qy9hUkMxUGYxbWxmRTRDL2FSQ01Bc0dBMVVkRHdRRUF3SUVzREFOQmdrcWhraUcKOWcwQkFRc0ZBQU9DQVFFQVNJYThCRDJQZ2dIVXoyRWtBOGxtNlB2R1hkRGlwVnhkR1E2K202UjlNcm95elJrMwpDOThyOGpvd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFKTnR4ckJkc2JqZmh4bk43bmt2UXphc1c4akpvd0RRCllKS29aSWh2Y05BUUVMQlFBRGdnRUJBSk50eHJCZHNiamZoeG5ON25rdlF6YXNXOGpKb3dEUVlKS29aSWh2CmNOQVFFTEJRQURnZ0VCQUpOdHhyQmRzYmpmaHhuTjdua3ZRemFzVzhqSm93RFFZSktvWklodmNOQVFFTEJRQUQKZ2dFQkFKTnR4ckJkc2JqZmh4bk43bmt2UXphc1c4akpvd0RRSVN0b21pY2FsCgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2d0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQVJrV2dnRWpBZ0VBQW9JQkFRRDBvYWhxSjl2Z1h2SkEKcnpSc1ZheUV6OG0xbnh5UXhNdnUrYlNYUzdnckZheDcyZnp4UkdPM09Vbnd4M3MvUGlyM1M2UjlNcm95elJrMwpDO01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdnIxdmQya29KdzV6NURreUNkR1g1NG55a00zNWhOQUIKSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdnIxdmQya29KdzV6NURreUNkR1g1CjRueWtNMzVvTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdnIxdmQya29KdzUKejVEa3lDZEdYNTRueWtNMzVvTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHdZc0M0b2I4SEZkdgpyMXZkMmtvSnc1ejVEa3lDZEdYNTRueWtNMzVvTkFCSlY0QWJ1TXZxZDJrT01yOHJ4TzFwdytLdjZtWEd1OHJ5CjF3SURBUUFCQW9JQkFEZ2dFQkFKTnR4ckJkc2JqZmh4bk43bmt2UXphc1c4akpvd0RRWUpLb1pJaHZjTkFRRUwKQlFBRGdnRUJBSk50eHJCZHNiamZoeG5ON25rdlF6YXNXOGpKb3dEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBCkpOdHhyQmRzYmpmaHhuTjdua3ZRemFzVzhqSm93RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUpOdHhyQmRzYmoKZmh4bk43bmt2UXphc1c4akpvd0RRSVN0b21pY2FsQWdFQkFkR0h5WVRFU01CQUdBMVVFQnd3SlEyRjBaWE11ClEwRXhHekFaQmdOVkJBb01Ga041Y21WbFkyOXdNUjR3SEFZRFZRUUREQVZ5WldkcGMzUnllUzVoWTJGagpaClcxeUxtbHVkR1Z5Ym1Gc01COFhEVGMyTkRZd01URTRNREkxT1ZvWERUYzNORFl3TVRFNE1ESTFPVm9XUkVFTAoKLS0tLS1FTkQgUFJJVkFURSBLRVktLS0tLQo=
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: secured-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    
+    # Force client redirects to HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    
+    # Enforce HTTP Strict Transport Security (HSTS) headers via NGINX snippet
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+spec:
+  # TLS definition bindings
+  tls:
+  - hosts:
+    - academy.internal
+    - api.academy.internal
+    secretName: academy-tls-secret
+  rules:
+  - host: academy.internal
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-svc
+            port:
+              number: 80
+  - host: api.academy.internal
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: order-api-svc
+            port:
+              number: 80

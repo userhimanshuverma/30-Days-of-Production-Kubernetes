@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Ingress Traffic Simulator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Outfit & JetBrains Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            space: {
+              900: '#0b0914',
+              800: '#120f24',
+              700: '#1b1736',
+              600: '#2b2554',
+            },
+            neon: {
+              purple: '#b388ff',
+              magenta: '#ea80fc',
+              blue: '#80d8ff',
+              green: '#80f0c0',
+              red: '#ff8a80',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #08060f;
+      color: #e0def4;
+      overflow-x: hidden;
+    }
+    .glass {
+      background: rgba(18, 15, 36, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(179, 136, 255, 0.15);
+    }
+    .glass-active {
+      border: 1px solid rgba(179, 136, 255, 0.4);
+      box-shadow: 0 0 15px rgba(179, 136, 255, 0.1);
+    }
+    /* Animated connection lines */
+    .link-path {
+      stroke-dasharray: 8;
+      animation: dash 30s linear infinite;
+    }
+    .link-path-active {
+      stroke-dasharray: 6;
+      animation: dash-fast 1.5s linear infinite;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+    @keyframes dash-fast {
+      to {
+        stroke-dashoffset: -40;
+      }
+    }
+    /* Glowing packet animation */
+    .packet {
+      offset-rotate: auto;
+      animation: travel 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    @keyframes travel {
+      0% {
+        offset-distance: 0%;
+        opacity: 1;
+        scale: 1;
+      }
+      90% {
+        opacity: 1;
+        scale: 1;
+      }
+      100% {
+        offset-distance: 100%;
+        opacity: 0;
+        scale: 0.5;
+      }
+    }
+    /* Pulsing pods */
+    .pod-pulse-green {
+      box-shadow: 0 0 0 0 rgba(128, 240, 192, 0.7);
+      animation: pulse-green 1.5s infinite;
+    }
+    @keyframes pulse-green {
+      70% {
+        box-shadow: 0 0 0 8px rgba(128, 240, 192, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(128, 240, 192, 0);
+      }
+    }
+    .pod-pulse-red {
+      box-shadow: 0 0 0 0 rgba(255, 138, 128, 0.7);
+      animation: pulse-red 1.5s infinite;
+    }
+    @keyframes pulse-red {
+      70% {
+        box-shadow: 0 0 0 8px rgba(255, 138, 128, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 138, 128, 0);
+      }
+    }
+    /* Hide scrollbar for logs */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- Header Banner -->
+  <header class="w-full border-b border-space-700 bg-space-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between z-50">
+    <div class="flex items-center space-x-3">
+      <div class="h-10 w-10 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-white flex items-center">
+          Kubernetes Ingress Traffic Simulator
+          <span class="ml-3 text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Day 10</span>
+        </h1>
+        <p class="text-xs text-purple-300/60 font-mono">30 Days of Production Kubernetes — Phase 2</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-4">
+      <span class="h-2.5 w-2.5 rounded-full bg-neon-green animate-ping"></span>
+      <span class="text-xs text-neon-green font-mono">Simulator Online</span>
+    </div>
+  </header>
+
+  <!-- Main Grid Layout -->
+  <main class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-7xl mx-auto w-full">
+    
+    <!-- LEFT PANEL: Guided Tours & Config (4 Cols) -->
+    <section class="lg:col-span-4 flex flex-col space-y-6">
+      
+      <!-- Guided Tour Card (Self-Explanatory Feature) -->
+      <div class="glass rounded-xl p-5 border-purple-500/30 flex flex-col space-y-3">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2">
+          <h2 class="font-semibold text-white tracking-wide flex items-center text-sm">
+            <svg class="h-4 w-4 mr-2 text-neon-magenta animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            Guided Routing Scenarios
+          </h2>
+          <span class="text-xs font-mono text-purple-300/40">Select to Run</span>
+        </div>
+        <p class="text-xs text-purple-200/80 leading-relaxed">
+          Select an engineered scenario below. The simulator will auto-configure variables, run path lines, inject packets, and explain the architectural execution live.
+        </p>
+        
+        <div class="flex flex-col space-y-2">
+          <button onclick="runScenario('web')" class="text-left px-3 py-2 rounded bg-space-800 hover:bg-space-700 border border-space-700 hover:border-neon-purple transition-all text-xs flex flex-col space-y-0.5">
+            <span class="font-semibold text-neon-purple">1. Host-Based Routing (Web)</span>
+            <span class="text-[10px] text-purple-300/50">HTTPS lookup for academy.internal/ (Frontend Pod)</span>
+          </button>
+          
+          <button onclick="runScenario('rewrite')" class="text-left px-3 py-2 rounded bg-space-800 hover:bg-space-700 border border-space-700 hover:border-neon-blue transition-all text-xs flex flex-col space-y-0.5">
+            <span class="font-semibold text-neon-blue">2. Path-Based Routing (With URL Rewrite)</span>
+            <span class="text-[10px] text-purple-300/50">academy.internal/api/v1/orders/healthz -> order-api-svc/healthz</span>
+          </button>
+
+          <button onclick="runScenario('host_gateway')" class="text-left px-3 py-2 rounded bg-space-800 hover:bg-space-700 border border-space-700 hover:border-neon-magenta transition-all text-xs flex flex-col space-y-0.5">
+            <span class="font-semibold text-neon-magenta">3. API Gateway Host (No Rewrite)</span>
+            <span class="text-[10px] text-purple-300/50">api.academy.internal/orders -> order-api-svc/orders</span>
+          </button>
+
+          <button onclick="runScenario('redirect')" class="text-left px-3 py-2 rounded bg-space-800 hover:bg-space-700 border border-space-700 hover:border-neon-blue transition-all text-xs flex flex-col space-y-0.5">
+            <span class="font-semibold text-yellow-300">4. Edge HTTPS SSL Redirection</span>
+            <span class="text-[10px] text-purple-300/50">Plain HTTP to academy.internal triggers 308 TLS redirection</span>
+          </button>
+
+          <button onclick="runScenario('failure')" class="text-left px-3 py-2 rounded bg-space-800 hover:bg-space-700 border border-space-700 hover:border-neon-red transition-all text-xs flex flex-col space-y-0.5">
+            <span class="font-semibold text-neon-red">5. Outage Failover (503 Error)</span>
+            <span class="text-[10px] text-purple-300/50">Failing readiness check isolates service, returning 503</span>
+          </button>
+        </div>
+
+        <div id="scenario-explanation" class="p-3 bg-indigo-950/40 border border-indigo-500/20 rounded-lg text-xs text-indigo-200 hidden leading-relaxed transition-all">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- 1. Send Request Panel -->
+      <div class="glass rounded-xl p-5 flex flex-col space-y-4">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2">
+          <h2 class="font-semibold text-white tracking-wide flex items-center text-sm">
+            <svg class="h-4 w-4 mr-2 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Client Console
+          </h2>
+          <span class="text-xs font-mono text-purple-300/40">Request Injector</span>
+        </div>
+        
+        <!-- TLS Toggle -->
+        <div class="flex items-center justify-between bg-space-800/50 p-2.5 rounded-lg border border-space-700/50">
+          <span class="text-sm font-medium text-purple-200">Request Protocol</span>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-mono" id="proto-label">HTTP (80)</span>
+            <button onclick="toggleTls()" id="tls-btn" class="relative inline-flex h-6 w-11 items-center rounded-full bg-space-600 transition-colors focus:outline-none">
+              <span id="tls-switch" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
+            </button>
+            <span class="text-xs font-mono text-neon-purple" id="proto-ssl-label">HTTPS (443)</span>
+          </div>
+        </div>
+
+        <!-- Host Header -->
+        <div class="flex flex-col space-y-1.5">
+          <label class="text-xs text-purple-300/70 font-semibold uppercase tracking-wider">Host Header</label>
+          <select id="host-select" class="bg-space-800 border border-space-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-neon-purple font-mono">
+            <option value="academy.internal">academy.internal</option>
+            <option value="api.academy.internal">api.academy.internal</option>
+            <option value="unknown-domain.com">unknown-domain.com</option>
+          </select>
+        </div>
+
+        <!-- Request Path -->
+        <div class="flex flex-col space-y-1.5">
+          <label class="text-xs text-purple-300/70 font-semibold uppercase tracking-wider">Request Path</label>
+          <div class="flex space-x-2">
+            <input type="text" id="path-input" value="/" class="bg-space-800 border border-space-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-neon-purple flex-grow font-mono">
+            <div class="flex flex-col justify-center text-xs space-y-1">
+              <button onclick="setPath('/')" class="px-1.5 py-0.5 rounded bg-space-700 hover:bg-space-600 font-mono text-[10px]">/</button>
+              <button onclick="setPath('/api/v1/orders/healthz')" class="px-1.5 py-0.5 rounded bg-space-700 hover:bg-space-600 font-mono text-[10px]">/orders</button>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="injectRequest()" class="w-full bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold py-2.5 rounded-lg transition-all transform active:scale-95 shadow-lg shadow-purple-500/20 flex items-center justify-center space-x-2">
+          <span>Inject Request</span>
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- 2. Services Health Status -->
+      <div class="glass rounded-xl p-5 flex flex-col space-y-4">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2">
+          <h2 class="font-semibold text-white tracking-wide flex items-center text-sm">
+            <svg class="h-4 w-4 mr-2 text-neon-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            Service Health Control
+          </h2>
+          <span class="text-xs font-mono text-purple-300/40">Fault Injection</span>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Frontend Svc -->
+          <div class="flex items-center justify-between p-2 rounded-lg bg-space-800/40 border border-space-700/30">
+            <div class="flex flex-col">
+              <span class="text-sm font-semibold text-white">frontend-svc</span>
+              <span class="text-[10px] text-purple-300/50 font-mono">Selectors: app=frontend</span>
+            </div>
+            <button onclick="toggleService('frontend')" id="status-frontend" class="px-2.5 py-1 rounded text-xs font-bold bg-neon-green/20 text-neon-green border border-neon-green/30 transition-all">
+              HEALTHY
+            </button>
+          </div>
+
+          <!-- Order API Svc -->
+          <div class="flex items-center justify-between p-2 rounded-lg bg-space-800/40 border border-space-700/30">
+            <div class="flex flex-col">
+              <span class="text-sm font-semibold text-white">order-api-svc</span>
+              <span class="text-[10px] text-purple-300/50 font-mono">Selectors: app=order-api</span>
+            </div>
+            <button onclick="toggleService('order')" id="status-order" class="px-2.5 py-1 rounded text-xs font-bold bg-neon-green/20 text-neon-green border border-neon-green/30 transition-all">
+              HEALTHY
+            </button>
+          </div>
+
+          <!-- User API Svc -->
+          <div class="flex items-center justify-between p-2 rounded-lg bg-space-800/40 border border-space-700/30">
+            <div class="flex flex-col">
+              <span class="text-sm font-semibold text-white">user-api-svc</span>
+              <span class="text-[10px] text-purple-300/50 font-mono">Selectors: app=user-api</span>
+            </div>
+            <button onclick="toggleService('user')" id="status-user" class="px-2.5 py-1 rounded text-xs font-bold bg-neon-green/20 text-neon-green border border-neon-green/30 transition-all">
+              HEALTHY
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- MIDDLE PANEL: Topology Canvas (5 Cols) -->
+    <section class="lg:col-span-5 flex flex-col space-y-6">
+      <div class="glass rounded-xl p-5 flex flex-col flex-grow relative overflow-hidden min-h-[500px]">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2 mb-4">
+          <h2 class="font-semibold text-white tracking-wide flex items-center">
+            <svg class="h-4 w-4 mr-2 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Topology Map
+          </h2>
+          <span class="text-xs font-mono text-purple-300/40">Layer 7 Routing Flow</span>
+        </div>
+
+        <!-- SVG Networking Links overlay -->
+        <svg id="link-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0">
+          <defs>
+            <linearGradient id="glow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ea80fc" />
+              <stop offset="100%" stop-color="#80d8ff" />
+            </linearGradient>
+          </defs>
+          <!-- Paths connecting nodes -->
+          <path id="path-client-dns" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          <path id="path-client-lb" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          <path id="path-dns-client" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          <path id="path-lb-ingress" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          <path id="path-ingress-frontend" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          <path id="path-ingress-order" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          <path id="path-ingress-user" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="2" class="link-path" />
+          
+          <path id="path-frontend-pod" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="1.5" class="link-path" />
+          <path id="path-order-pod" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="1.5" class="link-path" />
+          <path id="path-user-pod" d="" fill="none" stroke="rgba(179, 136, 255, 0.15)" stroke-width="1.5" class="link-path" />
+        </svg>
+
+        <!-- Topology Nodes placement -->
+        <div class="relative w-full h-full flex flex-col justify-around z-10 py-6">
+          
+          <div class="flex items-center justify-between w-full">
+            <!-- Client (Left Column) -->
+            <div id="node-client" class="w-20 h-20 rounded-full glass flex flex-col items-center justify-center border-neon-purple shadow-lg shadow-purple-500/10">
+              <svg class="h-7 w-7 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span class="text-[9px] font-mono text-purple-300 mt-1 uppercase font-semibold">Client</span>
+              <span class="text-[7px] text-purple-300/40 text-center leading-none mt-0.5">User Agent / Browser</span>
+            </div>
+
+            <!-- DNS & LB (Second Column) -->
+            <div class="flex flex-col space-y-16">
+              <div id="node-dns" class="w-16 h-16 rounded-xl glass flex flex-col items-center justify-center border-purple-500/20">
+                <svg class="h-6 w-6 text-neon-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+                <span class="text-[8px] font-mono text-purple-300 mt-1 uppercase font-semibold">CoreDNS</span>
+                <span class="text-[6px] text-purple-300/40 text-center leading-none mt-0.5">Resolves Host Domain</span>
+              </div>
+
+              <div id="node-lb" class="w-16 h-16 rounded-xl glass flex flex-col items-center justify-center border-purple-500/20">
+                <svg class="h-6 w-6 text-neon-magenta" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <span class="text-[8px] font-mono text-purple-300 mt-1 uppercase font-semibold">Cloud LB</span>
+                <span class="text-[6px] text-purple-300/40 text-center leading-none mt-0.5">Exposed Public IP</span>
+              </div>
+            </div>
+
+            <!-- Ingress Controller (Third Column) -->
+            <div id="node-ingress" class="w-24 h-24 rounded-2xl glass flex flex-col items-center justify-center border-indigo-500/40 shadow-lg shadow-indigo-500/10 relative">
+              <div class="absolute -top-1 -right-1 bg-space-900 border border-space-700 rounded-full p-1" id="tls-status-icon">
+                <!-- Lock Icon -->
+                <svg class="h-3 w-3 text-neon-red" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <svg class="h-9 w-9 text-neon-purple animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 012-2h10a2 2 0 012 2m-14 0a2 2 0 002 2h10a2 2 0 002-2M7 8l4-4m0 0l4 4m-4-4v18" />
+              </svg>
+              <span class="text-[9px] font-mono text-purple-200 mt-1 uppercase font-bold tracking-wider">NGINX Ingress</span>
+              <span class="text-[6px] text-purple-300/40 text-center leading-none mt-0.5 px-1">L7 Decryption & Rules Engine</span>
+            </div>
+
+            <!-- Kubernetes Services (Fourth Column) -->
+            <div class="flex flex-col space-y-10">
+              <!-- Frontend Svc Node -->
+              <div id="node-svc-frontend" class="w-20 h-14 rounded-lg glass flex flex-col items-center justify-center border-purple-500/20">
+                <span class="text-[9px] font-mono text-white font-semibold">frontend-svc</span>
+                <span class="text-[7px] font-mono text-purple-300/60 mt-0.5">ClusterIP</span>
+                <span class="text-[6px] text-purple-300/40 text-center leading-none mt-0.5">Selector: app=frontend</span>
+              </div>
+              <!-- Order API Svc Node -->
+              <div id="node-svc-order" class="w-20 h-14 rounded-lg glass flex flex-col items-center justify-center border-purple-500/20">
+                <span class="text-[9px] font-mono text-white font-semibold">order-api-svc</span>
+                <span class="text-[7px] font-mono text-purple-300/60 mt-0.5">ClusterIP</span>
+                <span class="text-[6px] text-purple-300/40 text-center leading-none mt-0.5">Selector: app=order-api</span>
+              </div>
+              <!-- User API Svc Node -->
+              <div id="node-svc-user" class="w-20 h-14 rounded-lg glass flex flex-col items-center justify-center border-purple-500/20">
+                <span class="text-[9px] font-mono text-white font-semibold">user-api-svc</span>
+                <span class="text-[7px] font-mono text-purple-300/60 mt-0.5">ClusterIP</span>
+                <span class="text-[6px] text-purple-300/40 text-center leading-none mt-0.5">Selector: app=user-api</span>
+              </div>
+            </div>
+
+            <!-- Pods (Fifth Column) -->
+            <div class="flex flex-col space-y-8">
+              <!-- Frontend Pod -->
+              <div id="node-pod-frontend" class="w-12 h-12 rounded-full bg-space-800 border border-neon-green/30 flex flex-col items-center justify-center pod-pulse-green">
+                <span class="text-[8px] font-mono text-white font-semibold">web-0</span>
+                <span class="text-[6px] font-mono text-neon-green font-semibold">Frontend</span>
+              </div>
+              <!-- Order Pod -->
+              <div id="node-pod-order" class="w-12 h-12 rounded-full bg-space-800 border border-neon-green/30 flex flex-col items-center justify-center pod-pulse-green">
+                <span class="text-[8px] font-mono text-white font-semibold">ord-0</span>
+                <span class="text-[6px] font-mono text-neon-green font-semibold">Order API</span>
+              </div>
+              <!-- User Pod -->
+              <div id="node-pod-user" class="w-12 h-12 rounded-full bg-space-800 border border-neon-green/30 flex flex-col items-center justify-center pod-pulse-green">
+                <span class="text-[8px] font-mono text-white font-semibold">usr-0</span>
+                <span class="text-[6px] font-mono text-neon-green font-semibold">User API</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Live Logs & Metrics (3 Cols) -->
+    <section class="lg:col-span-3 flex flex-col space-y-6">
+      
+      <!-- 1. Real-time Metrics Dashboard -->
+      <div class="glass rounded-xl p-5 flex flex-col space-y-4">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2">
+          <h2 class="font-semibold text-white tracking-wide flex items-center text-sm">
+            <svg class="h-4 w-4 mr-2 text-neon-blue" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+            </svg>
+            Ingress Analytics
+          </h2>
+          <span class="text-xs font-mono text-purple-300/40">Real-time</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-space-800/40 p-3 rounded-lg border border-space-700/30 flex flex-col">
+            <span class="text-[10px] text-purple-300/60 uppercase font-semibold">Total Requests</span>
+            <span class="text-xl font-bold text-white mt-1" id="metric-total">0</span>
+          </div>
+          <div class="bg-space-800/40 p-3 rounded-lg border border-space-700/30 flex flex-col">
+            <span class="text-[10px] text-purple-300/60 uppercase font-semibold">HTTPS TLS</span>
+            <span class="text-xl font-bold text-neon-purple mt-1" id="metric-tls">0%</span>
+          </div>
+          <div class="bg-space-800/40 p-3 rounded-lg border border-space-700/30 flex flex-col">
+            <span class="text-[10px] text-purple-300/60 uppercase font-semibold">Success (2xx)</span>
+            <span class="text-xl font-bold text-neon-green mt-1" id="metric-success">0</span>
+          </div>
+          <div class="bg-space-800/40 p-3 rounded-lg border border-space-700/30 flex flex-col">
+            <span class="text-[10px] text-purple-300/60 uppercase font-semibold">Errors (4xx/5xx)</span>
+            <span class="text-xl font-bold text-neon-red mt-1" id="metric-error">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Live Logs Console -->
+      <div class="glass rounded-xl p-5 flex flex-col flex-grow min-h-[300px]">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2 mb-3">
+          <h2 class="font-semibold text-white tracking-wide flex items-center text-sm">
+            <svg class="h-4 w-4 mr-2 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Trace Log Stream
+          </h2>
+          <button onclick="clearLogs()" class="text-[10px] hover:text-white px-2 py-0.5 rounded bg-space-800 border border-space-700 font-mono">Clear</button>
+        </div>
+
+        <div id="log-console" class="flex-grow bg-black/60 border border-space-800 rounded-lg p-3 text-[11px] font-mono text-purple-200 overflow-y-auto max-h-[350px] no-scrollbar flex flex-col space-y-1.5 leading-relaxed">
+          <div class="text-purple-300/40">// Logs initialize. Ready for injection...</div>
+        </div>
+      </div>
+
+      <!-- 3. Ingress Configuration View inside Right Panel -->
+      <div class="glass rounded-xl p-5 flex flex-col space-y-2">
+        <div class="flex items-center justify-between border-b border-space-700 pb-2">
+          <h2 class="font-semibold text-white tracking-wide flex items-center text-xs">
+            <svg class="h-4 w-4 mr-2 text-neon-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Ingress Resource Map
+          </h2>
+          <span class="text-[9px] font-mono text-purple-300/40">YAML Config</span>
+        </div>
+        <pre class="bg-space-900 border border-space-800 rounded-lg p-2 text-[9px] font-mono text-indigo-300 overflow-x-auto leading-normal">
+# Host mappings parsed by NGINX:
+academy.internal:
+  - path: /      -> frontend-svc
+  - path: /api/  -> (Stripped rewrite)
+api.academy.internal:
+  - path: /      -> (No rewrite proxy)
+        </pre>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- JS SIMULATION ENGINE -->
+  <script>
+    // State values
+    let state = {
+      tlsEnabled: false,
+      services: {
+        frontend: true,
+        order: true,
+        user: true
+      },
+      metrics: {
+        total: 0,
+        tlsCount: 0,
+        success: 0,
+        error: 0
+      }
+    };
+
+    // DOM selectors
+    const tlsBtn = document.getElementById('tls-btn');
+    const tlsSwitch = document.getElementById('tls-switch');
+    const tlsStatusIcon = document.getElementById('tls-status-icon');
+    const logConsole = document.getElementById('log-console');
+    const pathInput = document.getElementById('path-input');
+
+    // Onboarding Explanations mapping
+    const explanations = {
+      web: {
+        host: "academy.internal",
+        path: "/",
+        tls: true,
+        desc: "<strong>1. Host-Based Web Routing:</strong> This is a standard HTTPS request to <code>academy.internal/</code>. The Cloud LoadBalancer forwards the encrypted TLS traffic. NGINX Ingress terminates the TLS handshake using <code>academy-tls-secret</code>, matches the Host rule, and forwards the plaintext HTTP request to <code>frontend-svc</code> which selects <code>web-0</code>."
+      },
+      rewrite: {
+        host: "academy.internal",
+        path: "/api/v1/orders/healthz",
+        tls: true,
+        desc: "<strong>2. Path-Based Routing (With URL Rewrite):</strong> Requesting <code>academy.internal/api/v1/orders/healthz</code> is matched. NGINX strips the prefix <code>/api/v1/orders</code> as per the annotation <code>rewrite-target: /$2</code> and forwards only <code>/healthz</code> to <code>order-api-svc</code>. This prevents the backend from needing path awareness."
+      },
+      host_gateway: {
+        host: "api.academy.internal",
+        path: "/orders",
+        tls: true,
+        desc: "<strong>3. API Gateway Routing:</strong> Requests to <code>api.academy.internal/orders</code> hit a completely separate host rule on our second Ingress. NGINX routes this directly to <code>order-api-svc</code> without stripping the path prefix."
+      },
+      redirect: {
+        host: "academy.internal",
+        path: "/",
+        tls: false,
+        desc: "<strong>4. SSL/TLS Redirection:</strong> The request is sent over plain HTTP (Port 80). Because <code>ssl-redirect: 'true'</code> is annotated, NGINX intercepts it at the edge and returns an immediate <code>308 Permanent Redirect</code> response back to the client, forcing them to upgrade to HTTPS."
+      },
+      failure: {
+        host: "academy.internal",
+        path: "/api/v1/orders/healthz",
+        tls: true,
+        setup: () => {
+          if (state.services.order) toggleService('order');
+        },
+        desc: "<strong>5. Upstream Outage (503):</strong> We simulate that all replicas for <code>order-api-svc</code> are failing their readiness health checks. When Ingress attempts to proxy the request, NGINX discovers there are no endpoints in the service pool, returning a <code>503 Service Temporarily Unavailable</code>."
+      }
+    };
+
+    // Run guided onboarding scenario
+    function runScenario(type) {
+      const config = explanations[type];
+      if (!config) return;
+
+      // Reset service health if not failure scenario
+      if (type !== 'failure' && !state.services.order) {
+        toggleService('order');
+      }
+
+      // Configure console
+      document.getElementById('host-select').value = config.host;
+      document.getElementById('path-input').value = config.path;
+      
+      // Sync TLS
+      if (state.tlsEnabled !== config.tls) {
+        toggleTls();
+      }
+
+      // Run custom setup
+      if (config.setup) {
+        config.setup();
+      }
+
+      // Display Explanation
+      const container = document.getElementById('scenario-explanation');
+      container.innerHTML = config.desc;
+      container.classList.remove('hidden');
+
+      // Inject Request
+      injectRequest();
+    }
+
+    // Dynamic SVG coordinate calculator
+    function updatePathCoordinates() {
+      const svg = document.getElementById('link-svg');
+      const svgRect = svg.getBoundingClientRect();
+
+      function setPathCoords(pathId, startNodeId, endNodeId) {
+        const path = document.getElementById(pathId);
+        const startNode = document.getElementById(startNodeId);
+        const endNode = document.getElementById(endNodeId);
+        if (!path || !startNode || !endNode) return;
+
+        const startRect = startNode.getBoundingClientRect();
+        const endRect = endNode.getBoundingClientRect();
+
+        const startX = startRect.left - svgRect.left + startRect.width / 2;
+        const startY = startRect.top - svgRect.top + startRect.height / 2;
+        const endX = endRect.left - svgRect.left + endRect.width / 2;
+        const endY = endRect.top - svgRect.top + endRect.height / 2;
+
+        path.setAttribute('d', `M ${startX} ${startY} L ${endX} ${endY}`);
+      }
+
+      setPathCoords('path-client-dns', 'node-client', 'node-dns');
+      setPathCoords('path-client-lb', 'node-client', 'node-lb');
+      setPathCoords('path-dns-client', 'node-dns', 'node-client');
+      setPathCoords('path-lb-ingress', 'node-lb', 'node-ingress');
+      setPathCoords('path-ingress-frontend', 'node-ingress', 'node-svc-frontend');
+      setPathCoords('path-ingress-order', 'node-ingress', 'node-svc-order');
+      setPathCoords('path-ingress-user', 'node-ingress', 'node-svc-user');
+      setPathCoords('path-frontend-pod', 'node-svc-frontend', 'node-pod-frontend');
+      setPathCoords('path-order-pod', 'node-svc-order', 'node-pod-order');
+      setPathCoords('path-user-pod', 'node-svc-user', 'node-pod-user');
+    }
+
+    // Run layout adjustments
+    window.addEventListener('load', () => {
+      setTimeout(updatePathCoordinates, 150);
+    });
+    window.addEventListener('resize', updatePathCoordinates);
+
+    // Toggle TLS state
+    function toggleTls() {
+      state.tlsEnabled = !state.tlsEnabled;
+      if (state.tlsEnabled) {
+        tlsSwitch.classList.replace('translate-x-1', 'translate-x-6');
+        tlsBtn.classList.replace('bg-space-600', 'bg-purple-600');
+        tlsStatusIcon.innerHTML = `
+          <svg class="h-3 w-3 text-neon-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        `;
+        log("system", "[SSL] Client SSL Negotiation active for port 443.");
+      } else {
+        tlsSwitch.classList.replace('translate-x-6', 'translate-x-1');
+        tlsBtn.classList.replace('bg-purple-600', 'bg-space-600');
+        tlsStatusIcon.innerHTML = `
+          <svg class="h-3 w-3 text-neon-red" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        `;
+        log("system", "[SSL] Cleartext channel configured. SSL/TLS disabled.");
+      }
+    }
+
+    // Set paths instantly
+    function setPath(path) {
+      pathInput.value = path;
+    }
+
+    // Toggle Service Health
+    function toggleService(serviceName) {
+      state.services[serviceName] = !state.services[serviceName];
+      const btn = document.getElementById(`status-${serviceName}`);
+      const podNode = document.getElementById(`node-pod-${serviceName}`);
+      
+      if (state.services[serviceName]) {
+        btn.innerText = "HEALTHY";
+        btn.classList.replace('bg-neon-red/20', 'bg-neon-green/20');
+        btn.classList.replace('text-neon-red', 'text-neon-green');
+        btn.classList.replace('border-neon-red/30', 'border-neon-green/30');
+        
+        podNode.classList.replace('border-neon-red/30', 'border-neon-green/30');
+        podNode.classList.replace('pod-pulse-red', 'pod-pulse-green');
+        log("system", `[K8s Endpoint] ${serviceName}-api-svc endpoint resolved healthy.`);
+      } else {
+        btn.innerText = "CRITICAL";
+        btn.classList.replace('bg-neon-green/20', 'bg-neon-red/20');
+        btn.classList.replace('text-neon-green', 'text-neon-red');
+        btn.classList.replace('border-neon-green/30', 'border-neon-red/30');
+        
+        podNode.classList.replace('border-neon-green/30', 'border-neon-red/30');
+        podNode.classList.replace('pod-pulse-green', 'pod-pulse-red');
+        log("system", `[K8s Endpoint] CRITICAL: ${serviceName}-api-svc pod failed readiness probe! Removed from endpoints pool.`);
+      }
+    }
+
+    // Helper to log console entries
+    function log(component, message, type = "info") {
+      let colorClass = "text-purple-200";
+      if (type === "error") colorClass = "text-neon-red font-semibold";
+      if (type === "success") colorClass = "text-neon-green";
+      if (type === "warning") colorClass = "text-neon-magenta";
+      if (component === "system") colorClass = "text-neon-blue";
+
+      const line = document.createElement("div");
+      line.className = `border-l-2 border-space-700 pl-2 py-0.5 ${colorClass}`;
+      line.innerHTML = `<span class="text-purple-300/40">[${component.toUpperCase()}]</span> ${message}`;
+      logConsole.appendChild(line);
+      logConsole.scrollTop = logConsole.scrollHeight;
+    }
+
+    function clearLogs() {
+      logConsole.innerHTML = '<div class="text-purple-300/40">// Logs cleared. Ready for injection...</div>';
+    }
+
+    // Update metrics UI
+    function updateMetrics() {
+      document.getElementById('metric-total').innerText = state.metrics.total;
+      document.getElementById('metric-success').innerText = state.metrics.success;
+      document.getElementById('metric-error').innerText = state.metrics.error;
+      const pct = state.metrics.total > 0 ? Math.round((state.metrics.tlsCount / state.metrics.total) * 100) : 0;
+      document.getElementById('metric-tls').innerText = `${pct}%`;
+    }
+
+    // SVG animated particle creation
+    function animatePacket(pathId, duration, color, callback) {
+      const path = document.getElementById(pathId);
+      if (!path) return;
+      
+      const svg = document.getElementById('link-svg');
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      
+      circle.setAttribute('r', '4.5');
+      circle.setAttribute('fill', color);
+      circle.setAttribute('class', 'packet');
+      circle.style.offsetPath = `path('${path.getAttribute('d')}')`;
+      circle.style.animationDuration = `${duration}s`;
+      
+      svg.appendChild(circle);
+      
+      setTimeout(() => {
+        circle.remove();
+        if (callback) callback();
+      }, duration * 1000);
+    }
+
+    // Core injection execution
+    function injectRequest() {
+      const host = document.getElementById('host-select').value;
+      const path = pathInput.value;
+      const isHttps = state.tlsEnabled;
+
+      state.metrics.total++;
+      if (isHttps) state.metrics.tlsCount++;
+      
+      log("client", `Injecting request: GET http${isHttps ? 's' : ''}://${host}${path}`);
+      
+      // Step 1: DNS Resolution
+      animatePacket('path-client-dns', 0.5, '#80d8ff', () => {
+        log("dns", `Resolved hostname ${host} -> 127.0.0.1 (Local loopback)`);
+        
+        // Step 2: Packet to Cloud Load Balancer
+        animatePacket('path-client-lb', 0.6, isHttps ? '#ea80fc' : '#80d8ff', () => {
+          log("lb", `TCP connection established. Proxying L4 traffic to Ingress Controller.`);
+          
+          // Step 3: LB to Ingress
+          animatePacket('path-lb-ingress', 0.4, isHttps ? '#ea80fc' : '#80d8ff', () => {
+            
+            // Check TLS Termination Rules
+            if (isHttps) {
+              log("nginx", `TLS Session initiated. CN=academy.internal cert decrypted successfully.`, "success");
+            } else {
+              // Simulated redirection checking
+              if (host === "academy.internal" || host === "api.academy.internal") {
+                log("nginx", `Enforcing TLS redirect. Returning 308 Permanent Redirect to https://${host}${path}`, "warning");
+                state.metrics.error++;
+                updateMetrics();
+                return;
+              }
+            }
+
+            // Route matching evaluation
+            let matchSvc = null;
+            let finalPath = path;
+
+            if (host === "academy.internal") {
+              if (path.startsWith("/api/v1/orders")) {
+                matchSvc = "order";
+                // Strip regex rewrite simulation (nginx.ingress.kubernetes.io/rewrite-target)
+                finalPath = path.replace("/api/v1/orders", "");
+                if (finalPath === "") finalPath = "/";
+                log("nginx", `Matched Path rule '/api/v1/orders'. Rewrite Target applied: ${path} -> ${finalPath}`);
+              } else if (path.startsWith("/api/v1/users")) {
+                matchSvc = "user";
+                finalPath = path.replace("/api/v1/users", "");
+                if (finalPath === "") finalPath = "/";
+                log("nginx", `Matched Path rule '/api/v1/users'. Rewrite Target applied: ${path} -> ${finalPath}`);
+              } else if (path.startsWith("/")) {
+                matchSvc = "frontend";
+                log("nginx", `Matched Path rule '/' (Default Frontend).`);
+              }
+            } else if (host === "api.academy.internal") {
+              if (path.startsWith("/orders")) {
+                matchSvc = "order";
+                log("nginx", `Matched Host api.academy.internal path '/orders'. No rewrites applied.`);
+              } else if (path.startsWith("/users")) {
+                matchSvc = "user";
+                log("nginx", `Matched Host api.academy.internal path '/users'. No rewrites applied.`);
+              } else {
+                log("nginx", `404 Not Found: Path ${path} does not match any rules on host ${host}.`, "error");
+                state.metrics.error++;
+                updateMetrics();
+                return;
+              }
+            } else {
+              log("nginx", `404 Not Found: Host header '${host}' does not match Ingress routing rules. Served default backend.`, "error");
+              state.metrics.error++;
+              updateMetrics();
+              return;
+            }
+
+            // Route to Upstream Service
+            if (matchSvc) {
+              const serviceHealthy = state.services[matchSvc];
+              const svcPathId = `path-ingress-${matchSvc}`;
+              const podPathId = `path-${matchSvc}-pod`;
+              const svcName = matchSvc === "frontend" ? "frontend-svc" : `${matchSvc}-api-svc`;
+
+              animatePacket(svcPathId, 0.4, '#b388ff', () => {
+                log("nginx", `Upstream target selected: ${svcName}. Forwarding request...`);
+                
+                animatePacket(podPathId, 0.3, serviceHealthy ? '#80f0c0' : '#ff8a80', () => {
+                  if (serviceHealthy) {
+                    const podName = matchSvc === "frontend" ? "web-0" : (matchSvc === "order" ? "ord-0" : "usr-0");
+                    log("pod", `Pod ${podName} processed request '${finalPath}'. Returning status: 200 OK.`, "success");
+                    state.metrics.success++;
+                  } else {
+                    log("nginx", `Upstream response error: 503 Service Temporarily Unavailable (No healthy endpoints).`, "error");
+                    state.metrics.error++;
+                  }
+                  updateMetrics();
+                });
+              });
+            }
+          });
+        });
+      });
+    }
+  </script>
+</body>
+</html>

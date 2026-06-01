@@ -1,0 +1,93 @@
+# ========================================================================
+# 1. Main Web & API Ingress (With Path Rewrites)
+# ========================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  namespace: default
+  annotations:
+    # Explicitly instruct Kubernetes to use the NGINX Ingress Controller
+    kubernetes.io/ingress.class: "nginx"
+    
+    # Enable rewrite-target to strip prefix paths before sending to the backend
+    # For example: academy.internal/api/v1/orders/healthz -> order-api-svc/healthz
+    # $2 captures the second regex match group: (.*)
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # Custom configuration annotations for NGINX behavior
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "15"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "128k"
+spec:
+  rules:
+  # Host-Based Routing Rule for main site
+  - host: academy.internal
+    http:
+      paths:
+      # Route / to the static frontend server
+      - path: /()(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-svc
+            port:
+              number: 80
+              
+      # Path-Based Routing Rule for Order API with Rewrite
+      - path: /api/v1/orders(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: order-api-svc
+            port:
+              number: 80
+              
+      # Path-Based Routing Rule for User API with Rewrite
+      - path: /api/v1/users(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: user-api-svc
+            port:
+              number: 80
+
+---
+# ========================================================================
+# 2. API Gateway Ingress (Without Path Rewrites)
+# ========================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: default
+  annotations:
+    # Explicitly instruct Kubernetes to use the NGINX Ingress Controller
+    kubernetes.io/ingress.class: "nginx"
+    
+    # Standard proxy tuning without rewrites
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "15"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  rules:
+  # Separate Host-Based Routing Rule for API Gateway (No Path Rewrites)
+  - host: api.academy.internal
+    http:
+      paths:
+      - path: /orders
+        pathType: Prefix
+        backend:
+          service:
+            name: order-api-svc
+            port:
+              number: 80
+      - path: /users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-api-svc
+            port:
+              number: 80
