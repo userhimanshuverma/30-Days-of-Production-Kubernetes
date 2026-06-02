@@ -1,0 +1,74 @@
+# File: manifests/prod-order-processor.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-order-processor
+  namespace: production
+  labels:
+    app: order-processor
+    environment: prod
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: order-processor
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: order-processor
+        environment: prod
+    spec:
+      containers:
+        - name: processor
+          image: internal-registry.local/orders/processor:v1.2.0
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+            requests:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            - name: DATABASE_HOST
+              value: "prod-db.internal"
+            - name: DATABASE_PORT
+              value: "3306"
+            - name: LOG_LEVEL
+              value: "info"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prod-order-processor-svc
+  namespace: production
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: order-processor
+    environment: prod
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prod-order-processor-ingress
+  namespace: production
+spec:
+  rules:
+    - host: orders.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prod-order-processor-svc
+                port:
+                  number: 80

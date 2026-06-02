@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helm Deployment Studio - Interactive Kubernetes Onboarding</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #0a0814;
+      --bg-card: rgba(20, 16, 38, 0.7);
+      --bg-card-border: rgba(156, 39, 176, 0.25);
+      --purple-glow: rgba(156, 39, 176, 0.4);
+      --primary: #af52de;
+      --primary-bright: #d38dff;
+      --success: #34c759;
+      --success-glow: rgba(52, 199, 89, 0.3);
+      --warning: #ff9500;
+      --danger: #ff3b30;
+      --danger-glow: rgba(255, 59, 48, 0.3);
+      --text: #eae6f3;
+      --text-muted: #9c95b6;
+      --font-ui: 'Outfit', sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text);
+      font-family: var(--font-ui);
+      overflow-x: hidden;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(88, 86, 214, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(175, 82, 222, 0.15) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(10, 8, 20, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 39, 176, 0.3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 39, 176, 0.6);
+    }
+
+    header {
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--bg-card-border);
+      padding: 1.2rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 8, 20, 0.8);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--primary), #5856d6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px var(--purple-glow);
+      font-weight: 800;
+      font-size: 1.2rem;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      background: linear-gradient(to right, #fff, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .env-badge-container {
+      display: flex;
+      gap: 10px;
+    }
+
+    .env-badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+    }
+
+    .env-badge.active {
+      color: #fff;
+      box-shadow: 0 0 15px var(--purple-glow);
+    }
+
+    .env-badge[data-env="dev"].active {
+      background: rgba(88, 86, 214, 0.3);
+      border-color: #5856d6;
+    }
+
+    .env-badge[data-env="stg"].active {
+      background: rgba(175, 82, 222, 0.3);
+      border-color: var(--primary);
+    }
+
+    .env-badge[data-env="prod"].active {
+      background: rgba(52, 199, 89, 0.2);
+      border-color: var(--success);
+      box-shadow: 0 0 15px var(--success-glow);
+    }
+
+    main {
+      padding: 1.5rem;
+      max-width: 1750px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 380px 1fr 420px;
+      gap: 1.2rem;
+      height: calc(100vh - 85px);
+    }
+
+    @media (max-width: 1400px) {
+      main {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+    }
+
+    .studio-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 12px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .panel-header {
+      padding: 0.9rem 1.2rem;
+      border-bottom: 1px solid var(--bg-card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .panel-header h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-body {
+      padding: 1.2rem;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    /* Guided Scenarios Style */
+    .scenarios-container {
+      background: rgba(156, 39, 176, 0.08);
+      border: 1px dashed var(--bg-card-border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .scenario-title {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--primary-bright);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .scenario-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      padding: 6px 4px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .scenario-btn:hover {
+      background: var(--primary);
+      border-color: var(--primary-bright);
+      color: #fff;
+    }
+
+    .scenario-desc-box {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.3;
+      padding: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      margin-top: 4px;
+    }
+
+    /* Left Control Panel / Form Inputs */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-group label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .input-help {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: normal;
+      margin-top: 2px;
+      line-height: 1.3;
+    }
+
+    .form-group input, .form-group select {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--bg-card-border);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-family: var(--font-ui);
+      font-size: 0.85rem;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 8px var(--purple-glow);
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 4px;
+      background: rgba(0,0,0,0.15);
+      padding: 6px;
+      border-radius: 6px;
+    }
+
+    .checkbox-group input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      margin-top: 2px;
+    }
+
+    .checkbox-label-container {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .checkbox-label-container label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--primary), #5856d6);
+      color: #fff;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(175, 82, 222, 0.2);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(175, 82, 222, 0.4);
+      background: linear-gradient(135deg, var(--primary-bright), #5856d6);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+
+    /* SRE Tips panel */
+    .sre-tip-box {
+      background: rgba(175, 82, 222, 0.05);
+      border-left: 4px solid var(--primary);
+      padding: 10px;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.75rem;
+      line-height: 1.35;
+      color: var(--text-muted);
+    }
+
+    .sre-tip-box strong {
+      color: var(--primary-bright);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* Tabs Navigation */
+    .tab-nav {
+      display: flex;
+      border-bottom: 1px solid var(--bg-card-border);
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    .tab-btn {
+      padding: 12px 18px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+    }
+
+    .tab-btn.active {
+      color: var(--primary-bright);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Editor / Code Styling */
+    .editor-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      position: relative;
+    }
+
+    .code-textarea {
+      flex: 1;
+      width: 100%;
+      background: #06050b;
+      color: #72f1b8;
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      padding: 1.2rem;
+      border: none;
+      resize: none;
+      outline: none;
+      line-height: 1.55;
+    }
+
+    .code-header-bar {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-family: var(--font-code);
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Step Indicator Callout */
+    .step-banner {
+      background: rgba(52, 199, 89, 0.08);
+      border-bottom: 1px solid rgba(52, 199, 89, 0.2);
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      color: #34c759;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Visualization Grid */
+    .cluster-map {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+      padding: 1.2rem;
+      gap: 1.2rem;
+    }
+
+    .pod-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+      align-content: start;
+    }
+
+    .pod-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pod-status-light {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      box-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+    }
+
+    .pod-card.running {
+      border-color: rgba(52, 199, 89, 0.3);
+      box-shadow: 0 4px 10px rgba(52, 199, 89, 0.1);
+    }
+
+    .pod-card.running .pod-status-light {
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success-glow);
+      animation: pulse-green 2s infinite;
+    }
+
+    .pod-card.failed {
+      border-color: rgba(255, 59, 48, 0.3);
+      box-shadow: 0 4px 10px rgba(255, 59, 48, 0.1);
+    }
+
+    .pod-card.failed .pod-status-light {
+      background: var(--danger);
+      box-shadow: 0 0 10px var(--danger-glow);
+      animation: pulse-red 1s infinite;
+    }
+
+    .pod-card.scaling {
+      border-color: rgba(255, 149, 0, 0.3);
+    }
+
+    .pod-card.scaling .pod-status-light {
+      background: var(--warning);
+      box-shadow: 0 0 10px rgba(255, 149, 0, 0.4);
+      animation: rotate-orange 1.5s linear infinite;
+    }
+
+    .pod-name {
+      font-size: 0.75rem;
+      font-family: var(--font-code);
+      color: #fff;
+      word-break: break-all;
+    }
+
+    .pod-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    /* Right Console / History */
+    .release-history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .release-history-table th, .release-history-table td {
+      padding: 8px 8px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .release-history-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      letter-spacing: 0.5px;
+    }
+
+    .revision-badge {
+      background: rgba(175, 82, 222, 0.2);
+      color: var(--primary-bright);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-code);
+      font-weight: bold;
+    }
+
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.68rem;
+      font-weight: 600;
+    }
+
+    .status-pill.deployed {
+      background: rgba(52, 199, 89, 0.15);
+      color: #30d158;
+    }
+
+    .status-pill.failed {
+      background: rgba(255, 59, 48, 0.15);
+      color: #ff453a;
+    }
+
+    .status-pill.superseded {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+    }
+
+    .terminal {
+      background: #030206;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      font-family: var(--font-code);
+      font-size: 0.72rem;
+      padding: 12px;
+      flex: 1;
+      overflow-y: auto;
+      color: #00ff66;
+      line-height: 1.45;
+    }
+
+    .terminal-cmd {
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .terminal-err {
+      color: var(--danger);
+    }
+
+    .terminal-info {
+      color: #00bcd4;
+    }
+
+    /* Diagram Tab */
+    .dependency-canvas {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 2rem;
+      gap: 1rem;
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .dep-node {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      width: 230px;
+      position: relative;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    .dep-node.parent {
+      border-color: var(--primary);
+      background: rgba(175, 82, 222, 0.05);
+    }
+
+    .dep-node h4 {
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+
+    .dep-node span {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-family: var(--font-code);
+    }
+
+    .connector-line {
+      width: 2px;
+      height: 25px;
+      background: var(--bg-card-border);
+    }
+
+    /* Keyframes */
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); }
+      70% { box-shadow: 0 0 0 8px rgba(52, 199, 89, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); }
+    }
+
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+      70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+    }
+
+    @keyframes rotate-orange {
+      0% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.12); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      text-align: center;
+      gap: 10px;
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--text-muted);
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">⛵</div>
+      <div>
+        <h1>Helm Deployment Studio</h1>
+        <p style="font-size: 0.75rem; color: var(--text-muted);">Interactive Platform Engineering Sandbox — Day 11</p>
+      </div>
+    </div>
+
+    <div class="env-badge-container">
+      <div class="env-badge active" data-env="dev">Development</div>
+      <div class="env-badge" data-env="stg">Staging</div>
+      <div class="env-badge" data-env="prod">Production</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Panel: Form Control Configuration -->
+    <section class="studio-panel">
+      <div class="panel-header">
+        <h2>🔧 values.yaml parameters</h2>
+      </div>
+      <div class="panel-body">
+        
+        <!-- Guided Learning Scenarios -->
+        <div class="scenarios-container">
+          <div class="scenario-title">🎓 Guided Scenarios</div>
+          <div class="scenario-grid">
+            <button class="scenario-btn" onclick="loadScenario('basicDev')">1. Dev Run</button>
+            <button class="scenario-btn" onclick="loadScenario('haProd')">2. HA Upgrade</button>
+            <button class="scenario-btn" onclick="loadScenario('broken')">3. Rollback</button>
+          </div>
+          <div class="scenario-desc-box" id="scenarioDesc">
+            Click a scenario to load presets and understand how parameters are structured.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="replicaCount">Replica Count</label>
+          <input type="number" id="replicaCount" value="2" min="1" max="10">
+          <div class="input-help">Controls the number of identical container instances running.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="imageRepo">Image Repository</label>
+          <input type="text" id="imageRepo" value="nginx">
+          <div class="input-help">Docker container repository path from which images are pulled.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="imageTag">Image Tag (Version)</label>
+          <select id="imageTag">
+            <option value="1.25.1" selected>1.25.1 (Stable)</option>
+            <option value="1.26.0">1.26.0 (Upgrade target)</option>
+            <option value="broken-v999">broken-v999 (Simulate broken pull)</option>
+          </select>
+          <div class="input-help">Selecting 'broken-v999' will trigger a pull crash loop.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="svcType">Service Type (Access)</label>
+          <select id="svcType">
+            <option value="ClusterIP">ClusterIP (Internal port routing)</option>
+            <option value="NodePort">NodePort (Expose via nodes hostPort)</option>
+            <option value="LoadBalancer">LoadBalancer (Expose via Cloud Edge)</option>
+          </select>
+          <div class="input-help">Declares how traffic reaches the backend containers.</div>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="ingressEnabled">
+          <div class="checkbox-label-container">
+            <label for="ingressEnabled">Enable Ingress Routing</label>
+            <div class="input-help">Conditional switch. Generates ingress.yaml rules when active.</div>
+          </div>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="pdbEnabled">
+          <div class="checkbox-label-container">
+            <label for="pdbEnabled">Enable PodDisruptionBudget</label>
+            <div class="input-help">Ensures replicas availability during node drain maintenance.</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Resource CPU / Memory limits</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <input type="text" id="resourcesCPU" value="200m" placeholder="CPU">
+            <input type="text" id="resourcesMem" value="256Mi" placeholder="Memory">
+          </div>
+          <div class="input-help">Guards CPU/Memory limits. High limits for Production, low for Dev.</div>
+        </div>
+
+        <button class="btn" id="deployBtn" style="margin-top: 5px;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Perform Helm Upgrade
+        </button>
+
+        <!-- SRE Tip Card -->
+        <div class="sre-tip-box">
+          <strong>💡 SRE Core Concept</strong>
+          Helm compiles templates locally, then submits them to Kubernetes via a 3-way Strategic Merge Patch. Changes are applied incrementally without wiping live states.
+        </div>
+      </div>
+    </section>
+
+    <!-- Center Panel: Editor Rendering / Visual Map -->
+    <section class="studio-panel" style="flex: 1;">
+      
+      <!-- Interactive Step Indicator -->
+      <div class="step-banner">
+        <span style="font-weight: bold; background: #34c759; color: #000; padding: 2px 6px; border-radius: 4px; font-size:0.7rem;">STEPS</span>
+        <span>Configure parameters ➔ Observe Rendered YAML changes ➔ Deploy and watch Active Pods boot!</span>
+      </div>
+
+      <div class="tab-nav">
+        <button class="tab-btn active" data-tab="manifests">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Rendered Manifests
+        </button>
+        <button class="tab-btn" data-tab="visualizer">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          Active Pod Cluster
+        </button>
+        <button class="tab-btn" data-tab="dependencies">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18.364 5.636l-3.536 3.536m0 0l-3.536 3.536m3.536-3.536L18.364 13m-12.728 5.364l3.536-3.536m0 0l3.536-3.536m-3.536 3.536L5.636 5.636m12.728 12.728L15 15m0 0l-3.536-3.536"/></svg>
+          Chart Dependencies
+        </button>
+      </div>
+
+      <!-- Tab: Rendered Manifests -->
+      <div class="tab-content active" id="tab-manifests">
+        <div class="code-header-bar">
+          <span id="manifest-name">templates/deployment.yaml</span>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.68rem;" onclick="switchManifestFile('deploy')">deployment.yaml</button>
+            <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.68rem;" onclick="switchManifestFile('svc')">service.yaml</button>
+            <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.68rem;" onclick="switchManifestFile('ingress')">ingress.yaml</button>
+            <button class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.68rem;" onclick="switchManifestFile('pdb')">pdb.yaml</button>
+          </div>
+        </div>
+        <div class="editor-container">
+          <textarea class="code-textarea" id="manifestCode" readonly></textarea>
+        </div>
+      </div>
+
+      <!-- Tab: Active Pod Cluster -->
+      <div class="tab-content" id="tab-visualizer">
+        <div class="cluster-map">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+            <div>
+              <h3 style="font-size: 1rem; font-weight: 600;">Active Namespace: <span id="ns-title" style="color: var(--primary-bright);">development</span></h3>
+              <p style="font-size: 0.72rem; color: var(--text-muted);">Resources deployed to the cluster. Transition states resolve in real time.</p>
+            </div>
+            <span style="font-family: var(--font-code); font-size: 0.75rem; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--bg-card-border);">running: <span id="replica-indicator">0</span></span>
+          </div>
+          <div class="pod-grid" id="podGrid">
+            <!-- Dynamic Pod Cards go here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Dependencies -->
+      <div class="tab-content" id="tab-dependencies">
+        <div class="dependency-canvas">
+          <div class="dep-node parent">
+            <h4>sample-app</h4>
+            <span>Chart: v1.0.0</span>
+            <div style="font-size: 0.65rem; color: var(--primary-bright); margin-top: 4px;">Parent Chart Blueprint</div>
+          </div>
+          <div class="connector-line"></div>
+          <div class="dep-node">
+            <h4>mariadb (Subchart)</h4>
+            <span>Version: 11.x.x</span>
+            <div style="font-size: 0.65rem; color: var(--warning); margin-top: 4px;">condition: db.local=true</div>
+          </div>
+          <div class="connector-line"></div>
+          <div class="dep-node">
+            <h4>nginx-ingress-controller</h4>
+            <span>Provider Gateway</span>
+            <div style="font-size: 0.65rem; color: var(--success-glow); margin-top: 4px;">External Traffic Controller</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Panel: Release Logs / History -->
+    <section class="studio-panel">
+      <div class="panel-header">
+        <h2>📜 Helm Release Engine</h2>
+      </div>
+      <div class="panel-body" style="display: grid; grid-template-rows: 1.1fr 1fr; gap: 1rem; overflow: hidden; padding: 1rem;">
+        
+        <!-- Top Half: Release History -->
+        <div style="overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px; background: rgba(0,0,0,0.15);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; font-weight: 600;">Revision History</h3>
+            <span style="font-size: 0.7rem; color: var(--primary-bright); cursor: pointer;" onclick="logTerminal('helm history ' + currentReleaseName, 'command')">helm history</span>
+          </div>
+          <table class="release-history-table">
+            <thead>
+              <tr>
+                <th>Rev</th>
+                <th>Status</th>
+                <th>Image Version</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <!-- Revisions inserted here -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Bottom Half: Console Event Log -->
+        <div style="display: flex; flex-direction: column; overflow: hidden;">
+          <h3 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 0.5px; font-weight: 600;">CLI Output logs</h3>
+          <div class="terminal" id="terminalConsole">
+            <!-- Simulated Logs -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Templates Blueprint
+    const templates = {
+      deploy: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ RELEASE_NAME }}-deploy
+  namespace: {{ NAMESPACE }}
+  labels:
+    app: {{ RELEASE_NAME }}
+    chart: sample-app-1.0.0
+    environment: {{ ENV }}
+spec:
+  replicas: {{ REPLICAS }}
+  selector:
+    matchLabels:
+      app: {{ RELEASE_NAME }}
+  template:
+    metadata:
+      labels:
+        app: {{ RELEASE_NAME }}
+    spec:
+      containers:
+        - name: web-container
+          image: "{{ IMAGE_REPO }}:{{ IMAGE_TAG }}"
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: "{{ CPU }}"
+              memory: "{{ MEM }}"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"`,
+      
+      svc: `apiVersion: v1
+kind: Service
+metadata:
+  name: {{ RELEASE_NAME }}-svc
+  namespace: {{ NAMESPACE }}
+spec:
+  type: {{ SERVICE_TYPE }}
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: {{ RELEASE_NAME }}`,
+      
+      ingress: `{{- if INGRESS_ENABLED }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ RELEASE_NAME }}-ingress
+  namespace: {{ NAMESPACE }}
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: {{ INGRESS_HOST }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ RELEASE_NAME }}-svc
+                port:
+                  number: 80
+{{- else }}
+# Ingress is disabled in values.yaml (ingress.enabled=false)
+{{- end }}`,
+      
+      pdb: `{{- if PDB_ENABLED }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ RELEASE_NAME }}-pdb
+  namespace: {{ NAMESPACE }}
+spec:
+  minAvailable: {{ MIN_AVAILABLE }}
+  selector:
+    matchLabels:
+      app: {{ RELEASE_NAME }}
+{{- else }}
+# PodDisruptionBudget is disabled in values.yaml (podDisruptionBudget.enabled=false)
+{{- end }}`
+    };
+
+    // State Variables
+    let currentEnv = 'dev';
+    let currentManifestFile = 'deploy';
+    let currentReleaseName = 'web-dev';
+    let releaseHistory = [];
+    let revisionCounter = 0;
+
+    // Load elements
+    const envBadges = document.querySelectorAll('.env-badge');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const codeTextarea = document.getElementById('manifestCode');
+    const manifestNameLabel = document.getElementById('manifest-name');
+    const deployBtn = document.getElementById('deployBtn');
+    const podGrid = document.getElementById('podGrid');
+    const terminalConsole = document.getElementById('terminalConsole');
+    const historyBody = document.getElementById('historyBody');
+    const nsTitle = document.getElementById('ns-title');
+    const replicaIndicator = document.getElementById('replica-indicator');
+    const scenarioDesc = document.getElementById('scenarioDesc');
+
+    // Default configuration presets
+    const envPresets = {
+      dev: {
+        replicas: 1,
+        svc: 'ClusterIP',
+        ingress: false,
+        pdb: false,
+        cpu: '200m',
+        mem: '256Mi',
+        tag: '1.25.1'
+      },
+      stg: {
+        replicas: 2,
+        svc: 'NodePort',
+        ingress: true,
+        pdb: false,
+        cpu: '500m',
+        mem: '512Mi',
+        tag: '1.25.1'
+      },
+      prod: {
+        replicas: 3,
+        svc: 'LoadBalancer',
+        ingress: true,
+        pdb: true,
+        cpu: '1000m',
+        mem: '1Gi',
+        tag: '1.25.1'
+      }
+    };
+
+    // Guided Scenarios config
+    const scenarios = {
+      basicDev: {
+        env: 'dev',
+        desc: "<strong>Scenario 1: Dev Deployment</strong><br>Sets a lightweight single-replica container and internal-only routing. Shows standard defaults merging.",
+        config: {
+          replicas: 1,
+          svc: 'ClusterIP',
+          ingress: false,
+          pdb: false,
+          cpu: '200m',
+          mem: '256Mi',
+          tag: '1.25.1'
+        }
+      },
+      haProd: {
+        env: 'prod',
+        desc: "<strong>Scenario 2: HA Production Upgrade</strong><br>Scales to 3 replicas, exposes a cloud public IP (LoadBalancer), enables ingress domains, and activates PDB protection.",
+        config: {
+          replicas: 3,
+          svc: 'LoadBalancer',
+          ingress: true,
+          pdb: true,
+          cpu: '1000m',
+          mem: '1Gi',
+          tag: '1.25.1'
+        }
+      },
+      broken: {
+        env: 'stg',
+        desc: "<strong>Scenario 3: Simulate Crash & Recover</strong><br>Upgrades with image tag 'broken-v999' causing ErrImagePull in pods. Recover by clicking 'Rollback' in Revision History.",
+        config: {
+          replicas: 2,
+          svc: 'NodePort',
+          ingress: true,
+          pdb: false,
+          cpu: '500m',
+          mem: '512Mi',
+          tag: 'broken-v999'
+        }
+      }
+    };
+
+    // Initialize Page
+    window.addEventListener('DOMContentLoaded', () => {
+      loadEnvPreset('dev');
+      renderManifest();
+      logTerminal("Helm v3 deployment studio sandbox active.", "info");
+      logTerminal("Try Scenario 1: 'Dev Run' to begin SRE onboarding.", "info");
+      triggerUpgrade(true); // Initial Deploy
+    });
+
+    // Environment Change Listener
+    envBadges.forEach(badge => {
+      badge.addEventListener('click', () => {
+        envBadges.forEach(b => b.classList.remove('active'));
+        badge.classList.add('active');
+        currentEnv = badge.getAttribute('data-env');
+        currentReleaseName = 'web-' + currentEnv;
+        nsTitle.textContent = currentEnv === 'dev' ? 'development' : currentEnv === 'stg' ? 'staging' : 'production';
+        loadEnvPreset(currentEnv);
+        renderManifest();
+        logTerminal(`Switched local kubeconfig context to namespace: [${nsTitle.textContent}]`, "info");
+      });
+    });
+
+    // Tab Navigation
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.getAttribute('data-tab')).classList.add('active');
+      });
+    });
+
+    // Load presets
+    function loadEnvPreset(env) {
+      const preset = envPresets[env];
+      applyConfigToInputs(preset);
+    }
+
+    function applyConfigToInputs(config) {
+      document.getElementById('replicaCount').value = config.replicas;
+      document.getElementById('svcType').value = config.svc;
+      document.getElementById('ingressEnabled').checked = config.ingress;
+      document.getElementById('pdbEnabled').checked = config.pdb;
+      document.getElementById('resourcesCPU').value = config.cpu;
+      document.getElementById('resourcesMem').value = config.mem;
+      document.getElementById('imageTag').value = config.tag;
+    }
+
+    // Load Scenario
+    window.loadScenario = function(name) {
+      const scen = scenarios[name];
+      if (!scen) return;
+      
+      scenarioDesc.innerHTML = scen.desc;
+      
+      // Update Environment Badges
+      envBadges.forEach(b => {
+        b.classList.remove('active');
+        if (b.getAttribute('data-env') === scen.env) {
+          b.classList.add('active');
+        }
+      });
+
+      currentEnv = scen.env;
+      currentReleaseName = 'web-' + currentEnv;
+      nsTitle.textContent = currentEnv === 'dev' ? 'development' : currentEnv === 'stg' ? 'staging' : 'production';
+      
+      applyConfigToInputs(scen.config);
+      renderManifest();
+      
+      // Show render tab
+      tabBtns[0].click();
+      
+      logTerminal(`Loaded scenario: [${name.toUpperCase()}]. Merging config maps...`, "info");
+      triggerUpgrade(false);
+    };
+
+    // Switch manifest files
+    window.switchManifestFile = function(file) {
+      currentManifestFile = file;
+      const fileLabels = {
+        deploy: 'templates/deployment.yaml',
+        svc: 'templates/service.yaml',
+        ingress: 'templates/ingress.yaml',
+        pdb: 'templates/pdb.yaml'
+      };
+      manifestNameLabel.textContent = fileLabels[file];
+      renderManifest();
+    };
+
+    // Render logic (Helm template parsing emulation)
+    function renderManifest() {
+      const config = getFormValues();
+      let rawTemplate = templates[currentManifestFile];
+
+      let rendered = rawTemplate
+        .replace(/\{\{\s*RELEASE_NAME\s*\}\}/g, currentReleaseName)
+        .replace(/\{\{\s*NAMESPACE\s*\}\}/g, currentEnv === 'dev' ? 'development' : currentEnv === 'stg' ? 'staging' : 'production')
+        .replace(/\{\{\s*ENV\s*\}\}/g, currentEnv)
+        .replace(/\{\{\s*REPLICAS\s*\}\}/g, config.replicas)
+        .replace(/\{\{\s*IMAGE_REPO\s*\}\}/g, config.imageRepo)
+        .replace(/\{\{\s*IMAGE_TAG\s*\}\}/g, config.imageTag)
+        .replace(/\{\{\s*SERVICE_TYPE\s*\}\}/g, config.svcType)
+        .replace(/\{\{\s*CPU\s*\}\}/g, config.cpu)
+        .replace(/\{\{\s*MEM\s*\}\}/g, config.mem)
+        .replace(/\{\{\s*INGRESS_HOST\s*\}\}/g, currentEnv + '.orders.local')
+        .replace(/\{\{\s*MIN_AVAILABLE\s*\}\}/g, Math.max(1, config.replicas - 1));
+
+      // Handle custom conditionals
+      if (currentManifestFile === 'ingress') {
+        if (!config.ingressEnabled) {
+          rendered = "# Ingress is disabled in values.yaml (ingress.enabled=false)\n# Enable the 'Enable Ingress' checkbox on the left panel to compile ingress.yaml";
+        } else {
+          rendered = rendered.replace(/\{\{- if INGRESS_ENABLED \}\}/g, '').replace(/\{\{- else \}\}.*\{\{- end \}\}/gs, '').replace(/\{\{- end \}\}/g, '');
+        }
+      }
+
+      if (currentManifestFile === 'pdb') {
+        if (!config.pdbEnabled) {
+          rendered = "# PodDisruptionBudget is disabled in values.yaml (podDisruptionBudget.enabled=false)\n# Enable the 'Enable PodDisruptionBudget' checkbox on the left panel to compile pdb.yaml";
+        } else {
+          rendered = rendered.replace(/\{\{- if PDB_ENABLED \}\}/g, '').replace(/\{\{- else \}\}.*\{\{- end \}\}/gs, '').replace(/\{\{- end \}\}/g, '');
+        }
+      }
+
+      codeTextarea.value = rendered;
+    }
+
+    function getFormValues() {
+      return {
+        replicas: parseInt(document.getElementById('replicaCount').value) || 1,
+        imageRepo: document.getElementById('imageRepo').value || 'nginx',
+        imageTag: document.getElementById('imageTag').value,
+        svcType: document.getElementById('svcType').value,
+        ingressEnabled: document.getElementById('ingressEnabled').checked,
+        pdbEnabled: document.getElementById('pdbEnabled').checked,
+        cpu: document.getElementById('resourcesCPU').value,
+        mem: document.getElementById('resourcesMem').value
+      };
+    }
+
+    // Deploy / Upgrade Button click
+    deployBtn.addEventListener('click', () => {
+      triggerUpgrade(false);
+    });
+
+    function triggerUpgrade(isInitial = false) {
+      const config = getFormValues();
+      revisionCounter++;
+      const currentRevision = revisionCounter;
+
+      // Add to release history
+      const historyItem = {
+        revision: currentRevision,
+        status: config.imageTag === 'broken-v999' ? 'failed' : 'deployed',
+        chart: `sample-app-1.0.0`,
+        appVersion: config.imageTag,
+        replicas: config.replicas,
+        env: currentEnv,
+        config: {...config}
+      };
+
+      // Set previous items to superseded
+      releaseHistory.forEach(item => {
+        if (item.env === currentEnv && item.status === 'deployed') {
+          item.status = 'superseded';
+        }
+      });
+
+      releaseHistory.unshift(historyItem);
+      updateHistoryTable();
+
+      // Console logger
+      const cmdText = isInitial 
+        ? `helm install ${currentReleaseName} ./charts/sample-app -f values-${currentEnv}.yaml`
+        : `helm upgrade ${currentReleaseName} ./charts/sample-app --set replicaCount=${config.replicas} --set image.tag=${config.imageTag} --set service.type=${config.svcType} --set ingress.enabled=${config.ingressEnabled} --set podDisruptionBudget.enabled=${config.pdbEnabled}`;
+      
+      logTerminal(cmdText, "command");
+      logTerminal(`Release "${currentReleaseName}" upgraded. Active state: revision v${currentRevision}.`, "info");
+
+      // Auto switch to Cluster visualizer tab to show pod spinning up
+      if (!isInitial) {
+        tabBtns[1].click();
+      }
+
+      // Setup pods
+      animatePods(config.replicas, config.imageTag);
+      renderManifest();
+    }
+
+    // Animate pods rendering
+    function animatePods(count, tag) {
+      replicaIndicator.textContent = count;
+      podGrid.innerHTML = '';
+
+      for (let i = 0; i < count; i++) {
+        const podId = `${currentReleaseName}-deploy-${Math.random().toString(36).substring(2, 7)}`;
+        
+        const card = document.createElement('div');
+        card.className = 'pod-card scaling';
+        card.innerHTML = `
+          <div class="pod-status-light"></div>
+          <span class="pod-name">${podId}</span>
+          <span class="pod-label">Container: Creating...</span>
+        `;
+        podGrid.appendChild(card);
+
+        // Transition states after delay
+        setTimeout(() => {
+          if (tag === 'broken-v999') {
+            card.className = 'pod-card failed';
+            card.querySelector('.pod-label').textContent = 'ErrImagePull';
+            card.querySelector('.pod-label').style.color = 'var(--danger)';
+            if (i === 0) {
+              logTerminal(`Admission check fail: image registry download failed on tag "broken-v999".`, "err");
+            }
+          } else {
+            card.className = 'pod-card running';
+            card.querySelector('.pod-label').textContent = 'Status: Running';
+          }
+        }, 800 + (i * 200));
+      }
+    }
+
+    // Rollback execution
+    window.executeRollback = function(revision) {
+      const historicalItem = releaseHistory.find(item => item.revision === revision);
+      if (!historicalItem) return;
+
+      logTerminal(`helm rollback ${currentReleaseName} ${revision}`, "command");
+
+      revisionCounter++;
+      const currentRevision = revisionCounter;
+
+      // Add new rollback entry
+      const rollbackItem = {
+        revision: currentRevision,
+        status: historicalItem.appVersion === 'broken-v999' ? 'failed' : 'deployed',
+        chart: historicalItem.chart,
+        appVersion: historicalItem.appVersion,
+        replicas: historicalItem.replicas,
+        env: currentEnv,
+        config: {...historicalItem.config}
+      };
+
+      // Set previous items to superseded
+      releaseHistory.forEach(item => {
+        if (item.env === currentEnv && item.status === 'deployed') {
+          item.status = 'superseded';
+        }
+      });
+
+      releaseHistory.unshift(rollbackItem);
+      updateHistoryTable();
+
+      logTerminal(`Rollback output: restored to revision v${revision} (Image version nginx:${historicalItem.appVersion}).`, "info");
+      
+      // Update inputs matching the restored configuration
+      applyConfigToInputs(historicalItem.config);
+      
+      // Switch back to cluster map to watch restoration
+      tabBtns[1].click();
+
+      animatePods(historicalItem.replicas, historicalItem.appVersion);
+      renderManifest();
+    };
+
+    // Uninstall release
+    window.executeUninstall = function(envName) {
+      logTerminal(`helm uninstall web-${envName}`, "command");
+      logTerminal(`Release "web-${envName}" resources cleaned from Kubernetes storage.`, "info");
+      
+      releaseHistory.forEach(item => {
+        if (item.env === envName) {
+          item.status = 'superseded';
+        }
+      });
+      
+      if (currentEnv === envName) {
+        podGrid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1; padding: 2rem;">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.008 1.24l.885 1.77a2.25 2.25 0 002.007 1.24h1.98a2.25 2.25 0 002.007-1.24l.885-1.77a2.25 2.25 0 012.007-1.24h3.86m-18 0h18" />
+            </svg>
+            <p>No active pods. Deploy a release using the control panel.</p>
+          </div>
+        `;
+        replicaIndicator.textContent = '0';
+      }
+      
+      updateHistoryTable();
+    };
+
+    function updateHistoryTable() {
+      historyBody.innerHTML = '';
+      
+      // Filter history for current environment
+      const filtered = releaseHistory.filter(item => item.env === currentEnv);
+
+      if (filtered.length === 0) {
+        historyBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); font-size:0.75rem;">No releases found</td></tr>';
+        return;
+      }
+
+      filtered.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><span class="revision-badge">v${item.revision}</span></td>
+          <td><span class="status-pill ${item.status}">${item.status.toUpperCase()}</span></td>
+          <td>nginx:${item.appVersion}</td>
+          <td>
+            <div style="display:flex; gap:6px;">
+              ${item.status === 'superseded' || item.status === 'failed' ? `<button class="btn btn-secondary" style="padding: 2px 4px; font-size:0.68rem;" onclick="executeRollback(${item.revision})">Rollback</button>` : ''}
+              ${item.status === 'deployed' ? `<button class="btn btn-secondary" style="padding: 2px 4px; font-size:0.68rem; border-color:rgba(255,59,48,0.3); color:#ff453a;" onclick="executeUninstall('${item.env}')">Uninstall</button>` : ''}
+            </div>
+          </td>
+        `;
+        historyBody.appendChild(row);
+      });
+    }
+
+    // Terminal Logging
+    function logTerminal(message, type = "info") {
+      const line = document.createElement('div');
+      const time = new Date().toLocaleTimeString();
+      
+      if (type === "command") {
+        line.innerHTML = `<span class="terminal-cmd">$ ${message}</span>`;
+      } else if (type === "err") {
+        line.innerHTML = `[${time}] <span class="terminal-err">ERROR: ${message}</span>`;
+      } else {
+        line.innerHTML = `[${time}] <span class="terminal-info">INFO:</span> ${message}`;
+      }
+      
+      terminalConsole.appendChild(line);
+      terminalConsole.scrollTop = terminalConsole.scrollHeight;
+    }
+
+    // Sync input events
+    document.querySelectorAll('.form-group input, .form-group select, .checkbox-group input').forEach(element => {
+      element.addEventListener('input', () => {
+        renderManifest();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+# File: manifests/dev-order-processor.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-order-processor
+  namespace: development
+  labels:
+    app: order-processor
+    environment: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-processor
+      environment: dev
+  template:
+    metadata:
+      labels:
+        app: order-processor
+        environment: dev
+    spec:
+      containers:
+        - name: processor
+          image: internal-registry.local/orders/processor:v1.2.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_HOST
+              value: "dev-db.internal"
+            - name: DATABASE_PORT
+              value: "3306"
+            - name: LOG_LEVEL
+              value: "debug"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dev-order-processor-svc
+  namespace: development
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: order-processor
+    environment: dev
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dev-order-processor-ingress
+  namespace: development
+spec:
+  rules:
+    - host: dev.orders.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-order-processor-svc
+                port:
+                  number: 80

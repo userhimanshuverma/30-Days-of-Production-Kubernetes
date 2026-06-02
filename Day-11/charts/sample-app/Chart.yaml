@@ -1,0 +1,14 @@
+apiVersion: v2
+name: sample-app
+description: An enterprise-grade, high-availability, fully templated sample Helm chart.
+type: application
+version: 1.0.0
+appVersion: "1.25.1"
+keywords:
+  - sample-app
+  - nginx
+  - production-kubernetes
+maintainers:
+  - name: SRE Platform Team
+    email: platform-eng@company.com
+icon: https://raw.githubusercontent.com/helm/helm-www/master/static/img/helm-logo.svg

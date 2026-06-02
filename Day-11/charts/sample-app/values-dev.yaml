@@ -1,0 +1,20 @@
+# values-dev.yaml
+# Environment-specific overrides for Development
+
+replicaCount: 1
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: dev.sample-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+customConfig:
+  db_host: "dev-db.internal"
+  db_port: "3306"
+  features_enabled: "true"
