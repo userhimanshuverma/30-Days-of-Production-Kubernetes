@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oom-pod
+  namespace: default
+  labels:
+    app: oom-demo
+spec:
+  restartPolicy: Never
+  containers:
+  - name: memory-hog
+    image: python:3.9-slim
+    command: ["python", "-c", "import time; print('Allocating 150MB of memory...'); data = b'x' * 150000000; print('Allocation done!'); time.sleep(10)"]
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "50Mi"
+      limits:
+        cpu: "200m"
+        memory: "100Mi" # Allocating 150MB will exceed this 100Mi limit and trigger OOMKilled

@@ -1,0 +1,178 @@
+# ==========================================
+# Day 12 Production Workload Reference
+# ==========================================
+# This file provides examples of real-world enterprise sizing and scheduling
+# policies based on platform engineering best practices.
+
+---
+# 1. LATENCY-SENSITIVE WEB API (Burstable, Spread across AZs)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-api
+  namespace: default
+  labels:
+    app: billing-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: billing-api
+  template:
+    metadata:
+      labels:
+        app: billing-api
+    spec:
+      # Spread across different Availability Zones
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: billing-api
+      containers:
+      - name: web
+        image: nginx:stable-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "1"          # Set high enough to handle baseline traffic
+            memory: "2Gi"
+          limits:
+            cpu: "2"          # Allow bursting up during spikes to prevent timeout
+            memory: "2Gi"     # Request == Limit to prevent node memory overcommit eviction
+
+---
+# 2. STATEFUL DATABASE (Guaranteed QoS, Lowest Eviction Priority)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: customer-db
+  namespace: default
+spec:
+  serviceName: customer-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-db
+  template:
+    metadata:
+      labels:
+        app: customer-db
+    spec:
+      # Enforce database runs on specific DB node group
+      nodeSelector:
+        node-role.kubernetes.io/database: "true"
+      # Tolerates the DB node taint to run
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "database"
+        effect: "NoSchedule"
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "SuperSecretPassword"
+        resources:
+          requests:
+            cpu: "4"          # Solid baseline for transactional DB
+            memory: "16Gi"
+          limits:
+            cpu: "4"          # Requests == Limits for CPU prevents resource contention
+            memory: "16Gi"     # Requests == Limits for Memory prevents OOM termination (Guaranteed QoS)
+
+---
+# 3. KAFKA BROKER (Guaranteed QoS, JVM off-heap allowance)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: message-bus
+  namespace: default
+spec:
+  serviceName: message-bus
+  replicas: 3
+  selector:
+    matchLabels:
+      app: message-bus
+  template:
+    metadata:
+      labels:
+        app: message-bus
+    spec:
+      containers:
+      - name: kafka
+        image: bitnami/kafka:3.4.0
+        env:
+        - name: KAFKA_CFG_ZOOKEEPER_CONNECT
+          value: "zookeeper:2181"
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xmx8g -Xms8g"  # JVM consumes 8GB of the 16GB limit, leaving 8GB for OS Page Cache (critical for Disk IO)
+        resources:
+          requests:
+            cpu: "4"
+            memory: "16Gi"
+          limits:
+            cpu: "4"
+            memory: "16Gi"
+
+---
+# 4. GPU-ENABLED MACHINE LEARNING WORKLOAD
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-training
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        job: model-training
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: tensorflow
+        image: tensorflow/tensorflow:latest-gpu
+        command: ["python", "-c", "import tensorflow as tf; print(tf.reduce_sum(tf.random.normal([1000, 1000])))"]
+        resources:
+          requests:
+            cpu: "8"
+            memory: "32Gi"
+            nvidia.com/gpu: "1"  # Request GPU
+          limits:
+            cpu: "8"
+            memory: "32Gi"
+            nvidia.com/gpu: "1"  # Limit == Request enforces exclusive access to GPU
+
+---
+# 5. APACHE PINOT SERVER (Analytical Database)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pinot-server
+  namespace: default
+spec:
+  serviceName: pinot-server
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-server
+  template:
+    metadata:
+      labels:
+        app: pinot-server
+    spec:
+      containers:
+      - name: server
+        image: apachepinot/pinot:0.12.0
+        command: ["/opt/pinot/bin/pinot-admin.sh", "StartServer"]
+        resources:
+          requests:
+            cpu: "8"
+            memory: "32Gi"
+          limits:
+            cpu: "8"
+            memory: "32Gi"

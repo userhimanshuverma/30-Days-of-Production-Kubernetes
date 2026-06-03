@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: guaranteed-pod
+  namespace: default
+  labels:
+    app: guaranteed-demo
+spec:
+  containers:
+  - name: processor
+    image: alpine:latest
+    command: ["sleep", "3600"]
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"

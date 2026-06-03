@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-throttling-pod
+  namespace: default
+  labels:
+    app: throttling-demo
+spec:
+  containers:
+  - name: cpu-hog
+    image: python:3.9-slim
+    command: ["python", "-c", "import time, math; print('Running CPU-intensive loop...'); while True: [math.sqrt(x) for x in range(10000)]"]
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "64Mi"
+      limits:
+        cpu: "250m" # Will be throttled when consuming CPU on a multi-core host
+        memory: "128Mi"

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: burstable-pod
+  namespace: default
+  labels:
+    app: burstable-demo
+spec:
+  containers:
+  - name: processor
+    image: alpine:latest
+    command: ["sleep", "3600"]
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"

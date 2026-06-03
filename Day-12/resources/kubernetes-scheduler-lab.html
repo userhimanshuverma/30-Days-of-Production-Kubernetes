@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Scheduler Lab - Day 12</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #080710;
+            --bg-surface: rgba(17, 16, 28, 0.7);
+            --bg-card: rgba(26, 24, 44, 0.65);
+            --border-glow: rgba(139, 92, 246, 0.25);
+            --border-dim: rgba(255, 255, 255, 0.06);
+            --accent-primary: #a855f7;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(168, 85, 247, 0.4);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --text-dim: #6b7280;
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-danger: #ef4444;
+            --color-info: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-dim);
+            border-radius: 16px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f3f4f6 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .strategy-selector {
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border-dim);
+        }
+
+        .strategy-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .strategy-btn.active {
+            background: var(--accent-primary);
+            color: white;
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        /* Main layout grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 360px 1fr 380px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 1280px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Card styles */
+        .card {
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: border 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--text-main);
+            border-left: 4px solid var(--accent-primary);
+            padding-left: 10px;
+        }
+
+        /* Forms & Presets */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        input, select {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-dim);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
+        }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            border: none;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.3s, transform 0.1s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .btn-outline:hover {
+            background: rgba(168, 85, 247, 0.1);
+        }
+
+        .presets-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-dim);
+            color: var(--text-muted);
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .preset-btn:hover {
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        /* Node Visualizations */
+        .cluster-view {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (min-width: 1400px) {
+            .cluster-view {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .node-card {
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .node-name {
+            font-size: 18px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .node-status {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-healthy {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--color-success);
+            border: 1px solid var(--color-success);
+        }
+
+        .status-pressure {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--color-danger);
+            border: 1px solid var(--color-danger);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Gauges & Resource Bars */
+        .resource-section {
+            margin-bottom: 16px;
+        }
+
+        .resource-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 4px;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.5s ease-in-out;
+        }
+
+        .bar-requests {
+            background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+        }
+
+        .bar-usage {
+            background: linear-gradient(90deg, var(--color-info), var(--color-success));
+        }
+
+        /* Pod grid on node */
+        .node-pods-container {
+            border: 1px dashed var(--border-dim);
+            border-radius: 10px;
+            padding: 12px;
+            min-height: 140px;
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .pod-badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .pod-badge:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .pod-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+        }
+
+        .qos-tag {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 800;
+        }
+
+        .qos-guaranteed { background: rgba(16, 185, 129, 0.2); color: var(--color-success); border: 1px solid var(--color-success); }
+        .qos-burstable { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); border: 1px solid var(--color-warning); }
+        .qos-besteffort { background: rgba(239, 68, 68, 0.2); color: var(--color-danger); border: 1px solid var(--color-danger); }
+
+        .pod-metrics {
+            font-size: 10px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .pod-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .pod-action-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-dim);
+            color: var(--text-muted);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            cursor: pointer;
+        }
+
+        .pod-action-btn:hover {
+            color: white;
+            background: var(--accent-primary);
+        }
+
+        /* Pending Queue styles */
+        .pending-queue-container {
+            border: 1px dashed var(--border-dim);
+            border-radius: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            min-height: 50px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .pending-pod-tag {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--color-warning);
+            color: var(--color-warning);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Console & Logs */
+        .console-container {
+            font-family: 'Fira Code', monospace;
+            background: rgba(10, 8, 18, 0.95);
+            border: 1px solid var(--border-dim);
+            border-radius: 12px;
+            padding: 16px;
+            height: 380px;
+            overflow-y: auto;
+            font-size: 12px;
+            color: var(--color-success);
+        }
+
+        .console-line {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .console-line.info { color: #60a5fa; }
+        .console-line.warn { color: var(--color-warning); }
+        .console-line.error { color: var(--color-danger); }
+        .console-line.success { color: var(--color-success); }
+
+        .score-card-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .score-card-table th, .score-card-table td {
+            padding: 6px;
+            border-bottom: 1px solid var(--border-dim);
+            text-align: left;
+        }
+
+        .score-card-table th {
+            color: var(--text-muted);
+        }
+
+        /* Timeline Footer */
+        .timeline-footer {
+            margin-top: 24px;
+            padding: 20px;
+        }
+
+        .timeline-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .timeline-events {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .timeline-event-card {
+            min-width: 250px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-dim);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+        }
+
+        .event-time {
+            color: var(--text-dim);
+            font-size: 10px;
+            margin-bottom: 4px;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* Quick Simulator Controls */
+        .simulator-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        
+        .sim-btn {
+            flex: 1;
+            padding: 6px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid var(--border-dim);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sim-btn:hover {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.1);
+            transition: .4s;
+            border-radius: 24px;
+            border: 1px solid var(--border-dim);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="glass">
+        <h1><span>☸️</span> Kubernetes Scheduler Lab Studio</h1>
+        <div class="header-meta">
+            <span style="font-size: 13px; color: var(--text-muted);">Strategy Policy:</span>
+            <div class="strategy-selector">
+                <button class="strategy-btn active" id="strategy-spread" onclick="setStrategy('spread')">Spread (LeastAlloc)</button>
+                <button class="strategy-btn" id="strategy-binpack" onclick="setStrategy('binpack')">Bin Packing (MostAlloc)</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <!-- LEFT: Controls & Pod Creation -->
+        <div>
+            <div class="card glass">
+                <div class="card-title">Create Workload</div>
+                
+                <div class="form-group">
+                    <label>Resource Presets</label>
+                    <div class="presets-grid">
+                        <button class="preset-btn" onclick="applyPreset('api')">Billing API</button>
+                        <button class="preset-btn" onclick="applyPreset('db')">Stateful DB</button>
+                        <button class="preset-btn" onclick="applyPreset('kafka')">Kafka Broker</button>
+                        <button class="preset-btn" onclick="applyPreset('batch')">Batch Scraper</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="pod-name">Pod Name</label>
+                    <input type="text" id="pod-name" value="web-service-pod">
+                </div>
+
+                <div class="input-row">
+                    <div class="form-group">
+                        <label for="cpu-request">CPU Request (Cores)</label>
+                        <input type="number" id="cpu-request" step="0.1" min="0" value="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="cpu-limit">CPU Limit (Cores)</label>
+                        <input type="number" id="cpu-limit" step="0.1" min="0" value="2.0">
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="form-group">
+                        <label for="mem-request">Memory Request (GiB)</label>
+                        <input type="number" id="mem-request" step="0.5" min="0" value="2.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="mem-limit">Memory Limit (GiB)</label>
+                        <input type="number" id="mem-limit" step="0.5" min="0" value="2.0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="workload-replicas">Workload Replicas</label>
+                    <input type="number" id="workload-replicas" min="1" max="10" value="1">
+                </div>
+
+                <button class="btn" onclick="createAndSchedulePod()">Schedule Pod</button>
+            </div>
+
+            <!-- Pending Pods Queue Card -->
+            <div class="card glass">
+                <div class="card-title">Pending Queue <span id="pending-count" style="font-size: 12px; color: var(--color-warning);">[0]</span></div>
+                <div class="pending-queue-container" id="pending-pods-list">
+                    <div style="font-size: 11px; color: var(--text-dim); text-align: center; width: 100%; padding: 12px;">Queue is currently empty.</div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-title">Scale Controls</div>
+                
+                <div class="switch-container">
+                    <span class="text-muted" style="font-size: 13px; font-weight: 600;">Karpenter Autoscaler</span>
+                    <label class="switch">
+                        <input type="checkbox" id="autoscaler-toggle" onchange="toggleAutoscaler(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="input-row" style="margin-top: 10px;">
+                    <button class="btn btn-outline" style="padding: 8px;" onclick="scaleOutCluster()">Add Node</button>
+                    <button class="btn btn-outline" style="padding: 8px; border-color: var(--color-danger); color: var(--color-danger);" onclick="scaleInCluster()">Scale In</button>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-title">Cluster Metrics</div>
+                <div style="font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span class="text-muted">Node Count:</span>
+                        <span id="metric-nodes" style="font-weight: 600;">3 Nodes</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span class="text-muted">Aggregate Cost:</span>
+                        <span id="metric-cost" style="font-weight: 600; color: var(--color-success);">$0.30 / hour</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span class="text-muted">Total CPU Requested:</span>
+                        <span id="metric-cpu" style="font-weight: 600;">0.0 / 12 Cores</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span class="text-muted">Total Memory Requested:</span>
+                        <span id="metric-mem" style="font-weight: 600;">0.0 / 24 GiB</span>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid var(--border-dim); margin: 6px 0;">
+                    <button class="btn btn-outline" onclick="resetCluster()">Reset Cluster</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER: Cluster Node Grid -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="cluster-view" id="cluster-nodes-container">
+                <!-- Nodes generated by JS -->
+            </div>
+            
+            <div class="card glass" style="margin-bottom: 0;">
+                <div class="card-title">Live Scheduling Score Card <span style="font-size: 11px; color: var(--text-muted); font-family: monospace;">[Last Binding Decision]</span></div>
+                <table class="score-card-table">
+                    <thead>
+                        <tr>
+                            <th>Node</th>
+                            <th>Filter (NodeResourcesFit)</th>
+                            <th>Scoring (FitPriority)</th>
+                            <th>Image Locality</th>
+                            <th>Total Score (Max: 110)</th>
+                            <th>Decision</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scorecard-body">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 20px;">No scheduling decisions recorded yet. Apply a workload.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- RIGHT: Scheduler Logs & Decision Trace -->
+        <div class="card glass" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="card-title">Scheduler Console</div>
+            <div class="console-container" id="scheduler-console">
+                <div class="console-line info">[INIT] kube-scheduler control plane initialized.</div>
+                <div class="console-line info">[INIT] Watching for unscheduled pods...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM: Timeline -->
+    <div class="card glass timeline-footer">
+        <div class="timeline-title">
+            <span>Cluster Event Logs</span>
+            <span style="font-size: 12px; color: var(--text-muted);">Real-time scheduling ledger</span>
+        </div>
+        <div class="timeline-events" id="event-timeline">
+            <!-- Dynamic events -->
+            <div class="timeline-event-card">
+                <div class="event-time">System Startup</div>
+                <div>Node-1, Node-2, and Node-3 registered with the cluster. Ready to receive workloads.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Cluster State
+    const nodes = [
+        { id: 1, name: "Node-1", cpuCap: 4.0, memCap: 8.0, cpuReq: 0.0, memReq: 0.0, cpuUse: 0.0, memUse: 0.0, pods: [], pressure: false },
+        { id: 2, name: "Node-2", cpuCap: 4.0, memCap: 8.0, cpuReq: 0.0, memReq: 0.0, cpuUse: 0.0, memUse: 0.0, pods: [], pressure: false },
+        { id: 3, name: "Node-3", cpuCap: 4.0, memCap: 8.0, cpuReq: 0.0, memReq: 0.0, cpuUse: 0.0, memUse: 0.0, pods: [], pressure: false }
+    ];
+
+    const pendingPods = [];
+    let schedulingStrategy = 'spread'; // 'spread' or 'binpack'
+    let autoscalerEnabled = false;
+    let nodeCounter = 3;
+    let eventCounter = 1;
+
+    // Presets
+    const presets = {
+        api: { name: "billing-api", cpuReq: 1.0, cpuLim: 2.0, memReq: 2.0, memLim: 2.0 },
+        db: { name: "customer-db", cpuReq: 2.0, cpuLim: 2.0, memReq: 4.0, memLim: 4.0 },
+        kafka: { name: "kafka-broker", cpuReq: 2.0, cpuLim: 2.0, memReq: 4.0, memLim: 4.0 },
+        batch: { name: "ci-runner-job", cpuReq: 0.0, cpuLim: 0.0, memReq: 0.0, memLim: 0.0 }
+    };
+
+    function applyPreset(type) {
+        const preset = presets[type];
+        if (preset) {
+            document.getElementById('pod-name').value = preset.name + "-" + Math.floor(Math.random() * 1000);
+            document.getElementById('cpu-request').value = preset.cpuReq;
+            document.getElementById('cpu-limit').value = preset.cpuLim;
+            document.getElementById('mem-request').value = preset.memReq;
+            document.getElementById('mem-limit').value = preset.memLim;
+            logToConsole(`Preset applied: ${preset.name.toUpperCase()}`, 'info');
+        }
+    }
+
+    function setStrategy(strategy) {
+        schedulingStrategy = strategy;
+        document.getElementById('strategy-spread').classList.toggle('active', strategy === 'spread');
+        document.getElementById('strategy-binpack').classList.toggle('active', strategy === 'binpack');
+        logToConsole(`Scheduler configuration changed: Strategy set to ${strategy.toUpperCase()}`, 'info');
+    }
+
+    function toggleAutoscaler(toggle) {
+        autoscalerEnabled = toggle.checked;
+        logToConsole(`Karpenter Autoscaler toggled: ${autoscalerEnabled ? 'ENABLED' : 'DISABLED'}`, 'info');
+        if (autoscalerEnabled) {
+            checkPendingQueue();
+        }
+    }
+
+    function logToConsole(message, type = 'info') {
+        const consoleEl = document.getElementById('scheduler-console');
+        const line = document.createElement('div');
+        line.className = `console-line ${type}`;
+        line.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function addTimelineEvent(title, desc) {
+        const timeline = document.getElementById('event-timeline');
+        const card = document.createElement('div');
+        card.className = 'timeline-event-card';
+        card.innerHTML = `
+            <div class="event-time">${new Date().toLocaleTimeString()}</div>
+            <div style="font-weight: 600; margin-bottom: 4px;">${title}</div>
+            <div style="color: var(--text-muted); font-size: 11px;">${desc}</div>
+        `;
+        timeline.insertBefore(card, timeline.firstChild);
+    }
+
+    // Determine QoS Class
+    function determineQoS(cpuReq, cpuLim, memReq, memLim) {
+        if (cpuReq === 0 && memReq === 0) return 'BestEffort';
+        if (cpuReq === cpuLim && memReq === memLim && cpuReq > 0) return 'Guaranteed';
+        return 'Burstable';
+    }
+
+    function scaleOutCluster() {
+        nodeCounter++;
+        const newNode = {
+            id: nodeCounter,
+            name: `Node-${nodeCounter}`,
+            cpuCap: 4.0,
+            memCap: 8.0,
+            cpuReq: 0.0,
+            memReq: 0.0,
+            cpuUse: 0.0,
+            memUse: 0.0,
+            pods: [],
+            pressure: false
+        };
+        nodes.push(newNode);
+        logToConsole(`[AUTOSCALER] Dynamically provisioned Node: ${newNode.name}`, 'success');
+        addTimelineEvent("ClusterScaleOut", `New Node ${newNode.name} registered. Capacity increased.`);
+        renderNodes();
+        
+        // Check pending queue since capacity was added
+        checkPendingQueue();
+    }
+
+    function scaleInCluster() {
+        if (nodes.length <= 1) {
+            logToConsole(`[AUTOSCALER] Scale-in aborted. Cluster requires at least 1 node.`, 'warn');
+            return;
+        }
+
+        const removedNode = nodes.pop();
+        logToConsole(`[AUTOSCALER] Removing Node: ${removedNode.name}`, 'warn');
+        addTimelineEvent("ClusterScaleIn", `Node ${removedNode.name} terminated.`);
+
+        // Evict running pods on this node back into pending queue
+        if (removedNode.pods.length > 0) {
+            logToConsole(`[EVICTION] Evicting ${removedNode.pods.length} running pods from terminated node back to queue.`, 'warn');
+            removedNode.pods.forEach(pod => {
+                // Reset usage back to requests for scheduling retry
+                pod.cpuUse = pod.cpuReq;
+                pod.memUse = pod.memReq;
+                pendingPods.push(pod);
+            });
+        }
+        
+        renderNodes();
+        checkPendingQueue();
+    }
+
+    function renderNodes() {
+        const container = document.getElementById('cluster-nodes-container');
+        container.innerHTML = '';
+
+        nodes.forEach(node => {
+            const cpuReqPct = (node.cpuReq / node.cpuCap) * 100;
+            const memReqPct = (node.memReq / node.memCap) * 100;
+            const cpuUsePct = (node.cpuUse / node.cpuCap) * 100;
+            const memUsePct = (node.memUse / node.memCap) * 100;
+
+            const card = document.createElement('div');
+            card.className = `node-card glass`;
+            if (node.pressure) card.classList.add('status-pressure');
+
+            card.innerHTML = `
+                <div class="node-header">
+                    <span class="node-name">🖥️ ${node.name}</span>
+                    <span class="node-status ${node.pressure ? 'status-pressure' : 'status-healthy'}">
+                        ${node.pressure ? 'MEMORY PRESSURE' : 'Healthy'}
+                    </span>
+                </div>
+
+                <div class="resource-section">
+                    <div class="resource-label">
+                        <span>CPU Requests (Reservation)</span>
+                        <span>${node.cpuReq.toFixed(1)} / ${node.cpuCap} Cores (${cpuReqPct.toFixed(0)}%)</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-requests" style="width: ${cpuReqPct}%"></div>
+                    </div>
+                    <div class="resource-label">
+                        <span>CPU Actual Usage (Throttling ceiling)</span>
+                        <span>${node.cpuUse.toFixed(1)} / ${node.cpuCap} Cores (${cpuUsePct.toFixed(0)}%)</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-usage" style="width: ${cpuUsePct}%"></div>
+                    </div>
+                </div>
+
+                <div class="resource-section">
+                    <div class="resource-label">
+                        <span>Memory Requests (Reservation)</span>
+                        <span>${node.memReq.toFixed(1)} / ${node.memCap} GiB (${memReqPct.toFixed(0)}%)</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-requests" style="width: ${memReqPct}%"></div>
+                    </div>
+                    <div class="resource-label">
+                        <span>Memory Actual Usage (OOM ceiling)</span>
+                        <span>${node.memUse.toFixed(1)} / ${node.memCap} GiB (${memUsePct.toFixed(0)}%)</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-usage" style="width: ${memUsePct}%"></div>
+                    </div>
+                </div>
+
+                <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Scheduled Pods (${node.pods.length})</div>
+                <div class="node-pods-container">
+                    ${node.pods.map(pod => `
+                        <div class="pod-badge">
+                            <div class="pod-header">
+                                <span>📦 ${pod.name}</span>
+                                <span class="qos-tag qos-${pod.qos.toLowerCase()}">${pod.qos}</span>
+                            </div>
+                            <div class="pod-metrics">
+                                <span>Req: ${pod.cpuReq}c / ${pod.memReq}Gi</span>
+                                <span>Usage: ${pod.cpuUse.toFixed(1)}c / ${pod.memUse.toFixed(1)}Gi</span>
+                            </div>
+                            <div class="pod-actions">
+                                <button class="pod-action-btn" onclick="simulatePodLoad('${node.name}', '${pod.name}')">⚡ Spike Load</button>
+                                <button class="pod-action-btn" onclick="terminatePod('${node.name}', '${pod.name}')">❌ Kill</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="simulator-controls">
+                    <button class="sim-btn" onclick="simulateNodeStress(${node.id})">Trigger Mem pressure</button>
+                    <button class="sim-btn" onclick="clearNodePressure(${node.id})">Reset Node</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        updateClusterMetrics();
+        renderPendingQueue();
+    }
+
+    function renderPendingQueue() {
+        const queueContainer = document.getElementById('pending-pods-list');
+        const countSpan = document.getElementById('pending-count');
+        countSpan.innerText = `[${pendingPods.length}]`;
+
+        if (pendingPods.length === 0) {
+            queueContainer.innerHTML = `<div style="font-size: 11px; color: var(--text-dim); text-align: center; width: 100%; padding: 12px;">Queue is currently empty.</div>`;
+            return;
+        }
+
+        queueContainer.innerHTML = pendingPods.map(pod => `
+            <div class="pending-pod-tag">
+                ⏳ ${pod.name} (${pod.cpuReq}c/${pod.memReq}Gi)
+            </div>
+        `).join('');
+    }
+
+    function updateClusterMetrics() {
+        let totalCpuReq = 0;
+        let totalMemReq = 0;
+        
+        nodes.forEach(n => {
+            totalCpuReq += n.cpuReq;
+            totalMemReq += n.memReq;
+        });
+
+        const activeNodeCount = nodes.length;
+        const nodeCost = activeNodeCount * 0.10; 
+        const usageCost = (totalCpuReq * 0.02) + (totalMemReq * 0.005);
+        const hourlyCost = nodeCost + usageCost;
+
+        document.getElementById('metric-nodes').innerText = `${activeNodeCount} Nodes`;
+        document.getElementById('metric-cost').innerText = `$${hourlyCost.toFixed(2)} / hour`;
+        document.getElementById('metric-cpu').innerText = `${totalCpuReq.toFixed(1)} / ${(activeNodeCount*4)} Cores`;
+        document.getElementById('metric-mem').innerText = `${totalMemReq.toFixed(1)} / ${(activeNodeCount*8)} GiB`;
+    }
+
+    function createAndSchedulePod() {
+        const nameInput = document.getElementById('pod-name').value.trim();
+        const cpuReq = Math.max(0.0, parseFloat(document.getElementById('cpu-request').value) || 0.0);
+        const cpuLim = Math.max(0.0, parseFloat(document.getElementById('cpu-limit').value) || 0.0);
+        const memReq = Math.max(0.0, parseFloat(document.getElementById('mem-request').value) || 0.0);
+        const memLim = Math.max(0.0, parseFloat(document.getElementById('mem-limit').value) || 0.0);
+        const replicas = Math.max(1, parseInt(document.getElementById('workload-replicas').value) || 1);
+
+        const nameBase = nameInput || `workload-pod`;
+
+        for (let i = 0; i < replicas; i++) {
+            const podName = replicas > 1 ? `${nameBase}-${i + 1}` : nameBase;
+            const qos = determineQoS(cpuReq, cpuLim, memReq, memLim);
+            const newPod = { name: podName, cpuReq, cpuLim, memReq, memLim, qos, cpuUse: cpuReq, memUse: memReq };
+
+            logToConsole(`[APPLY] Submitting replica ${i+1}/${replicas}: ${podName}`, 'info');
+            runSchedulerPipeline(newPod);
+        }
+    }
+
+    function runSchedulerPipeline(pod) {
+        logToConsole(`[SCHEDULER] Initiating Scheduling Cycle for Pod: ${pod.name}`, 'info');
+
+        // PHASE 1: FILTERING (NodeResourcesFit Check)
+        const filteredNodes = [];
+        const fitResults = {};
+
+        nodes.forEach(node => {
+            const cpuFits = (node.cpuReq + pod.cpuReq) <= node.cpuCap;
+            const memFits = (node.memReq + pod.memReq) <= node.memCap;
+            
+            fitResults[node.name] = { cpuFits, memFits };
+
+            if (cpuFits && memFits) {
+                filteredNodes.push(node);
+                logToConsole(`[FILTER] Node ${node.name} passed resource availability predicates.`, 'success');
+            } else {
+                let failReason = [];
+                if (!cpuFits) failReason.push("Insufficient CPU");
+                if (!memFits) failReason.push("Insufficient Memory");
+                logToConsole(`[FILTER] Node ${node.name} rejected: ${failReason.join(', ')}`, 'error');
+            }
+        });
+
+        if (filteredNodes.length === 0) {
+            logToConsole(`[FAILURE] Pod ${pod.name} failed to schedule. No nodes matching resource fit criteria.`, 'error');
+            
+            // Check if Karpenter Autoscaling is enabled
+            if (autoscalerEnabled) {
+                logToConsole(`[AUTOSCALER] Scaling up cluster node group dynamically...`, 'warn');
+                scaleOutCluster();
+                
+                // Retry scheduling on newly provisioned node
+                return runSchedulerPipeline(pod);
+            } else {
+                logToConsole(`[QUEUED] Enqueuing pod into pending queue.`, 'warn');
+                addTimelineEvent("FailedScheduling", `Pod ${pod.name} moved to Pending queue. Insufficient resource availability.`);
+                pendingPods.push(pod);
+                renderNodes();
+                return false;
+            }
+        }
+
+        // PHASE 2: SCORING (FIT PRIORITY)
+        const scores = {};
+        let highestScore = -1;
+        let chosenNode = null;
+
+        filteredNodes.forEach(node => {
+            let fitScore = 0;
+            const imageLocalityScore = Math.floor(Math.random() * 2) * 10; // Simulated image locality caching
+
+            if (schedulingStrategy === 'spread') {
+                // SPREAD: Scores nodes with LESS requests booked HIGHER
+                const cpuSparePct = (node.cpuCap - (node.cpuReq + pod.cpuReq)) / node.cpuCap;
+                const memSparePct = (node.memCap - (node.memReq + pod.memReq)) / node.memCap;
+                fitScore = Math.round(((cpuSparePct + memSparePct) / 2) * 100);
+            } else {
+                // BIN PACKING: Scores nodes with MORE requests booked HIGHER
+                const cpuAllocatedPct = (node.cpuReq + pod.cpuReq) / node.cpuCap;
+                const memAllocatedPct = (node.memReq + pod.memReq) / node.memCap;
+                fitScore = Math.round(((cpuAllocatedPct + memAllocatedPct) / 2) * 100);
+            }
+
+            const totalScore = fitScore + imageLocalityScore;
+            scores[node.name] = { fitScore, imageLocalityScore, totalScore };
+
+            logToConsole(`[SCORE] Node ${node.name} Scored: ${totalScore} (Fit: ${fitScore}, CacheLocality: ${imageLocalityScore})`, 'info');
+
+            if (totalScore > highestScore) {
+                highestScore = totalScore;
+                chosenNode = node;
+            }
+        });
+
+        // BINDING PHASE
+        logToConsole(`[BIND] Selected highest scoring Node: ${chosenNode.name} (Score: ${highestScore})`, 'success');
+        
+        // Commit reservation
+        chosenNode.pods.push(pod);
+        chosenNode.cpuReq += pod.cpuReq;
+        chosenNode.memReq += pod.memReq;
+        chosenNode.cpuUse += pod.cpuUse;
+        chosenNode.memUse += pod.memUse;
+
+        renderNodes();
+        updateScorecard(fitResults, scores, chosenNode.name);
+        addTimelineEvent("PodScheduled", `Pod ${pod.name} bound to node ${chosenNode.name} successfully.`);
+        return true;
+    }
+
+    function updateScorecard(fitResults, scores, chosenNodeName) {
+        const tbody = document.getElementById('scorecard-body');
+        tbody.innerHTML = '';
+
+        nodes.forEach(node => {
+            const fit = fitResults[node.name];
+            const fitText = fit ? (fit.cpuFits && fit.memFits ? "PASS" : "FAIL") : "FAIL (Filtered)";
+            
+            const nodeScore = scores[node.name];
+            const fitScore = nodeScore ? nodeScore.fitScore : "-";
+            const imageLoc = nodeScore ? nodeScore.imageLocalityScore : "-";
+            const total = nodeScore ? nodeScore.totalScore : "-";
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td style="font-weight: 600;">${node.name}</td>
+                <td style="color: ${fitText === 'PASS' ? 'var(--color-success)' : 'var(--color-danger)'};">${fitText}</td>
+                <td>${fitScore}</td>
+                <td>${imageLoc}</td>
+                <td style="font-weight: 600; color: var(--accent-primary);">${total}</td>
+                <td>${node.name === chosenNodeName ? '<span style="background: var(--color-success); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">BOUND</span>' : '-'}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function checkPendingQueue() {
+        if (pendingPods.length === 0) return;
+        
+        logToConsole(`[SCHEDULER] Scanning pending queue for eligible workloads...`, 'info');
+        
+        for (let i = 0; i < pendingPods.length; i++) {
+            const pod = pendingPods[i];
+            const success = runSchedulerPipeline(pod);
+            if (success) {
+                pendingPods.splice(i, 1);
+                logToConsole(`[PENDING] Scheduled pending pod: ${pod.name}`, 'success');
+                // Re-render and retry the rest since state has changed
+                renderNodes();
+                break;
+            }
+        }
+    }
+
+    function simulatePodLoad(nodeName, podName) {
+        const node = nodes.find(n => n.name === nodeName);
+        if (!node) return;
+
+        const pod = node.pods.find(p => p.name === podName);
+        if (!pod) return;
+
+        logToConsole(`Simulating load spike on pod ${podName}...`, 'warn');
+        
+        // Spike usage
+        const oldCpuUse = pod.cpuUse;
+        const oldMemUse = pod.memUse;
+        
+        // Handle cases where limit is 0 (BestEffort pods)
+        const spikeCpu = pod.cpuLim > 0 ? pod.cpuLim * 1.2 : 1.5;
+        const spikeMem = pod.memLim > 0 ? pod.memLim * 1.3 : 2.0;
+
+        pod.cpuUse = spikeCpu;
+        pod.memUse = spikeMem;
+
+        // Update Node overall usage
+        node.cpuUse = node.cpuUse - oldCpuUse + pod.cpuUse;
+        node.memUse = node.memUse - oldMemUse + pod.memUse;
+
+        renderNodes();
+
+        // Evaluate consequences
+        setTimeout(() => {
+            // CPU throttling check
+            if (pod.cpuLim > 0 && pod.cpuUse > pod.cpuLim) {
+                logToConsole(`[WARNING] Container of Pod ${podName} throttled. Exceeded CPU limit of ${pod.cpuLim} Cores.`, 'warn');
+                addTimelineEvent("CPUThrottled", `Pod ${podName} CPU throttled. CFS limit reached.`);
+            }
+
+            // Memory OOM Check
+            if (pod.memLim > 0 && pod.memUse > pod.memLim) {
+                logToConsole(`[FATAL] Container of Pod ${podName} exceeded memory limit of ${pod.memLim} GiB. Triggering OOM Killer.`, 'error');
+                addTimelineEvent("OOMKilled", `Pod ${podName} container terminated. Exit Code 137.`);
+                terminatePod(nodeName, podName);
+            }
+        }, 1000);
+    }
+
+    function terminatePod(nodeName, podName) {
+        const node = nodes.find(n => n.name === nodeName);
+        if (!node) return;
+
+        const podIndex = node.pods.findIndex(p => p.name === podName);
+        if (podIndex === -1) return;
+
+        const pod = node.pods[podIndex];
+        
+        // Free reservations and usage
+        node.cpuReq -= pod.cpuReq;
+        node.memReq -= pod.memReq;
+        node.cpuUse = Math.max(0, node.cpuUse - pod.cpuUse);
+        node.memUse = Math.max(0, node.memUse - pod.memUse);
+
+        node.pods.splice(podIndex, 1);
+        renderNodes();
+        logToConsole(`Pod ${podName} deleted from node ${nodeName}. Resources released.`, 'info');
+        
+        // Trigger check on queue
+        checkPendingQueue();
+
+        // Karpenter auto scale-down check: if provisioned node is empty, scale in
+        if (autoscalerEnabled && node.pods.length === 0 && node.id > 3) {
+            logToConsole(`[AUTOSCALER] Provisioned node ${node.name} is idle. Initiating scale-down...`, 'warn');
+            setTimeout(() => {
+                // Re-verify it is still empty
+                const checkNode = nodes.find(n => n.id === node.id);
+                if (checkNode && checkNode.pods.length === 0) {
+                    const index = nodes.indexOf(checkNode);
+                    if (index > -1) {
+                        nodes.splice(index, 1);
+                        logToConsole(`[AUTOSCALER] Terminated idle node: ${checkNode.name} (Scale-Down success)`, 'success');
+                        addTimelineEvent("ClusterScaleIn", `Autoscaler terminated idle node ${checkNode.name}.`);
+                        renderNodes();
+                    }
+                }
+            }, 3000);
+        }
+    }
+
+    function simulateNodeStress(nodeId) {
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        node.pressure = true;
+        node.memUse = node.memCap * 1.1; // Exceed overall memory capacity of the host
+        logToConsole(`[PRESSURE] Memory Pressure threshold breached on ${node.name}. Kubelet triggering eviction loop!`, 'error');
+        addTimelineEvent("NodePressure", `${node.name} status flag: MemoryPressure.`);
+
+        renderNodes();
+
+        // Eviction logic based on QoS class
+        setTimeout(() => {
+            triggerQosEvictions(node);
+        }, 1500);
+    }
+
+    function triggerQosEvictions(node) {
+        if (node.pods.length === 0) {
+            logToConsole(`[EVICT] Eviction loop run complete: Node ${node.name} has no pods to evict.`, 'info');
+            return;
+        }
+
+        // QoS order: BestEffort (evicted first), then Burstable, then Guaranteed
+        const bestEffortPod = node.pods.find(p => p.qos === 'BestEffort');
+        if (bestEffortPod) {
+            logToConsole(`[EVICT] Evicting BestEffort Pod ${bestEffortPod.name} to relieve memory pressure.`, 'warn');
+            addTimelineEvent("PodEvicted", `Pod ${bestEffortPod.name} evicted due to node memory pressure.`);
+            terminatePod(node.name, bestEffortPod.name);
+            return;
+        }
+
+        const burstablePod = node.pods.find(p => p.qos === 'Burstable');
+        if (burstablePod) {
+            logToConsole(`[EVICT] Evicting Burstable Pod ${burstablePod.name} to relieve memory pressure.`, 'warn');
+            addTimelineEvent("PodEvicted", `Pod ${burstablePod.name} evicted due to node memory pressure.`);
+            terminatePod(node.name, burstablePod.name);
+            return;
+        }
+
+        const guaranteedPod = node.pods.find(p => p.qos === 'Guaranteed');
+        if (guaranteedPod) {
+            logToConsole(`[EVICT] Node under severe distress. Evicting Guaranteed Pod ${guaranteedPod.name} as a last resort.`, 'error');
+            addTimelineEvent("PodEvicted", `Pod ${guaranteedPod.name} evicted. Critical resource depletion.`);
+            terminatePod(node.name, guaranteedPod.name);
+            return;
+        }
+    }
+
+    function clearNodePressure(nodeId) {
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        node.pressure = false;
+        // Reset actual usage back to aggregate requests
+        node.cpuUse = node.cpuReq;
+        node.memUse = node.memReq;
+        
+        logToConsole(`Node ${node.name} memory pressure cleared. Node status: Healthy.`, 'success');
+        addTimelineEvent("NodeHealthy", `${node.name} MemoryPressure resolved.`);
+        renderNodes();
+        
+        // Trigger queue check
+        checkPendingQueue();
+    }
+
+    function resetCluster() {
+        nodes.length = 0; // Clear array
+        
+        // Re-inject baseline nodes
+        nodes.push(
+            { id: 1, name: "Node-1", cpuCap: 4.0, memCap: 8.0, cpuReq: 0.0, memReq: 0.0, cpuUse: 0.0, memUse: 0.0, pods: [], pressure: false },
+            { id: 2, name: "Node-2", cpuCap: 4.0, memCap: 8.0, cpuReq: 0.0, memReq: 0.0, cpuUse: 0.0, memUse: 0.0, pods: [], pressure: false },
+            { id: 3, name: "Node-3", cpuCap: 4.0, memCap: 8.0, cpuReq: 0.0, memReq: 0.0, cpuUse: 0.0, memUse: 0.0, pods: [], pressure: false }
+        );
+
+        nodeCounter = 3;
+        pendingPods.length = 0; // Clear pending queue
+
+        renderNodes();
+        document.getElementById('scorecard-body').innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-dim); padding: 20px;">No scheduling decisions recorded yet. Apply a workload.</td>
+            </tr>
+        `;
+        logToConsole("Cluster reset complete. All nodes cleared of reservations.", 'success');
+        addTimelineEvent("ClusterReset", "All simulated nodes cleared and reset to initial state.");
+    }
+
+    // Initial render
+    renderNodes();
+</script>
+</body>
+</html>
