@@ -1,0 +1,45 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dynamic-api-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dynamic-api-service
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  # Target 60% average CPU utilization
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+  # Target 80% average Memory utilization
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0 # React instantly to traffic spikes
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15 # Allow workload capacity to double every 15 seconds
+      - type: Pods
+        value: 4
+        periodSeconds: 15
+      selectPolicy: Max # Apply whichever policy scales up faster
+    scaleDown:
+      stabilizationWindowSeconds: 300 # Cool down for 5 minutes before removing replicas (prevents thrashing)
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60 # Gradually downscale by max 10% per minute
+      selectPolicy: Min # Apply whichever policy is more conservative (scales down slower)

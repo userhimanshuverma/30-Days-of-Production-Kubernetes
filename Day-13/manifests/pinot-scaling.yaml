@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pinot-server
+  namespace: default
+spec:
+  serviceName: pinot-server-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pinot-server
+  template:
+    metadata:
+      labels:
+        app: pinot-server
+    spec:
+      containers:
+      - name: pinot-server
+        image: apachepinot/pinot:1.0.0
+        command: ["/opt/pinot/bin/pinot-admin.sh"]
+        args:
+        - "StartServer"
+        - "-clusterName"
+        - "PinotCluster"
+        - "-zkAddress"
+        - "zookeeper:2181"
+        ports:
+        - name: admin
+          containerPort: 8097
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi" # Guaranteed QoS to protect large analytical cache heap
+  volumeClaimTemplates:
+  - metadata:
+      name: pinot-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 100Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pinot-server-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: pinot-server
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 120 # Require sustained high CPU for 2 minutes before scaling up state
+      policies:
+      - type: Pods
+        value: 1 # Add only 1 stateful server replica at a time (preventing sudden cluster rebalance load)
+        periodSeconds: 60
+    scaleDown:
+      # Stateful scale-down requires data re-shuffling (segments rebalancing). 
+      # We disable auto scale-down or set a very long stabilization window.
+      stabilizationWindowSeconds: 1800 # 30 minutes scale-down cooloff
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 300

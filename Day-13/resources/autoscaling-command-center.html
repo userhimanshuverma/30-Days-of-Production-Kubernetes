@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Autoscaling Command Center</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0c081c;
+      --panel-bg: rgba(22, 16, 42, 0.7);
+      --border-color: rgba(168, 85, 247, 0.25);
+      --accent-purple: #a855f7;
+      --accent-lavender: #c084fc;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-ui: 'Outfit', sans-serif;
+      --font-mono: 'Share Tech Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(192, 132, 252, 0.1) 0px, transparent 50%);
+      background-attachment: fixed;
+      font-family: var(--font-ui);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism Header */
+    header {
+      background: rgba(12, 8, 28, 0.85);
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(12px);
+      padding: 1.2rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-block h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--text-main) 30%, var(--accent-lavender) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+    }
+
+    .logo-block p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    .system-status {
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulse 1.5s infinite;
+    }
+
+    /* Container Grid */
+    .dashboard-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Controls Panel */
+    .controls-panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .panel-section-title {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      border-left: 3px solid var(--accent-purple);
+      padding-left: 0.5rem;
+      margin-bottom: 0.8rem;
+      color: var(--accent-lavender);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .control-group label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Traffic buttons */
+    .traffic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+
+    .btn-traffic {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      padding: 0.6rem 0.4rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.8rem;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+
+    .btn-traffic:hover {
+      background: rgba(168, 85, 247, 0.1);
+      border-color: var(--accent-purple);
+    }
+
+    .btn-traffic.active {
+      background: var(--accent-purple);
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+    }
+
+    /* Input ranges */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-purple);
+      cursor: pointer;
+      box-shadow: 0 0 6px var(--accent-purple);
+    }
+
+    /* Toggles */
+    .toggle-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-purple);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    /* Right Console Area */
+    .console-area {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Tutorial Box at Top of Console */
+    .scenario-guide-card {
+      background: linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(22, 16, 42, 0.7) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 12px;
+      padding: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      box-shadow: 0 4px 20px rgba(124, 58, 237, 0.15);
+    }
+
+    .scenario-selector {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-scenario {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--accent-lavender);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .btn-scenario:hover {
+      background: rgba(168, 85, 247, 0.15);
+    }
+
+    .btn-scenario.active {
+      background: rgba(168, 85, 247, 0.3);
+      border-color: var(--accent-purple);
+      color: #fff;
+    }
+
+    .scenario-instruction {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--text-main);
+      background: rgba(0, 0, 0, 0.25);
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      border-left: 4px solid var(--accent-lavender);
+    }
+
+    /* Live HPA Math Card */
+    .live-math-card {
+      background: rgba(12, 8, 28, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .math-formula {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      color: var(--accent-lavender);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.8rem;
+      border-radius: 8px;
+      letter-spacing: 1px;
+    }
+
+    .math-formula span.live-val {
+      color: var(--accent-emerald);
+      font-weight: 800;
+      padding: 0 0.2rem;
+    }
+
+    .math-formula span.live-target {
+      color: var(--accent-rose);
+      font-weight: 800;
+      padding: 0 0.2rem;
+    }
+
+    .math-explanation {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Metrics Grid */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .metric-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.2rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .metric-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .metric-val {
+      font-size: 2.2rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      margin-bottom: 0.8rem;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-purple), var(--accent-lavender));
+      width: 0%;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .metric-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Target line indicator */
+    .target-marker {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 2px;
+      background-color: var(--accent-rose);
+      box-shadow: 0 0 6px var(--accent-rose);
+    }
+
+    /* Cluster Map Visualizer */
+    .cluster-visualizer-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      flex: 1;
+      min-height: 380px;
+    }
+
+    .node-map-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.2rem;
+      flex: 1;
+      align-content: start;
+    }
+
+    .node-block {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .node-block.cordoned {
+      opacity: 0.5;
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(245, 158, 11, 0.05),
+        rgba(245, 158, 11, 0.05) 10px,
+        rgba(0, 0, 0, 0.2) 10px,
+        rgba(0, 0, 0, 0.2) 20px
+      );
+      border-color: var(--accent-amber);
+    }
+
+    .node-block.provisioning {
+      border: 1px dashed var(--accent-lavender);
+      animation: borderGlow 1.5s infinite alternate;
+      justify-content: center;
+      align-items: center;
+      min-height: 120px;
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 0.4rem;
+    }
+
+    .node-class-spot {
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--accent-lavender);
+      font-size: 0.7rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    .node-class-ondemand {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      font-size: 0.7rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .pods-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .pod-dot {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 0.65rem;
+      font-weight: 800;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease;
+      color: #000;
+    }
+
+    .pod-dot:hover::after {
+      content: attr(data-podinfo);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #000;
+      color: #fff;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-size: 0.7rem;
+      z-index: 10;
+      pointer-events: none;
+      border: 1px solid var(--border-color);
+    }
+
+    .pod-dot.starting {
+      background: var(--accent-amber);
+      box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+      animation: blink 1s infinite alternate;
+    }
+
+    .pod-dot.terminating {
+      background: var(--accent-rose);
+      box-shadow: 0 0 6px rgba(244, 63, 94, 0.5);
+      animation: shrinkAndFade 1.2s forwards;
+    }
+
+    /* Scheduler Pending Queue */
+    .pending-queue-wrapper {
+      border-top: 1px solid var(--border-color);
+      padding-top: 1rem;
+    }
+
+    .pending-queue-header {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .pending-pods-tray {
+      display: flex;
+      gap: 0.6rem;
+      min-height: 48px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      padding: 0.5rem;
+      border: 1px dashed rgba(244, 63, 94, 0.2);
+    }
+
+    .pod-pending {
+      width: 32px;
+      height: 32px;
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(244, 63, 94, 0.1),
+        rgba(244, 63, 94, 0.1) 5px,
+        rgba(244, 63, 94, 0.3) 5px,
+        rgba(244, 63, 94, 0.3) 10px
+      );
+      border: 1px solid var(--accent-rose);
+      border-radius: 6px;
+      animation: pulse 1s infinite alternate;
+    }
+
+    /* Monospace Terminal Logs */
+    .logs-card {
+      background: #06040d;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      height: 220px;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+    }
+
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--accent-lavender);
+      border-bottom: 1px solid rgba(168, 85, 247, 0.15);
+      padding-bottom: 0.3rem;
+      font-family: var(--font-ui);
+    }
+
+    .logs-stream {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      scroll-behavior: smooth;
+    }
+
+    .log-line {
+      line-height: 1.3;
+    }
+
+    .log-time {
+      color: #7c3aed;
+      margin-right: 0.5rem;
+    }
+
+    .log-info { color: var(--text-main); }
+    .log-warn { color: var(--accent-amber); }
+    .log-err { color: var(--accent-rose); }
+    .log-action { color: var(--accent-lavender); }
+    .log-success { color: var(--accent-emerald); }
+
+    /* Advisory Box */
+    .advisor-hud {
+      background: rgba(16, 185, 129, 0.05);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 0.8rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .advisor-title {
+      font-weight: 600;
+      color: var(--accent-emerald);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Keyframes */
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes blink {
+      0% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes borderGlow {
+      0% { border-color: rgba(192, 132, 252, 0.2); }
+      100% { border-color: rgba(192, 132, 252, 0.8); }
+    }
+
+    @keyframes shrinkAndFade {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(0); opacity: 0; }
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-block">
+      <h1>Autoscaling Command Center</h1>
+      <p>Kubernetes Platform SRE Live Simulator</p>
+    </div>
+    <div class="system-status">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span>METRICS SERVER: ACTIVE</span>
+      </div>
+      <div class="status-badge">
+        <span style="color: var(--accent-lavender)">HPA EVAL: 15s</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    
+    <!-- Controls Side Panel -->
+    <aside class="controls-panel">
+      
+      <div class="control-group">
+        <h3 class="panel-section-title">Traffic Profile</h3>
+        <div class="traffic-grid">
+          <button class="btn-traffic active" id="btn-t-normal" onclick="setTraffic('normal')">Normal</button>
+          <button class="btn-traffic" id="btn-t-spike" onclick="setTraffic('spike')">Spike</button>
+          <button class="btn-traffic" id="btn-t-sale" onclick="setTraffic('sale')">Flash Sale</button>
+          <button class="btn-traffic" id="btn-t-cooldown" onclick="setTraffic('cooldown')">Cooldown</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3 class="panel-section-title">HPA Configuration</h3>
+        <label>
+          <span>Target CPU Utilization</span>
+          <span id="lbl-target-cpu">60%</span>
+        </label>
+        <input type="range" id="slider-target-cpu" min="30" max="90" value="60" oninput="updateHPAConfig()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          <span>Min Replicas</span>
+          <span id="lbl-min-rep">3</span>
+        </label>
+        <input type="range" id="slider-min-rep" min="1" max="5" value="3" oninput="updateHPAConfig()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          <span>Max Replicas</span>
+          <span id="lbl-max-rep">20</span>
+        </label>
+        <input type="range" id="slider-max-rep" min="5" max="30" value="20" oninput="updateHPAConfig()">
+      </div>
+
+      <div class="control-group">
+        <h3 class="panel-section-title">VPA Configuration</h3>
+        <div class="toggle-wrapper">
+          <span>VPA Auto Mode</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-vpa-auto" onchange="toggleVPA()">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3 class="panel-section-title">Cluster Settings</h3>
+        <label>
+          <span>Max Nodes</span>
+          <span id="lbl-max-nodes">5</span>
+        </label>
+        <input type="range" id="slider-max-nodes" min="2" max="8" value="5" oninput="updateClusterConfig()">
+      </div>
+
+      <div class="control-group" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+        <button class="btn-traffic" style="background: rgba(244, 63, 94, 0.1); border-color: var(--accent-rose); color: var(--accent-rose);" onclick="resetSimulator()">
+          Reset Simulation
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- Main Console Area -->
+    <main class="console-area">
+      
+      <!-- Interactive Guided Tutorial Header -->
+      <section class="scenario-guide-card">
+        <div style="font-weight: 800; font-size: 1.1rem; color: var(--accent-lavender); text-transform: uppercase; letter-spacing: 1px;">
+          📖 Interactive SRE Learning Scenarios
+        </div>
+        <div class="scenario-selector">
+          <button class="btn-scenario active" id="scen-normal" onclick="selectScenario('normal')">1. Normal Traffic</button>
+          <button class="btn-scenario" id="scen-spike" onclick="selectScenario('spike')">2. Target Spike (HPA Scale-out)</button>
+          <button class="btn-scenario" id="scen-exhaust" onclick="selectScenario('exhaust')">3. Flash Sale (CA Node Provisioning)</button>
+          <button class="btn-scenario" id="scen-cooldown" onclick="selectScenario('cooldown')">4. Cooldown (Stabilization Cooldown)</button>
+        </div>
+        <div class="scenario-instruction" id="txt-scenario-instruction">
+          **Normal Traffic Mode:** Replicas are steady at 3. Average CPU usage is stable below target (45%). The Cluster is operating in a cost-optimized, low-overhead baseline state. Click around sliders to change limits dynamically.
+        </div>
+      </section>
+
+      <!-- Live Formula and Advisor Dashboard -->
+      <section class="metrics-row">
+        <!-- Live HPA Equation Math -->
+        <div class="live-math-card" style="flex: 1.5;">
+          <div class="metric-title" style="text-align: center; margin-bottom: 0.2rem; color: var(--accent-lavender);">
+            Active HPA Calculation Loop (Formula Math)
+          </div>
+          <div class="math-formula">
+            <span>Desired = </span>
+            <span class="live-val" id="math-current-rep">3</span>
+            <span> × ⌈ </span>
+            <span class="live-val" id="math-current-cpu">45</span>
+            <span> / </span>
+            <span class="live-target" id="math-target-cpu">60</span>
+            <span> ⌉ = </span>
+            <span class="live-val" style="color: var(--accent-purple);" id="math-desired-rep">3</span>
+            <span> Pods</span>
+          </div>
+          <div class="math-explanation">
+            Formula: $\text{desiredReplicas} = \lceil \text{currentReplicas} \times \frac{\text{currentMetric}}{\text{targetMetric}} \rceil$
+          </div>
+        </div>
+
+        <!-- Advisor HUD -->
+        <div class="advisor-hud" style="flex: 1;">
+          <div class="advisor-title">SRE System Advisor</div>
+          <div style="font-size: 0.8rem; line-height: 1.4;">
+            • **HPA Action:** <span id="adv-hpa-status" style="color: var(--accent-emerald); font-weight: 600;">Idle</span><br/>
+            • **Cluster Autoscaler:** <span id="adv-ca-status" style="color: var(--text-muted);">Waiting</span><br/>
+            • **Capacity Reserved:** <span id="adv-slots">3 / 12 pod slots active</span>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Metrics Dashboard Row -->
+      <section class="metrics-row">
+        
+        <!-- Live Traffic -->
+        <div class="metric-card">
+          <div class="metric-title">Incoming Traffic</div>
+          <div class="metric-val" id="val-traffic">1.2k rps</div>
+          <div class="progress-bar-container">
+            <div class="progress-fill" id="bar-traffic" style="width: 20%;"></div>
+          </div>
+          <div class="metric-sub">
+            <span>Target: Distributed Load</span>
+            <span id="val-traffic-profile">NORMAL</span>
+          </div>
+        </div>
+
+        <!-- CPU Metric -->
+        <div class="metric-card">
+          <div class="metric-title">CPU Utilization (Avg)</div>
+          <div class="metric-val" id="val-cpu">45%</div>
+          <div class="progress-bar-container">
+            <div class="progress-fill" id="bar-cpu" style="width: 45%;"></div>
+            <div class="target-marker" id="marker-cpu" style="left: 60%;"></div>
+          </div>
+          <div class="metric-sub">
+            <span>Red Line: HPA Target</span>
+            <span id="val-cpu-req">Request: 200m</span>
+          </div>
+        </div>
+
+        <!-- Memory Metric -->
+        <div class="metric-card">
+          <div class="metric-title">Memory Utilization</div>
+          <div class="metric-val" id="val-mem">52%</div>
+          <div class="progress-bar-container">
+            <div class="progress-fill" id="bar-mem" style="width: 52%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
+          </div>
+          <div class="metric-sub">
+            <span>RSS Limit Ceiling</span>
+            <span id="val-mem-limit">Limit: 512Mi</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Cluster Visualizer Card -->
+      <section class="cluster-visualizer-card">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 class="panel-section-title" style="margin: 0;">Active Cluster Infrastructure</h3>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">
+            Nodes: <span id="txt-active-nodes" style="color: var(--accent-lavender); font-weight: 600;">3</span> / <span id="txt-max-nodes">5</span>
+            | Pods: <span id="txt-active-pods" style="color: var(--accent-emerald); font-weight: 600;">3</span>
+          </div>
+        </div>
+
+        <div class="node-map-grid" id="node-grid">
+          <!-- Node Blocks are injected dynamically -->
+        </div>
+
+        <!-- Pending Pod Queue -->
+        <div class="pending-queue-wrapper">
+          <div class="pending-queue-header">
+            <span>Scheduler Pending Queue (FailedScheduling)</span>
+            <span id="txt-pending-count" style="color: var(--accent-rose); font-weight: 600;">0 Pods Pending</span>
+          </div>
+          <div class="pending-pods-tray" id="pending-tray">
+            <!-- Pending dots are injected dynamically -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Cost Dashboard Row -->
+      <section class="metrics-row">
+        <div class="metric-card" style="flex: 1;">
+          <div class="metric-title">Hourly Compute Costs</div>
+          <div class="metric-val" id="val-cost">$0.48/hr</div>
+          <div class="metric-sub">
+            <span>On-Demand ($0.16/h/node) | Spot ($0.04/h/node)</span>
+            <span style="color: var(--accent-emerald)">Cost optimized via HPA</span>
+          </div>
+        </div>
+
+        <div class="metric-card" style="flex: 1;">
+          <div class="metric-title">VPA Resource Sizing</div>
+          <div class="metric-val" id="val-vpa-rec">No Rec</div>
+          <div class="metric-sub">
+            <span id="txt-vpa-mode">VPA Mode: Dry-Run (Off)</span>
+            <span id="val-vpa-status" style="color: var(--accent-amber)">Monitoring usage</span>
+          </div>
+        </div>
+
+        <div class="metric-card" style="flex: 1;">
+          <div class="metric-title">Allocation Cap</div>
+          <div class="progress-bar-container" style="margin-top: 10px; height: 12px;">
+            <div class="progress-fill" id="bar-alloc" style="width: 60%; background: var(--accent-purple);"></div>
+          </div>
+          <div class="metric-sub" style="margin-top: 8px;">
+            <span>Reserved CPU Requests</span>
+            <span id="val-alloc-percentage">60%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Monospace Terminal Log Panel -->
+      <section class="logs-card">
+        <div class="logs-header">
+          <span>Real-time SRE Log Console (Kubelet, Scheduler, HPA, CA)</span>
+          <span style="color: var(--text-muted)">LOGS STREAMS</span>
+        </div>
+        <div class="logs-stream" id="logs-box">
+          <!-- Logs are stream dynamically -->
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script>
+    // Simulator State
+    let state = {
+      trafficProfile: 'normal', // normal, spike, sale, cooldown
+      trafficRps: 1200,
+      cpuAvg: 45,
+      memAvg: 52,
+      targetCpu: 60,
+      minReplicas: 3,
+      maxReplicas: 20,
+      maxNodes: 5,
+      vpaAuto: false,
+      replicas: 3,
+      podsList: [], // { id, state: 'ready'|'starting'|'terminating', nodeIndex }
+      nodesList: [], // { id, type: 'spot'|'ondemand', isCordoned: false }
+      pendingPodsCount: 0,
+      costPerHour: 0.48,
+      vpaCpuRec: 200,
+      vpaMemRec: 256,
+      stabilizationTimer: 0 // to manage downscale cooldown
+    };
+
+    // Constants
+    const NODE_CAPACITY_PODS = 4; // Max pods per node
+    const ONDEMAND_RATE = 0.16;
+    const SPOT_RATE = 0.04;
+
+    const Scenarios = {
+      normal: {
+        traffic: 'normal',
+        instruction: "⚡ **Scenario 1 - Baseline:** Normal traffic is running. Average CPU is ~45% (below the 60% HPA target). The scale holds at 3 replicas. The system advisor reports 'Idle'. Use the sliders on the left to see how changes to the HPA parameters adjust math in real-time."
+      },
+      spike: {
+        traffic: 'spike',
+        instruction: "📈 **Scenario 2 - Traffic Spike (HPA Scale-out):** Click 'Spike' traffic or watch. Average CPU increases past the target. Look at the HPA Calculation box: the live math outputs a higher replica target. The HPA patches the Deployment, spawning starting pods (orange dots) that quickly turn ready (green dots) to handle the load."
+      },
+      exhaust: {
+        traffic: 'sale',
+        instruction: "🔥 **Scenario 3 - Flash Sale (Cluster Autoscaler):** Under extreme traffic, CPU usage leaps. The HPA calculates a demand of 10+ pods. But wait! The 3 active nodes can hold at most 12 pods. New pods are forced into the 'Pending' queue (red striped dots). The Cluster Autoscaler detects this scheduling failure, boots new virtual nodes, and allocates the pods."
+      },
+      cooldown: {
+        traffic: 'cooldown',
+        instruction: "❄️ **Scenario 4 - Cooldown & Stabilization:** Traffic plunges. The HPA calculates that only 3 replicas are needed. To prevent thrashing (repeatedly creating and destroying pods), HPA triggers the 'Cooldown Stabilization window'. It waits in 'Stabilizing' state before gradually scaling down, after which the CA cordons and terminates empty nodes."
+      }
+    };
+
+    function initSimulator() {
+      state.nodesList = [
+        { id: 'node-1', type: 'ondemand', isCordoned: false },
+        { id: 'node-2', type: 'spot', isCordoned: false },
+        { id: 'node-3', type: 'spot', isCordoned: false }
+      ];
+      
+      state.podsList = [
+        { id: 'pod-1', state: 'ready', nodeIndex: 0 },
+        { id: 'pod-2', state: 'ready', nodeIndex: 1 },
+        { id: 'pod-3', state: 'ready', nodeIndex: 2 }
+      ];
+
+      addLog('info', 'ControlPlane: Metrics Aggregator successfully mapped to API Server.');
+      addLog('info', 'kube-scheduler: Initialized static placement ledger.');
+      addLog('success', 'HPAController: Sync loop active. Target metrics found.');
+      updateUI();
+
+      // Start core loop representing 15s HPA sync intervals (mocked to 3s for user interaction)
+      setInterval(syncLoop, 3000);
+      setInterval(metricsJitter, 1000);
+    }
+
+    function selectScenario(id) {
+      document.querySelectorAll('.btn-scenario').forEach(b => b.classList.remove('active'));
+      document.getElementById(`scen-${id}`).classList.add('active');
+      document.getElementById('txt-scenario-instruction').innerHTML = Scenarios[id].instruction;
+      
+      // Auto trigger corresponding traffic profile
+      setTraffic(Scenarios[id].traffic);
+    }
+
+    function setTraffic(profile) {
+      state.trafficProfile = profile;
+      document.querySelectorAll('.btn-traffic').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-t-${profile}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (profile === 'normal') {
+        state.trafficRps = 1200;
+        addLog('action', 'Client: Normal traffic profile selected (1.2k rps).');
+      } else if (profile === 'spike') {
+        state.trafficRps = 6500;
+        addLog('warn', 'Client: Sudden traffic spike triggered (6.5k rps).');
+      } else if (profile === 'sale') {
+        state.trafficRps = 19500;
+        addLog('err', 'Client: FLASH SALE surge initiated! (19.5k rps).');
+      } else if (profile === 'cooldown') {
+        state.trafficRps = 350;
+        addLog('action', 'Client: Cooldown profile selected (0.35k rps).');
+      }
+      updateUI();
+    }
+
+    function updateHPAConfig() {
+      state.targetCpu = parseInt(document.getElementById('slider-target-cpu').value);
+      state.minReplicas = parseInt(document.getElementById('slider-min-rep').value);
+      state.maxReplicas = parseInt(document.getElementById('slider-max-rep').value);
+
+      document.getElementById('lbl-target-cpu').innerText = state.targetCpu + '%';
+      document.getElementById('lbl-min-rep').innerText = state.minReplicas;
+      document.getElementById('lbl-max-rep').innerText = state.maxReplicas;
+      
+      addLog('info', `HPAController: Updated spec. targetCPU=${state.targetCpu}%, limits=[${state.minReplicas}, ${state.maxReplicas}]`);
+      updateUI();
+    }
+
+    function toggleVPA() {
+      state.vpaAuto = document.getElementById('toggle-vpa-auto').checked;
+      document.getElementById('txt-vpa-mode').innerText = state.vpaAuto ? "VPA Mode: Auto (Evictions enabled)" : "VPA Mode: Dry-Run (Off)";
+      
+      if (state.vpaAuto) {
+        addLog('warn', 'VPA: Auto mode enabled! Evictions will take place if recommendations mismatch.');
+      } else {
+        addLog('info', 'VPA: Switched to RecommendationOnly (Dry-run) mode.');
+      }
+    }
+
+    function updateClusterConfig() {
+      state.maxNodes = parseInt(document.getElementById('slider-max-nodes').value);
+      document.getElementById('lbl-max-nodes').innerText = state.maxNodes;
+      document.getElementById('txt-max-nodes').innerText = state.maxNodes;
+      addLog('info', `ClusterAutoscaler: Max size updated to ${state.maxNodes} nodes.`);
+    }
+
+    function resetSimulator() {
+      state.trafficProfile = 'normal';
+      state.trafficRps = 1200;
+      state.cpuAvg = 45;
+      state.memAvg = 52;
+      state.targetCpu = 60;
+      state.minReplicas = 3;
+      state.maxReplicas = 20;
+      state.maxNodes = 5;
+      state.vpaAuto = false;
+      state.replicas = 3;
+      state.pendingPodsCount = 0;
+
+      document.getElementById('slider-target-cpu').value = 60;
+      document.getElementById('slider-min-rep').value = 3;
+      document.getElementById('slider-max-rep').value = 20;
+      document.getElementById('slider-max-nodes').value = 5;
+      document.getElementById('toggle-vpa-auto').checked = false;
+
+      document.querySelectorAll('.btn-traffic').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-t-normal').classList.add('active');
+
+      document.querySelectorAll('.btn-scenario').forEach(b => b.classList.remove('active'));
+      document.getElementById('scen-normal').classList.add('active');
+      document.getElementById('txt-scenario-instruction').innerHTML = Scenarios.normal.instruction;
+
+      document.getElementById('lbl-target-cpu').innerText = '60%';
+      document.getElementById('lbl-min-rep').innerText = '3';
+      document.getElementById('lbl-max-rep').innerText = '20';
+      document.getElementById('lbl-max-nodes').innerText = '5';
+      document.getElementById('txt-vpa-mode').innerText = "VPA Mode: Dry-Run (Off)";
+
+      state.nodesList = [
+        { id: 'node-1', type: 'ondemand', isCordoned: false },
+        { id: 'node-2', type: 'spot', isCordoned: false },
+        { id: 'node-3', type: 'spot', isCordoned: false }
+      ];
+      
+      state.podsList = [
+        { id: 'pod-1', state: 'ready', nodeIndex: 0 },
+        { id: 'pod-2', state: 'ready', nodeIndex: 1 },
+        { id: 'pod-3', state: 'ready', nodeIndex: 2 }
+      ];
+
+      document.getElementById('logs-box').innerHTML = '';
+      addLog('success', 'ControlPlane: Command center reset initiated.');
+      initSimulator();
+    }
+
+    // Add log to the SRE console
+    function addLog(type, message) {
+      const box = document.getElementById('logs-box');
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = `log-line log-${type}`;
+      div.innerHTML = `<span class="log-time">[${time}]</span>${message}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // Jitter metrics to simulate active cluster fluctuations
+    function metricsJitter() {
+      let baseCpu = 20;
+      if (state.trafficProfile === 'normal') baseCpu = 40;
+      else if (state.trafficProfile === 'spike') baseCpu = 75;
+      else if (state.trafficProfile === 'sale') baseCpu = 95;
+      else if (state.trafficProfile === 'cooldown') baseCpu = 15;
+
+      // Cpu is inversely proportional to replica count
+      let calculatedCpu = Math.round((baseCpu * 3) / state.replicas);
+      if (calculatedCpu < 10) calculatedCpu = 10;
+      if (calculatedCpu > 100) calculatedCpu = 100;
+
+      // Jitter
+      state.cpuAvg = Math.round(calculatedCpu + (Math.random() * 6 - 3));
+      state.memAvg = Math.round(50 + (Math.random() * 8 - 4));
+
+      // Calculate dynamic VPA recommendations based on peak usage
+      if (state.cpuAvg > 80) {
+        state.vpaCpuRec = Math.round(state.vpaCpuRec * 1.05);
+        state.vpaMemRec = Math.round(state.vpaMemRec * 1.02);
+      } else if (state.cpuAvg < 30) {
+        state.vpaCpuRec = Math.round(state.vpaCpuRec * 0.98);
+        state.vpaMemRec = Math.round(state.vpaMemRec * 0.99);
+      }
+      // Clamping
+      if (state.vpaCpuRec < 120) state.vpaCpuRec = 120;
+      if (state.vpaCpuRec > 450) state.vpaCpuRec = 450;
+
+      updateUI();
+    }
+
+    // Main sync logic
+    function syncLoop() {
+      // 1. Calculate desired replicas using HPA formula
+      let currentVal = state.cpuAvg;
+      let targetVal = state.targetCpu;
+      let desired = Math.ceil(state.replicas * (currentVal / targetVal));
+
+      // Enforce bounds
+      if (desired < state.minReplicas) desired = state.minReplicas;
+      if (desired > state.maxReplicas) desired = state.maxReplicas;
+
+      let hpaHudStatus = "Idle";
+      let caHudStatus = "Waiting";
+
+      // Handle stabilization window logic
+      if (desired < state.replicas) {
+        state.stabilizationTimer++;
+        if (state.stabilizationTimer < 2) {
+          // Hold downscale
+          hpaHudStatus = "Stabilizing (Cooldown Active)";
+          addLog('info', `HPAController: Desired replicas is ${desired} (less than current ${state.replicas}). Waiting for scale-down stabilization window...`);
+          desired = state.replicas; 
+        } else {
+          // Cooloff completed, scale down
+          addLog('action', `HPAController: Cooldown window elapsed. Scale down triggered: ${state.replicas} -> ${desired}`);
+          state.stabilizationTimer = 0;
+        }
+      } else if (desired > state.replicas) {
+        hpaHudStatus = "Scaling Up";
+        addLog('action', `HPAController: Spike detected! Desired replicas calculated: ${desired}. Scaling Deployment...`);
+        state.stabilizationTimer = 0; // reset
+        adjustReplicas(desired);
+      } else {
+        state.stabilizationTimer = 0; // reset
+      }
+
+      if (desired < state.replicas) {
+        adjustReplicas(desired);
+      }
+
+      // Update HUD status text
+      document.getElementById('adv-hpa-status').innerText = hpaHudStatus;
+      if (hpaHudStatus === "Scaling Up") {
+        document.getElementById('adv-hpa-status').style.color = "var(--accent-amber)";
+      } else if (hpaHudStatus === "Stabilizing (Cooldown Active)") {
+        document.getElementById('adv-hpa-status').style.color = "var(--accent-lavender)";
+      } else {
+        document.getElementById('adv-hpa-status').style.color = "var(--accent-emerald)";
+      }
+
+      // 2. VPA Actions
+      if (state.vpaAuto) {
+        if (state.vpaCpuRec > 350) {
+          addLog('warn', `VPA: Container CPU usage too high. Initiating pod eviction to resize requests to ${state.vpaCpuRec}m.`);
+          // Evict a pod to mock VPA adjustment
+          const targetPod = state.podsList.find(p => p.state === 'ready');
+          if (targetPod) {
+            targetPod.state = 'terminating';
+            addLog('err', `kube-scheduler: Pod ${targetPod.id} evicted by VPA updater.`);
+            setTimeout(() => {
+              state.podsList = state.podsList.filter(p => p.id !== targetPod.id);
+              // recreate pod
+              const newId = `pod-${Math.floor(Math.random() * 1000)}`;
+              state.podsList.push({ id: newId, state: 'starting', nodeIndex: -1 });
+              addLog('success', `VPA Webhook: Injected resized limits (CPU ${state.vpaCpuRec}m) into new pod ${newId}.`);
+              schedulerBindPods();
+            }, 1500);
+          }
+        }
+      }
+
+      // 3. Cluster Autoscaler Actions
+      if (state.pendingPodsCount > 0) {
+        const activeNodesCount = state.nodesList.filter(n => !n.isCordoned).length;
+        if (activeNodesCount < state.maxNodes) {
+          caHudStatus = "Scale-Up Triggered";
+          addLog('warn', `ClusterAutoscaler: Pending pods detected due to resource exhaustion. Triggering Node scale-up.`);
+          // Spawn new node
+          const newIndex = state.nodesList.length;
+          state.nodesList.push({ id: `node-${newIndex + 1}`, type: 'spot', isCordoned: false });
+          addLog('info', `CloudAPI: Provisioning new instance (type Spot) in zone us-east-1a...`);
+          
+          setTimeout(() => {
+            addLog('success', `Kubelet: New Node node-${newIndex + 1} registered and status marked READY.`);
+            schedulerBindPods();
+            updateUI();
+          }, 3000);
+        } else {
+          caHudStatus = "Max Capacity Reached (Blocked)";
+          addLog('err', `ClusterAutoscaler: Max nodes ceiling (${state.maxNodes}) reached! Cannot provision more node resources.`);
+        }
+      } else {
+        // Evaluate node scale down
+        const activeNodes = state.nodesList.filter(n => !n.isCordoned);
+        if (activeNodes.length > 2) {
+          // If a node is completely empty of pods, scale it down
+          for (let i = 1; i < state.nodesList.length; i++) {
+            const node = state.nodesList[i];
+            if (node && !node.isCordoned) {
+              const podsOnNode = state.podsList.filter(p => p.nodeIndex === i);
+              if (podsOnNode.length === 0) {
+                caHudStatus = "Scale-Down Active (Cordoning)";
+                node.isCordoned = true;
+                addLog('action', `ClusterAutoscaler: Node ${node.id} is under-utilized (0% capacity). Cordoning node...`);
+                setTimeout(() => {
+                  state.nodesList = state.nodesList.filter(n => n.id !== node.id);
+                  addLog('success', `CloudAPI: Instance ${node.id} terminated. Billing stopped.`);
+                  updateUI();
+                }, 2000);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      document.getElementById('adv-ca-status').innerText = caHudStatus;
+      if (caHudStatus.includes("Triggered") || caHudStatus.includes("Active")) {
+        document.getElementById('adv-ca-status').style.color = "var(--accent-amber)";
+      } else if (caHudStatus.includes("Blocked")) {
+        document.getElementById('adv-ca-status').style.color = "var(--accent-rose)";
+      } else {
+        document.getElementById('adv-ca-status').style.color = "var(--text-muted)";
+      }
+
+      updateUI();
+    }
+
+    function adjustReplicas(target) {
+      if (target > state.replicas) {
+        // scale up
+        let countToAdd = target - state.replicas;
+        for (let i = 0; i < countToAdd; i++) {
+          const id = `pod-${state.podsList.length + 1}`;
+          state.podsList.push({ id: id, state: 'starting', nodeIndex: -1 });
+          addLog('info', `kube-scheduler: Requesting allocation for new Pod: ${id}`);
+        }
+      } else if (target < state.replicas) {
+        // scale down
+        let countToRemove = state.replicas - target;
+        let removed = 0;
+        // remove starting or ready pods
+        for (let i = state.podsList.length - 1; i >= 0; i--) {
+          if (removed >= countToRemove) break;
+          const pod = state.podsList[i];
+          if (pod.state !== 'terminating') {
+            pod.state = 'terminating';
+            addLog('action', `kube-scheduler: De-allocating Pod ${pod.id} from node index ${pod.nodeIndex}...`);
+            removed++;
+          }
+        }
+
+        setTimeout(() => {
+          state.podsList = state.podsList.filter(p => p.state !== 'terminating');
+          updateUI();
+        }, 1200);
+      }
+
+      state.replicas = target;
+      schedulerBindPods();
+      updateUI();
+    }
+
+    // Mock scheduler pod binding logic
+    function schedulerBindPods() {
+      let pending = 0;
+      state.podsList.forEach(pod => {
+        if (pod.nodeIndex === -1 && pod.state !== 'terminating') {
+          // Find an active node with space
+          let bound = false;
+          for (let nIdx = 0; nIdx < state.nodesList.length; nIdx++) {
+            if (state.nodesList[nIdx].isCordoned) continue;
+            const podsOnNode = state.podsList.filter(p => p.nodeIndex === nIdx && p.state !== 'terminating').length;
+            if (podsOnNode < NODE_CAPACITY_PODS) {
+              pod.nodeIndex = nIdx;
+              pod.state = 'ready';
+              bound = true;
+              addLog('success', `kube-scheduler: Successfully bound pod ${pod.id} to node ${state.nodesList[nIdx].id}`);
+              break;
+            }
+          }
+          if (!bound) {
+            pending++;
+            addLog('warn', `kube-scheduler: FailedScheduling - Pod ${pod.id} cannot fit on any node (Insufficient CPU/Mem)`);
+          }
+        }
+      });
+      state.pendingPodsCount = pending;
+    }
+
+    // Sync state calculations to UI
+    function updateUI() {
+      // 1. Live HPA Equation Math updates
+      document.getElementById('math-current-rep').innerText = state.replicas;
+      document.getElementById('math-current-cpu').innerText = state.cpuAvg;
+      document.getElementById('math-target-cpu').innerText = state.targetCpu;
+      
+      let mathDesired = Math.ceil(state.replicas * (state.cpuAvg / state.targetCpu));
+      if (mathDesired < state.minReplicas) mathDesired = state.minReplicas;
+      if (mathDesired > state.maxReplicas) mathDesired = state.maxReplicas;
+      document.getElementById('math-desired-rep').innerText = mathDesired;
+
+      // 2. Update metric widgets
+      document.getElementById('val-traffic').innerText = `${(state.trafficRps / 1000).toFixed(1)}k rps`;
+      document.getElementById('bar-traffic').style.width = `${Math.min(100, (state.trafficRps / 20000) * 100)}%`;
+      document.getElementById('val-traffic-profile').innerText = state.trafficProfile.toUpperCase();
+
+      document.getElementById('val-cpu').innerText = `${state.cpuAvg}%`;
+      document.getElementById('bar-cpu').style.width = `${state.cpuAvg}%`;
+      document.getElementById('marker-cpu').style.left = `${state.targetCpu}%`;
+
+      document.getElementById('val-mem').innerText = `${state.memAvg}%`;
+      document.getElementById('bar-mem').style.width = `${state.memAvg}%`;
+
+      // 3. VPA recommendation widget
+      document.getElementById('val-vpa-rec').innerText = `${state.vpaCpuRec}m / ${state.vpaMemRec}Mi`;
+
+      // 4. Cost logic
+      let activeNodesCount = state.nodesList.filter(n => !n.isCordoned).length;
+      let hourlyCost = 0;
+      state.nodesList.forEach(n => {
+        if (!n.isCordoned) {
+          hourlyCost += n.type === 'spot' ? SPOT_RATE : ONDEMAND_RATE;
+        }
+      });
+      state.costPerHour = hourlyCost;
+      document.getElementById('val-cost').innerText = `$${state.costPerHour.toFixed(2)}/hr`;
+
+      // 5. Allocation capacity cap
+      let totalCapacity = activeNodesCount * NODE_CAPACITY_PODS;
+      let activePodsCount = state.podsList.filter(p => p.state !== 'terminating').length;
+      let allocationPercentage = totalCapacity > 0 ? Math.round((activePodsCount / totalCapacity) * 100) : 0;
+      document.getElementById('bar-alloc').style.width = `${allocationPercentage}%`;
+      document.getElementById('val-alloc-percentage').innerText = `${allocationPercentage}% (${activePodsCount}/${totalCapacity} slots)`;
+
+      // Advisor HUD slot counts
+      document.getElementById('adv-slots').innerText = `${activePodsCount} / ${totalCapacity} pod slots active`;
+
+      // 6. Node count text
+      document.getElementById('txt-active-nodes').innerText = activeNodesCount;
+      document.getElementById('txt-active-pods').innerText = activePodsCount;
+
+      // 7. Draw the node layout maps
+      const grid = document.getElementById('node-grid');
+      grid.innerHTML = '';
+      
+      state.nodesList.forEach((node, idx) => {
+        const div = document.createElement('div');
+        div.className = `node-block ${node.isCordoned ? 'cordoned' : ''}`;
+        
+        // Node Header info
+        const header = document.createElement('div');
+        header.className = 'node-header';
+        header.innerHTML = `
+          <span>${node.id.toUpperCase()}</span>
+          <span class="${node.type === 'spot' ? 'node-class-spot' : 'node-class-ondemand'}">${node.type.toUpperCase()}</span>
+        `;
+        div.appendChild(header);
+
+        // Pods inside this node
+        const podsContainer = document.createElement('div');
+        podsContainer.className = 'pods-grid';
+        
+        const podsOnNode = state.podsList.filter(p => p.nodeIndex === idx);
+        podsOnNode.forEach(pod => {
+          const dot = document.createElement('div');
+          dot.className = `pod-dot ${pod.state}`;
+          dot.innerText = pod.id.split('-')[1]; // get number
+          dot.setAttribute('data-podinfo', `ID: ${pod.id} | Node: ${node.id} | State: ${pod.state}`);
+          podsContainer.appendChild(dot);
+        });
+
+        if (podsOnNode.length === 0 && !node.isCordoned) {
+          const empty = document.createElement('div');
+          empty.style.fontSize = '0.75rem';
+          empty.style.color = 'var(--text-muted)';
+          empty.style.textAlign = 'center';
+          empty.innerText = 'No running pods.';
+          podsContainer.appendChild(empty);
+        }
+
+        div.appendChild(podsContainer);
+        grid.appendChild(div);
+      });
+
+      // 8. Update pending tray
+      document.getElementById('txt-pending-count').innerText = `${state.pendingPodsCount} Pods Pending`;
+      const tray = document.getElementById('pending-tray');
+      tray.innerHTML = '';
+      for (let i = 0; i < state.pendingPodsCount; i++) {
+        const pendingDot = document.createElement('div');
+        pendingDot.className = 'pod-pending';
+        tray.appendChild(pendingDot);
+      }
+    }
+
+    window.onload = initSimulator;
+  </script>
+</body>
+</html>

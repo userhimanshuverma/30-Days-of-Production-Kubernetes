@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-inference-service
+  namespace: default
+  labels:
+    app: llm-inference
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llm-inference
+  template:
+    metadata:
+      labels:
+        app: llm-inference
+    spec:
+      containers:
+      - name: vllm-engine
+        image: vllm/vllm-openai:latest
+        args:
+        - "--model"
+        - "meta-llama/Llama-3-8B-Instruct"
+        - "--port"
+        - "8000"
+        ports:
+        - name: http
+          containerPort: 8000
+        resources:
+          requests:
+            cpu: "4"
+            memory: "16Gi"
+            nvidia.com/gpu: "1" # Requesting 1 physical GPU
+          limits:
+            cpu: "8"
+            memory: "32Gi"
+            nvidia.com/gpu: "1"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: llm-inference-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm-inference-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  # AI inference models scale poorly on standard CPU/Mem. We scale based on average queue requests.
+  - type: Pods
+    pods:
+      metric:
+        name: vllm:num_requests_waiting
+      target:
+        type: AverageValue
+        averageValue: "5" # Scale out if average queue length exceeds 5 requests per pod
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0 # React instantly
+      policies:
+      - type: Percent
+        value: 100 # Allow doubling capacity instantly
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 600 # Wait 10 minutes before scaling down (GPU warm-ups are very slow!)
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
