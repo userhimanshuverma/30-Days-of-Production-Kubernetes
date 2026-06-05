@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: database-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: prod-postgres
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from the Backend Pods only on Port 5432
+  - from:
+    - podSelector:
+        matchLabels:
+          app: prod-backend
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Egress is empty - zero outbound egress is allowed from database pods (zero trust egress isolation)
+  egress: []

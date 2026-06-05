@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: prod-frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress traffic on Port 80 from any source
+  - ports:
+    - protocol: TCP
+      port: 80
+  egress:
+  # Allow egress traffic to CoreDNS (kube-system namespace)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow egress to the Backend Pods on Port 8080
+  - to:
+    - podSelector:
+        matchLabels:
+          app: prod-backend
+    ports:
+    - protocol: TCP
+      port: 8080
