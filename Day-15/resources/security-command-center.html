@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Security Command Center - Day 15</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0b0914;
+      --card-bg: rgba(22, 19, 38, 0.85);
+      --card-border: rgba(124, 58, 237, 0.2);
+      --card-border-hover: rgba(124, 58, 237, 0.4);
+      --text-color: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #8b5cf6;
+      --primary-glow: rgba(139, 92, 246, 0.3);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.2);
+      --warning: #f59e0b;
+      --warning-glow: rgba(245, 158, 11, 0.2);
+      --info: #06b6d4;
+      --info-glow: rgba(6, 182, 212, 0.2);
+      --font-sans: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--primary), var(--info));
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+    }
+
+    .title-group h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #fff, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-group p {
+      font-size: 0.85rem;
+      color: var(--info);
+      font-weight: 500;
+    }
+
+    .system-status {
+      display: flex;
+      gap: 16px;
+      font-size: 0.8rem;
+    }
+
+    .status-item {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    /* Guided Missions Bar */
+    .mission-container {
+      background: rgba(124, 58, 237, 0.05);
+      border: 1px dashed var(--primary);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .mission-header {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mission-selector {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .mission-selector {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .mission-card {
+      background: rgba(15, 12, 30, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .mission-card:hover {
+      border-color: var(--info);
+      background: rgba(6, 182, 212, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .mission-card.active {
+      border-color: var(--success);
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 0 10px var(--success-glow);
+    }
+
+    .mission-card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .mission-card-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Learning Inspector & Explainer */
+    .inspector-panel {
+      background: linear-gradient(135deg, rgba(30, 27, 46, 0.95), rgba(15, 12, 30, 0.95));
+      border: 1px solid var(--info);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+    }
+
+    .inspector-header {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--info);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(6, 182, 212, 0.2);
+      padding-bottom: 6px;
+    }
+
+    .inspector-body {
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .inspector-section {
+      margin-bottom: 12px;
+    }
+
+    .inspector-section h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .inspector-section p {
+      color: var(--text-muted);
+    }
+
+    .badge-interactive {
+      background-color: rgba(255,255,255,0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #fff;
+    }
+
+    /* Grid Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr 380px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 1200px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .panel:hover {
+      border-color: var(--card-border-hover);
+    }
+
+    .panel-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 8px;
+    }
+
+    .panel-header-icon {
+      color: var(--primary);
+    }
+
+    /* Section Forms & Controls */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select, input, textarea {
+      width: 100%;
+      background-color: rgba(15, 12, 30, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #fff;
+      padding: 10px 12px;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: var(--primary);
+    }
+
+    textarea.code-area {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      height: 220px;
+      resize: none;
+      line-height: 1.4;
+      background-color: #050409;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--primary), #6d28d9);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+
+    /* Policy Toggles */
+    .policy-toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .policy-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .policy-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .policy-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .policy-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #334155;
+      transition: .4s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    /* API Pipeline flow chart visual */
+    .pipeline-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #06050b;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 16px;
+    }
+
+    .pipeline-nodes {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .pipeline-nodes::after {
+      content: '';
+      position: absolute;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      top: 15px;
+      left: 20px;
+      right: 20px;
+      z-index: 1;
+    }
+
+    .pipeline-node {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      width: 60px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .node-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #1e1b2e;
+      border: 2px solid #334155;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      color: #fff;
+      font-family: var(--font-mono);
+      transition: all 0.3s ease;
+      cursor: help;
+    }
+
+    .pipeline-node.active .node-dot {
+      border-color: var(--primary);
+      background: var(--primary);
+      box-shadow: 0 0 10px var(--primary);
+    }
+
+    .pipeline-node.success .node-dot {
+      border-color: var(--success);
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+
+    .pipeline-node.failed .node-dot {
+      border-color: var(--danger);
+      background: var(--danger);
+      box-shadow: 0 0 10px var(--danger);
+    }
+
+    /* Output Logger Console */
+    .console {
+      background-color: #020104;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 14px;
+      height: 260px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+    }
+
+    .console-line {
+      display: flex;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    .console-timestamp {
+      color: var(--info);
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .console-tag {
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .tag-authn { background-color: var(--info-glow); color: var(--info); border: 1px solid rgba(6, 182, 212, 0.3); }
+    .tag-authz { background-color: var(--primary-glow); color: var(--primary); border: 1px solid rgba(139, 92, 246, 0.3); }
+    .tag-admission { background-color: var(--warning-glow); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .tag-system { background-color: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .tag-allow { background-color: var(--success-glow); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .tag-deny { background-color: var(--danger-glow); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    .console-text {
+      color: #fff;
+    }
+
+    .console-text.highlight-deny {
+      color: var(--danger);
+      font-weight: bold;
+    }
+
+    .console-text.highlight-allow {
+      color: var(--success);
+      font-weight: bold;
+    }
+
+    /* Secret Visualizer Panel */
+    .secret-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .secret-box {
+      background: rgba(15, 12, 30, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .secret-data-display {
+      background: #020104;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .ciphertext-glowing {
+      color: var(--info);
+      text-shadow: 0 0 5px var(--info-glow);
+    }
+
+    .plaintext-glowing {
+      color: var(--danger);
+      text-shadow: 0 0 5px var(--danger-glow);
+    }
+
+    /* Pod Templates Buttons */
+    .template-btn-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .template-btn {
+      flex: 1;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .template-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    .template-btn.active {
+      background: var(--primary-glow);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* Live Security Alert Feed */
+    .alert-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .alert-card {
+      background: rgba(239, 68, 68, 0.03);
+      border: 1px solid rgba(239, 68, 68, 0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .alert-card.warn {
+      background: rgba(245, 158, 11, 0.03);
+      border: 1px solid rgba(245, 158, 11, 0.1);
+    }
+
+    .alert-icon {
+      color: var(--danger);
+      font-size: 1.1rem;
+      margin-top: 2px;
+    }
+
+    .alert-card.warn .alert-icon {
+      color: var(--warning);
+    }
+
+    .alert-details h4 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .alert-details p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .alert-time {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-badge">K8S</div>
+      <div class="title-group">
+        <h1>Security Command Center</h1>
+        <p>Interactive Cluster Hardening & Request Pipeline Simulator</p>
+      </div>
+    </div>
+    <div class="system-status">
+      <div class="status-item">
+        <span class="status-dot"></span>
+        <span>Kube-APIServer: Online</span>
+      </div>
+      <div class="status-item">
+        <span>Namespace: <strong style="color: var(--info);" id="active-ns-badge">production</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Guided Missions Interface -->
+  <div class="mission-container">
+    <div class="mission-header">
+      <span>🎯 Active Learning Missions (Select to load a scenario)</span>
+    </div>
+    <div class="mission-selector">
+      <div class="mission-card active" id="mission-overview" onclick="selectMission('overview')">
+        <span class="mission-card-title">1. Introduction Overview</span>
+        <span class="mission-card-desc">Start here to explore the layout and pipeline basic configurations.</span>
+      </div>
+      <div class="mission-card" id="mission-rbac" onclick="selectMission('rbac')">
+        <span class="mission-card-title">2. RBAC Least Privilege</span>
+        <span class="mission-card-desc">Simulate a compromised user accessing unauthorized namespaces.</span>
+      </div>
+      <div class="mission-card" id="mission-escape" onclick="selectMission('escape')">
+        <span class="mission-card-title">3. Preventing Container Escape</span>
+        <span class="mission-card-desc">Attempt to deploy a privileged root container and watch it get blocked.</span>
+      </div>
+      <div class="mission-card" id="mission-secrets" onclick="selectMission('secrets')">
+        <span class="mission-card-title">4. etcd Database Secrets Leak</span>
+        <span class="mission-card-desc">Inspect secret safety on the filesystem disk with encryption toggled.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Learning Inspector Explainer -->
+  <div class="inspector-panel" id="inspector-panel">
+    <div class="inspector-header">
+      <span id="inspector-title">Active Inspector: 1. Introduction Overview</span>
+      <span style="font-size: 0.8rem; background: var(--info-glow); color: var(--info); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(6, 182, 212, 0.3);">Educational Guide</span>
+    </div>
+    <div class="inspector-body" id="inspector-content">
+      <div class="inspector-section">
+        <h4>The Concept</h4>
+        <p>This command center simulates how the Kubernetes API Server process validates client requests. Every action you perform (like RBAC checks or Deployments) flows through a security validation pipeline containing authentication, authorization, and policy admission hooks before writing details into the key-value database (etcd).</p>
+      </div>
+      <div class="inspector-section">
+        <h4>Try this out:</h4>
+        <p>Click on the other **Learning Missions** in the dashed banner above to explore the threat models and see how Kubernetes blocks access vectors step by step.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <!-- Left Column: Authenticate & RBAC -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>🔑 1. Identity & RBAC</span>
+        <span class="panel-header-icon">🛡️</span>
+      </div>
+
+      <div class="form-group">
+        <label for="identity-selector">Choose Identity (AuthN)</label>
+        <select id="identity-selector">
+          <option value="admin">Cluster Admin (OIDC Certificate)</option>
+          <option value="developer">Jane (Developer - dev Namespace only)</option>
+          <option value="service-account">dev-ci-runner (Service Account)</option>
+          <option value="compromised-sa">compromised-pod-sa (No Roles Bound)</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-top: 24px;">
+        <label>Test RBAC Request (AuthZ)</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <select id="rbac-verb" style="flex: 1;">
+            <option value="get">GET</option>
+            <option value="list">LIST</option>
+            <option value="create">CREATE</option>
+            <option value="delete">DELETE</option>
+          </select>
+          <select id="rbac-resource" style="flex: 1;">
+            <option value="pods">Pods</option>
+            <option value="services">Services</option>
+            <option value="secrets">Secrets</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="rbac-namespace">Target Namespace</label>
+          <select id="rbac-namespace">
+            <option value="dev">dev</option>
+            <option value="production">production</option>
+            <option value="kube-system">kube-system</option>
+          </select>
+        </div>
+
+        <button class="btn" id="simulate-rbac-btn">Test Authorization</button>
+      </div>
+
+      <div class="form-group" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
+        <label>Active Identity Scope</label>
+        <div id="identity-metadata-display" style="font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; color: var(--text-muted);">
+          Select an identity to view bound rules...
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Column: Pod Security Scanner & Admission -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>☸️ 2. Pod Admission & Policy Enforcement</span>
+        <span class="panel-header-icon">⚡</span>
+      </div>
+
+      <label>Choose Manifest Template</label>
+      <div class="template-btn-group">
+        <button class="template-btn active" id="btn-tmpl-privileged" onclick="loadTemplate('privileged')">Privileged Pod</button>
+        <button class="template-btn" id="btn-tmpl-baseline" onclick="loadTemplate('baseline')">Baseline Pod</button>
+        <button class="template-btn" id="btn-tmpl-hardened" onclick="loadTemplate('hardened')">Hardened Pod</button>
+      </div>
+
+      <div class="form-group">
+        <label for="manifest-editor">Deployment/Pod YAML</label>
+        <textarea id="manifest-editor" class="code-area" spellcheck="false"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Admission Controller Rules</label>
+        <div class="policy-toggle-list">
+          <div class="policy-item">
+            <div class="policy-info">
+              <span class="policy-title">Block Privileged Mode</span>
+              <span class="policy-desc">Blocks containers running with privileged: true</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="policy-block-privileged" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="policy-item">
+            <div class="policy-info">
+              <span class="policy-title">Block Root Execution</span>
+              <span class="policy-desc">Enforces runAsNonRoot: true</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="policy-block-root" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="policy-item">
+            <div class="policy-info">
+              <span class="policy-title">Require Read-Only Root Filesystem</span>
+              <span class="policy-desc">Checks readOnlyRootFilesystem: true</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="policy-block-writable-fs">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" id="submit-manifest-btn">Deploy to Cluster</button>
+    </div>
+
+    <!-- Right Column: Pipeline and Console Logs -->
+    <div class="panel" style="display: flex; flex-direction: column; gap: 20px;">
+      <div>
+        <div class="panel-header">
+          <span>📊 3. API Server Validation Pipeline</span>
+          <span class="panel-header-icon">⚙️</span>
+        </div>
+
+        <div class="pipeline-container">
+          <div class="pipeline-nodes">
+            <div class="pipeline-node" id="node-authn">
+              <div class="node-dot" title="Authentication: Resolves client credentials (Certs/JWT/Tokens)">1</div>
+              <span>AuthN</span>
+            </div>
+            <div class="pipeline-node" id="node-authz">
+              <div class="node-dot" title="Authorization: Checks RBAC rules inside the active namespace">2</div>
+              <span>AuthZ</span>
+            </div>
+            <div class="pipeline-node" id="node-mutate">
+              <div class="node-dot" title="Mutating Admission: Injects default limits, registry targets, or sidecar containers">3</div>
+              <span>Mutate</span>
+            </div>
+            <div class="pipeline-node" id="node-validate">
+              <div class="node-dot" title="Validating Admission: Enforces Pod Security Standards and security context parameters">4</div>
+              <span>Policy</span>
+            </div>
+            <div class="pipeline-node" id="node-etcd">
+              <div class="node-dot" title="etcd: Writes resource state configuration safely into key-value storage">5</div>
+              <span>etcd</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel-header">
+          <span>🖥&nbsp;Live API Server Logs</span>
+          <button class="template-btn" style="flex:none; padding: 2px 8px;" onclick="clearConsole()">Clear</button>
+        </div>
+        <div class="console" id="console-logs">
+          <!-- Logs injected here -->
+        </div>
+      </div>
+
+      <div>
+        <div class="panel-header">
+          <span>🚨 Real-Time Security Alerts</span>
+        </div>
+        <div class="alert-feed" id="alert-feed">
+          <div class="alert-card warn">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-details">
+              <h4>System Audit Initialized</h4>
+              <p>Admission controller loaded with 3 policies active.</p>
+            </div>
+            <div class="alert-time">Now</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Panel: Secret Protection Shield -->
+  <div class="panel" style="margin-top: 20px;">
+    <div class="panel-header">
+      <span>🔑 Secret Protection Shield (etcd Security)</span>
+      <span class="panel-header-icon">🛡️</span>
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+      <div>
+        <h3 style="font-size: 0.95rem; font-weight: 600; color: #fff;">etcd Encryption at Rest</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">When active, secrets are encrypted using KMS envelope key before etcd storage. Otherwise, stored in cleartext (Base64).</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 0.8rem; font-weight: bold; color: var(--text-muted);" id="encryption-status-text">OFF (Plain Base64)</span>
+        <label class="switch">
+          <input type="checkbox" id="encryption-at-rest-toggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="secret-grid">
+      <div class="secret-box">
+        <h4 style="font-size: 0.85rem; font-weight: 600; color: #fff;">Active Kubernetes Secret (In Memory / Pod Mount)</h4>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Exposed to authorized workloads running inside the container namespace.</p>
+        <div class="secret-data-display">
+          <div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">db-secret-k8s:password</div>
+            <div style="font-weight: bold; margin-top: 4px; font-size: 0.9rem;" class="plaintext-glowing">SuperSecretPassword123!</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="secret-box">
+        <h4 style="font-size: 0.85rem; font-weight: 600; color: #fff;">Raw DB Storage (etcd backend disk representation)</h4>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">What an attacker sees if they compromise the physical etcd master node database backups.</p>
+        <div class="secret-data-display" id="etcd-raw-view">
+          <div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">Value:</div>
+            <div style="font-weight: bold; margin-top: 4px; font-size: 0.8rem;" class="plaintext-glowing">U3VwZXJTZWNyZXRQYXNzd29yZDEyMyE=</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Templates
+    const templates = {
+      privileged: `apiVersion: v1
+kind: Pod
+metadata:
+  name: admin-shell-pod
+  namespace: production
+spec:
+  containers:
+    - name: shell
+      image: alpine:latest
+      command: ["/bin/sh"]
+      securityContext:
+        privileged: true`,
+
+      baseline: `apiVersion: v1
+kind: Pod
+metadata:
+  name: basic-web-server
+  namespace: production
+spec:
+  containers:
+    - name: web
+      image: nginx:alpine
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: true`,
+
+      hardened: `apiVersion: v1
+kind: Pod
+metadata:
+  name: secure-app-pod
+  namespace: production
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: app
+      image: nginxinc/nginx-unprivileged:alpine
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - name: tmp-mount
+          mountPath: /tmp
+  volumes:
+    - name: tmp-mount
+      emptyDir: {}`
+    };
+
+    // RBAC Policies Map
+    const rbacRoles = {
+      admin: {
+        description: "Full cluster admin permissions (* on *). Root privileges.",
+        rules: "All API Groups (*) | All Resources (*) | All Actions (*)"
+      },
+      developer: {
+        description: "Jane: Allowed get, list, create, update on Pods and Deployments ONLY in the 'dev' namespace. Denied access elsewhere.",
+        rules: "dev Namespace | Core & Apps Groups | Pods, Deployments | get, list, create, update, delete"
+      },
+      "service-account": {
+        description: "dev-ci-runner: Service account bound to local namespaces for deployment pipeline tasks.",
+        rules: "dev Namespace | Core & Apps Groups | Deployments, Pods | get, list, create, update, patch"
+      },
+      "compromised-sa": {
+        description: "default/compromised-pod-sa: No roles are bound to this service account (Zero Trust Default).",
+        rules: "No rules bound. Cannot perform any actions."
+      }
+    };
+
+    // Learning Missions Definitions
+    const missions = {
+      overview: {
+        title: "1. Introduction Overview",
+        content: `
+          <div class="inspector-section">
+            <h4>The Concept</h4>
+            <p>This command center simulates how the Kubernetes API Server process validates client requests. Every action you perform (like RBAC checks or Deployments) flows through a security validation pipeline containing authentication, authorization, and policy admission hooks before writing details into the key-value database (etcd).</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Try this out:</h4>
+            <p>Click on the other **Learning Missions** in the dashed banner above to explore specific threat models and see how Kubernetes blocks access vectors step by step.</p>
+          </div>
+        `
+      },
+      rbac: {
+        title: "2. RBAC Least Privilege (Namespace Boundaries)",
+        content: `
+          <div class="inspector-section">
+            <h4>The Threat Model</h4>
+            <p>Developers or CI service accounts are often overprivileged. If a developer credential gets stolen, an attacker can access other namespaces (such as <span class="badge-interactive">kube-system</span> or customer data partitions) to steal secrets or delete databases.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Interactive Guided Steps:</h4>
+            <p>1. In the Left Panel, switch the Identity (AuthN) to <strong style="color: var(--primary);">Jane (Developer)</strong>.</p>
+            <p>2. Set target namespace to <span class="badge-interactive">dev</span> and press **Test Authorization** (Will succeed - Jane has local access).</p>
+            <p>3. Set target namespace to <span class="badge-interactive">production</span> and press **Test Authorization** (Will fail - blocked by RBAC boundary!).</p>
+          </div>
+        `
+      },
+      escape: {
+        title: "3. Preventing Container Escape (Pod Security Contexts)",
+        content: `
+          <div class="inspector-section">
+            <h4>The Threat Model</h4>
+            <p>If a compromised container runs with administrative host privileges (<span class="badge-interactive">privileged: true</span>), the process can escape the container sandboxing boundary. It can access node disks, host namespaces, and hijack node resources.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Interactive Guided Steps:</h4>
+            <p>1. In the Center Panel, select the **Privileged Pod** template (Observe line 12: <span style="color: var(--warning);">privileged: true</span>).</p>
+            <p>2. Keep the Admission toggle **Block Privileged Mode** active.</p>
+            <p>3. Press **Deploy to Cluster**. Watch the API Server pipeline animate. The request passes Authn/Authz, but is rejected at stage 4 (Policy) by the admission controller!</p>
+            <p>4. Now load the **Hardened Pod** template and deploy it. Observe that it passes successfully because it runs as non-root and drops all capabilities.</p>
+          </div>
+        `
+      },
+      secrets: {
+        title: "4. etcd Database Secrets Leak (Encryption at Rest)",
+        content: `
+          <div class="inspector-section">
+            <h4>The Threat Model</h4>
+            <p>By default, Kubernetes Secrets are written to etcd in cleartext (only serialized in Base64). If a backup disk is stolen or an attacker gains physical disk access, they can decode database credentials instantly.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Interactive Guided Steps:</h4>
+            <p>1. Scroll to the bottom panel: **Secret Protection Shield**.</p>
+            <p>2. Keep the Encryption toggle **OFF**. Notice the raw representation in the database is simple base64 plaintext (<span style="font-family: monospace; color: var(--danger);">U3VwZXJTZWNyZXR...</span>).</p>
+            <p>3. Toggle the Encryption switch **ON**. See how the database representation changes to secure KMS-managed envelope ciphertext (<span style="font-family: monospace; color: var(--info);">k8s:enc:kms:...</span>). The credentials are now safe from disk-theft breaches!</p>
+          </div>
+        `
+      }
+    };
+
+    // State Variables
+    let isEncrypted = false;
+
+    // Load elements
+    const consoleLogs = document.getElementById('console-logs');
+    const rbacNamespaceSelect = document.getElementById('rbac-namespace');
+    const activeNsBadge = document.getElementById('active-ns-badge');
+
+    // Sync selected namespaces
+    rbacNamespaceSelect.addEventListener('change', (e) => {
+      activeNsBadge.textContent = e.target.value;
+    });
+
+    // Load initial YAML
+    function loadTemplate(type) {
+      document.querySelectorAll('.template-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-tmpl-${type}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      document.getElementById('manifest-editor').value = templates[type];
+      logMessage('system', `Loaded ${type.toUpperCase()} Pod template into editor.`);
+    }
+
+    // Load Learning Mission
+    function selectMission(missionKey) {
+      // Manage active card states
+      document.querySelectorAll('.mission-card').forEach(card => card.classList.remove('active'));
+      document.getElementById(`mission-${missionKey === 'overview' ? 'overview' : missionKey}`).classList.add('active');
+      
+      const mission = missions[missionKey];
+      document.getElementById('inspector-title').innerHTML = `Active Inspector: ${mission.title}`;
+      document.getElementById('inspector-content').innerHTML = mission.content;
+      
+      logMessage('system', `Switched to Learning Mission: ${mission.title}`);
+      
+      // Auto adjust inputs for missions to guide user
+      if (missionKey === 'rbac') {
+        document.getElementById('identity-selector').value = 'developer';
+        document.getElementById('rbac-verb').value = 'list';
+        document.getElementById('rbac-resource').value = 'pods';
+        rbacNamespaceSelect.value = 'production';
+        activeNsBadge.textContent = 'production';
+        updateIdentityMetadata();
+      } else if (missionKey === 'escape') {
+        document.getElementById('identity-selector').value = 'admin';
+        loadTemplate('privileged');
+        updateIdentityMetadata();
+      } else if (missionKey === 'secrets') {
+        const shieldPanel = document.querySelector('.secret-grid');
+        shieldPanel.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    // Initialize Log
+    function logMessage(tag, text, isCustomTag = null) {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'console-line';
+
+      let tagClass = 'tag-system';
+      if (tag === 'authn') tagClass = 'tag-authn';
+      else if (tag === 'authz') tagClass = 'tag-authz';
+      else if (tag === 'admission') tagClass = 'tag-admission';
+      else if (tag === 'allow') tagClass = 'tag-allow';
+      else if (tag === 'deny') tagClass = 'tag-deny';
+
+      let textClass = '';
+      if (tag === 'deny') textClass = 'highlight-deny';
+      if (tag === 'allow') textClass = 'highlight-allow';
+
+      div.innerHTML = `
+        <span class="console-timestamp">[${time}]</span>
+        <span class="console-tag ${tagClass}">${isCustomTag || tag}</span>
+        <span class="console-text ${textClass}">${text}</span>
+      `;
+      consoleLogs.appendChild(div);
+      consoleLogs.scrollTop = consoleLogs.scrollHeight;
+    }
+
+    function clearConsole() {
+      consoleLogs.innerHTML = '';
+      logMessage('system', 'Console logs cleared.');
+    }
+
+    // Identity selection description update
+    const identitySelector = document.getElementById('identity-selector');
+    const identityDisplay = document.getElementById('identity-metadata-display');
+    
+    function updateIdentityMetadata() {
+      const selected = identitySelector.value;
+      const data = rbacRoles[selected];
+      identityDisplay.innerHTML = `
+        <strong>Description:</strong> ${data.description}<br>
+        <strong style="color: var(--primary);">Rules:</strong> ${data.rules}
+      `;
+      logMessage('authn', `Identity changed to: ${identitySelector.options[identitySelector.selectedIndex].text}`);
+    }
+    identitySelector.addEventListener('change', updateIdentityMetadata);
+
+    // Simulate RBAC Button
+    document.getElementById('simulate-rbac-btn').addEventListener('click', () => {
+      const user = identitySelector.value;
+      const verb = document.getElementById('rbac-verb').value;
+      const resource = document.getElementById('rbac-resource').value;
+      const targetNs = rbacNamespaceSelect.value;
+
+      logMessage('authn', `Authenticating request client context...`);
+      setTimeout(() => {
+        logMessage('authz', `Checking RBAC authorization for User/SA: "${user}" to "${verb}" on "${resource}" in Namespace "${targetNs}"`);
+        
+        setTimeout(() => {
+          let allowed = false;
+
+          if (user === 'admin') {
+            allowed = true; // Admin gets everything
+          } else if (user === 'developer' || user === 'service-account') {
+            // Dev or SA only allowed in dev namespace
+            if (targetNs === 'dev') {
+              if (resource === 'pods' || resource === 'services') {
+                allowed = true;
+              } else if (resource === 'secrets' && verb === 'get') {
+                allowed = true; // Developer/SA can get single secrets
+              }
+            }
+          }
+
+          if (allowed) {
+            logMessage('allow', `Access ALLOWED: RBAC authorization passed.`);
+            updateExplainerPanel('RBAC Verification Passed', `The identity <span class="badge-interactive">${user}</span> possesses valid role rules granting access to perform <span class="badge-interactive">${verb}</span> operations on <span class="badge-interactive">${resource}</span> inside namespace <span class="badge-interactive">${targetNs}</span>.`, 'success');
+          } else {
+            logMessage('deny', `Access DENIED: Forbidden: User "${user}" cannot "${verb}" resource "${resource}" in namespace "${targetNs}".`);
+            triggerAlert('RBAC Policy Rejection', `Unauthorized attempt by "${user}" to run "${verb}" on "${resource}" in "${targetNs}"`, 'warn');
+            updateExplainerPanel('RBAC Boundary Block', `Request rejected because <span class="badge-interactive">${user}</span> does not have a namespace-scoped RoleBinding in the target namespace <span class="badge-interactive">${targetNs}</span>. This illustrates the <strong>Principle of Least Privilege</strong>—users are denied by default unless explicitly bound.`, 'danger');
+          }
+        }, 300);
+      }, 200);
+    });
+
+    // Reset Pipeline Visual Nodes
+    function resetPipeline() {
+      document.querySelectorAll('.pipeline-node').forEach(node => {
+        node.className = 'pipeline-node';
+      });
+    }
+
+    // Updates the middle explainer dynamically on actions
+    function updateExplainerPanel(title, message, state) {
+      const color = state === 'success' ? 'var(--success)' : 'var(--danger)';
+      const headerBorder = state === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+      
+      document.getElementById('inspector-title').innerHTML = `Active Inspector: ${title}`;
+      document.getElementById('inspector-title').style.color = color;
+      document.getElementById('inspector-content').innerHTML = `
+        <div class="inspector-section">
+          <h4>Simulation Inspection Details</h4>
+          <p>${message}</p>
+        </div>
+        <div class="inspector-section">
+          <button class="btn btn-secondary" style="width:auto; padding: 6px 12px; font-size: 0.75rem;" onclick="selectMission('overview')">Reset Guide</button>
+        </div>
+      `;
+    }
+
+    // Deploy / Submit Manifest Button
+    document.getElementById('submit-manifest-btn').addEventListener('click', () => {
+      const yaml = document.getElementById('manifest-editor').value;
+      const user = identitySelector.value;
+      
+      resetPipeline();
+      logMessage('system', 'Starting API pipeline processing...');
+      
+      // Step 1: AuthN
+      document.getElementById('node-authn').classList.add('active');
+      logMessage('authn', `Validating request signature for client identity: "${user}"`);
+      
+      setTimeout(() => {
+        document.getElementById('node-authn').classList.remove('active');
+        document.getElementById('node-authn').classList.add('success');
+        
+        // Step 2: AuthZ
+        document.getElementById('node-authz').classList.add('active');
+        logMessage('authz', `Validating RBAC write credentials to namespace "production"...`);
+        
+        setTimeout(() => {
+          if (user !== 'admin') {
+            document.getElementById('node-authz').classList.remove('active');
+            document.getElementById('node-authz').classList.add('failed');
+            logMessage('deny', `Access Denied: User "${user}" has no CREATE permissions on resource "pods/deployments" in namespace "production".`);
+            triggerAlert('Pipeline Blocked (AuthZ)', `User "${user}" rejected at Authorization boundary.`, 'error');
+            updateExplainerPanel('Pipeline Blocked: Authorization Failure', `The request client <span class="badge-interactive">${user}</span> was authenticated successfully, but does not have RBAC write permissions inside namespace <span class="badge-interactive">production</span>. Write requests are stopped before reaching the policy checks.`, 'danger');
+            return;
+          }
+          
+          document.getElementById('node-authz').classList.remove('active');
+          document.getElementById('node-authz').classList.add('success');
+          
+          // Step 3: Mutating Webhook
+          document.getElementById('node-mutate').classList.add('active');
+          logMessage('admission', `Applying Mutating Webhooks. Auto-injecting service mesh sidecars & defaults...`);
+          
+          setTimeout(() => {
+            document.getElementById('node-mutate').classList.remove('active');
+            document.getElementById('node-mutate').classList.add('success');
+            
+            // Step 4: Policy Enforcement / Validating Admission
+            document.getElementById('node-validate').classList.add('active');
+            logMessage('admission', `Checking Validating Admission policies...`);
+            
+            setTimeout(() => {
+              // Parse the manifest for security settings
+              const hasPrivileged = yaml.includes('privileged: true');
+              const hasRunAsNonRoot = yaml.includes('runAsNonRoot: true');
+              const hasReadOnlyFS = yaml.includes('readOnlyRootFilesystem: true');
+              
+              const blockPrivilegedPolicy = document.getElementById('policy-block-privileged').checked;
+              const blockRootPolicy = document.getElementById('policy-block-root').checked;
+              const requireReadOnlyFSPolicy = document.getElementById('policy-block-writable-fs').checked;
+              
+              let rejected = false;
+              let rejectionReason = [];
+              
+              if (blockPrivilegedPolicy && hasPrivileged) {
+                rejected = true;
+                rejectionReason.push("Container specifies privileged: true (Violates Privileged Policy)");
+              }
+              if (blockRootPolicy && !hasRunAsNonRoot) {
+                rejected = true;
+                rejectionReason.push("Missing runAsNonRoot: true configuration (Violates Rootless Execution)");
+              }
+              if (requireReadOnlyFSPolicy && !hasReadOnlyFS) {
+                rejected = true;
+                rejectionReason.push("Missing readOnlyRootFilesystem: true configuration (Violates Read-Only FS check)");
+              }
+              
+              if (rejected) {
+                document.getElementById('node-validate').classList.remove('active');
+                document.getElementById('node-validate').classList.add('failed');
+                
+                rejectionReason.forEach(reason => {
+                  logMessage('deny', `Admission Rejection: ${reason}`);
+                });
+                
+                triggerAlert('Pod Admission Blocked', rejectionReason.join(', '), 'error');
+                updateExplainerPanel('Pipeline Blocked: Admission Controller Policy Rejection', `The Pod deployment was blocked by the **Validating Admission Controller** because:
+                  <ul style="margin-top:8px; margin-left:16px;">
+                    ${rejectionReason.map(r => `<li>${r}</li>`).join('')}
+                  </ul>
+                  <p style="margin-top:8px;">This mirrors how Kubernetes Namespace-level labels enforce the **Pod Security Standards (Baseline & Restricted)** to protect nodes from container escape vulnerabilities.</p>`, 'danger');
+              } else {
+                document.getElementById('node-validate').classList.remove('active');
+                document.getElementById('node-validate').classList.add('success');
+                
+                // Step 5: etcd write
+                document.getElementById('node-etcd').classList.add('active');
+                logMessage('system', `Writing resource state to etcd store...`);
+                
+                setTimeout(() => {
+                  document.getElementById('node-etcd').classList.remove('active');
+                  document.getElementById('node-etcd').classList.add('success');
+                  logMessage('allow', `SUCCESS: Pod scheduled and written to database! Status: Running.`);
+                  updateExplainerPanel('Deployment Successful: etcd Persisted', `The Pod specification fully complies with all security policies and has been written to the cluster etcd backend storage database. The Kubernetes scheduler will now assign this pod to a worker node for execution.`, 'success');
+                }, 300);
+              }
+            }, 500);
+          }, 300);
+        }, 400);
+      }, 300);
+    });
+
+    // Alert Logger
+    const alertFeed = document.getElementById('alert-feed');
+    function triggerAlert(title, message, severity) {
+      const card = document.createElement('div');
+      card.className = `alert-card ${severity === 'warn' ? 'warn' : ''}`;
+      card.innerHTML = `
+        <div class="alert-icon">${severity === 'warn' ? '⚠️' : '🚨'}</div>
+        <div class="alert-details">
+          <h4>${title}</h4>
+          <p>${message}</p>
+        </div>
+        <div class="alert-time">Just Now</div>
+      `;
+      alertFeed.insertBefore(card, alertFeed.firstChild);
+    }
+
+    // Encryption Toggle Handler
+    const encryptionToggle = document.getElementById('encryption-at-rest-toggle');
+    const encryptionStatusText = document.getElementById('encryption-status-text');
+    const etcdRawView = document.getElementById('etcd-raw-view');
+
+    encryptionToggle.addEventListener('change', () => {
+      isEncrypted = encryptionToggle.checked;
+      
+      if (isEncrypted) {
+        encryptionStatusText.textContent = "ON (KMS Encrypted - AES-GCM)";
+        encryptionStatusText.style.color = "var(--success)";
+        
+        etcdRawView.innerHTML = `
+          <div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">Ciphertext value stored in etcd:</div>
+            <div style="font-weight: bold; margin-top: 4px; font-size: 0.75rem;" class="ciphertext-glowing">
+              k8s:enc:kms:v2:my-kms-provider:h2Gf9KjM21PqRsTxWyZbCdEf...
+            </div>
+            <div style="font-size: 0.6rem; color: var(--success); margin-top: 4px;">✔ Envelope decrypted on read using API server KMS plugin</div>
+          </div>
+        `;
+        logMessage('system', 'KMS Encryption at Rest configuration ENABLED. Rotating keys and re-writing secret...');
+        updateExplainerPanel('KMS Encryption Active', `By configuring an <span class="badge-interactive">EncryptionConfiguration</span> mapping a Key Management Service (KMS), the API server encrypts secret strings before writing them to disk. A physical dump of etcd no longer compromises application passwords.`, 'success');
+      } else {
+        encryptionStatusText.textContent = "OFF (Plain Base64)";
+        encryptionStatusText.style.color = "var(--danger)";
+        
+        etcdRawView.innerHTML = `
+          <div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">Value:</div>
+            <div style="font-weight: bold; margin-top: 4px; font-size: 0.8rem;" class="plaintext-glowing">
+              U3VwZXJTZWNyZXRQYXNzd29yZDEyMyE=
+            </div>
+            <div style="font-size: 0.6rem; color: var(--danger); margin-top: 4px;">❌ Vulnerable. Cleartext Base64 representation can be decoded.</div>
+          </div>
+        `;
+        logMessage('system', 'WARNING: Encryption at Rest configuration DISABLED. Secrets written to etcd in plain text.');
+        updateExplainerPanel('Cleartext etcd Warning', `With encryption disabled, secret resources are stored inside etcd as simple Base64 strings. Because Base64 is merely a serialization format, any compromise of etcd backups instantly leaks application database credentials.`, 'danger');
+      }
+    });
+
+    // Initialize Default State
+    loadTemplate('privileged');
+    updateIdentityMetadata();
+  </script>
+</body>
+</html>

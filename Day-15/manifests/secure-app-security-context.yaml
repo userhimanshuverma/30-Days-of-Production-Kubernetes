@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-web-app
+  namespace: production
+  labels:
+    app: secure-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: secure-web
+  template:
+    metadata:
+      labels:
+        app: secure-web
+    spec:
+      # Pod-level security settings
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault # Enforces the container runtime default seccomp profile
+      containers:
+        - name: web-server
+          image: nginxinc/nginx-unprivileged:alpine # Unprivileged image that runs as non-root
+          ports:
+            - containerPort: 8080
+              name: http
+          # Container-level security settings
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities:
+              drop:
+                - ALL # Drop all default capabilities to achieve least privilege
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+          volumeMounts:
+            - name: cache-volume
+              mountPath: /tmp # Allow writing temporary files to a memory-backed tmpfs mount
+      volumes:
+        - name: cache-volume
+          emptyDir:
+            medium: Memory # Stores temporary data in RAM instead of node disk
