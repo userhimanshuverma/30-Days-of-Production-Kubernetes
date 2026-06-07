@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-apps
+---
+# App 1: Structured JSON Log Generator (Production Standard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: structured-json-logger
+  namespace: demo-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: structured-logger
+  template:
+    metadata:
+      labels:
+        app: structured-logger
+    spec:
+      containers:
+      - name: generator
+        image: python:3.10-alpine
+        command:
+        - "python"
+        - "-c"
+        - |
+          import time, json, random
+          users = [101, 102, 103, 104, 105]
+          paths = ["/api/v1/checkout", "/api/v1/payment", "/api/v1/auth", "/api/v1/user"]
+          while True:
+              log_line = {
+                  "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                  "level": "info" if random.random() > 0.1 else "warn",
+                  "service": "checkout-service",
+                  "trace_id": f"trace-{random.randint(1000, 9999)}",
+                  "user_id": random.choice(users),
+                  "path": random.choice(paths),
+                  "latency_ms": random.randint(10, 250),
+                  "message": "Transaction completed successfully"
+              }
+              # Inject rare customer credit card log (for PII masking tests)
+              if random.random() < 0.05:
+                  log_line["level"] = "debug"
+                  log_line["message"] = "Customer verification complete"
+                  log_line["credit_card"] = "4111-2222-3333-4444"
+              print(json.dumps(log_line), flush=True)
+              time.sleep(2)
+---
+# App 2: Unstructured Java-Style Multiline Exception Generator (Testing Multiline merging)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multiline-exception-logger
+  namespace: demo-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multiline-logger
+  template:
+    metadata:
+      labels:
+        app: multiline-logger
+    spec:
+      containers:
+      - name: generator
+        image: python:3.10-alpine
+        command:
+        - "python"
+        - "-c"
+        - |
+          import time, random
+          while True:
+              print(f"2026-06-07 {time.strftime('%H:%M:%S')} INFO  [main] com.example.db.ConnectionPool: Pool connection opened successfully", flush=True)
+              time.sleep(3)
+              if random.random() < 0.3:
+                  print(f"2026-06-07 {time.strftime('%H:%M:%S')} ERROR [main] com.example.db.DatabaseManager: Query execution failed!", flush=True)
+                  print("java.lang.NullPointerException: Cannot invoke 'java.sql.Connection.createStatement()' because 'conn' is null", flush=True)
+                  print("   at com.example.db.DatabaseManager.executeQuery(DatabaseManager.java:48)", flush=True)
+                  print("   at com.example.db.DatabaseManager.getUserData(DatabaseManager.java:23)", flush=True)
+                  print("   at com.example.api.UserHandler.handle(UserHandler.java:12)", flush=True)
+                  print("   at com.example.Server.main(Server.java:10)", flush=True)
+                  time.sleep(2)
+---
+# App 3: Noisy Healthcheck Generator (Verify Grep Exclude filters)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: noisy-healthcheck-logger
+  namespace: demo-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: noisy-logger
+  template:
+    metadata:
+      labels:
+        app: noisy-logger
+    spec:
+      containers:
+      - name: generator
+        image: alpine:3.18
+        command:
+        - "sh"
+        - "-c"
+        - |
+          while true; do
+              # Standard logs
+              echo "2026-06-07T12:00:00Z stdout F [INFO] Request completed for resource '/api/v1/items'"
+              sleep 1
+              # Highly frequent healthcheck log spam
+              echo "2026-06-07T12:00:00Z stdout F [DEBUG] /healthz 200 OK - agent=kube-probe/1.28"
+              sleep 0.5
+              echo "2026-06-07T12:00:00Z stdout F [DEBUG] /metrics 200 OK - agent=prometheus-server"
+              sleep 0.5
+          done
