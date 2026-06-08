@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Observability Command Center - Day 17</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #06050b;
+      --card-bg: rgba(15, 12, 28, 0.85);
+      --card-border: rgba(59, 130, 246, 0.15);
+      --card-border-hover: rgba(59, 130, 246, 0.35);
+      --text-color: #e2e8f0;
+      --text-muted: #64748b;
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.25);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.15);
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.15);
+      --warning: #f59e0b;
+      --warning-glow: rgba(245, 158, 11, 0.15);
+      --info: #06b6d4;
+      --info-glow: rgba(6, 182, 212, 0.15);
+      --font-sans: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 5% 10%, rgba(59, 130, 246, 0.06) 0%, transparent 35%),
+        radial-gradient(circle at 95% 90%, rgba(6, 182, 212, 0.06) 0%, transparent 35%);
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--primary), var(--info));
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 1.5px;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.35);
+    }
+
+    .title-group h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-group p {
+      font-size: 0.8rem;
+      color: var(--info);
+      font-weight: 500;
+    }
+
+    .system-status {
+      display: flex;
+      gap: 12px;
+      font-size: 0.75rem;
+    }
+
+    .status-item {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    /* Learning Missions Bar */
+    .mission-container {
+      background: rgba(59, 130, 246, 0.04);
+      border: 1px dashed var(--primary);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .mission-header {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mission-selector {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    @media (max-width: 900px) {
+      .mission-selector {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .mission-card {
+      background: rgba(10, 8, 20, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .mission-card:hover {
+      border-color: var(--info);
+      background: rgba(6, 182, 212, 0.04);
+      transform: translateY(-1px);
+    }
+
+    .mission-card.active {
+      border-color: var(--success);
+      background: rgba(16, 185, 129, 0.06);
+      box-shadow: 0 0 8px var(--success-glow);
+    }
+
+    .mission-card-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .mission-card-desc {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    /* Learning Inspector */
+    .inspector-panel {
+      background: linear-gradient(135deg, rgba(20, 17, 34, 0.95), rgba(10, 8, 20, 0.95));
+      border: 1px solid var(--info);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.1);
+    }
+
+    .inspector-header {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--info);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(6, 182, 212, 0.15);
+      padding-bottom: 6px;
+    }
+
+    .inspector-body {
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+
+    .inspector-section {
+      margin-bottom: 8px;
+    }
+
+    .inspector-section h4 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+
+    .inspector-section p {
+      color: #a0aec0;
+    }
+
+    /* Dashboard Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 1200px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      backdrop-filter: blur(8px);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .panel:hover {
+      border-color: var(--card-border-hover);
+    }
+
+    .panel-header {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .panel-header-icon {
+      color: var(--primary);
+    }
+
+    /* Forms and Inputs */
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select, input {
+      width: 100%;
+      background-color: rgba(10, 8, 20, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+      color: #fff;
+      padding: 8px 10px;
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--primary);
+    }
+
+    /* Sliders */
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      margin-bottom: 8px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .slider-val {
+      font-family: var(--font-mono);
+      color: var(--info);
+      font-weight: bold;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: #2d3748;
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+      margin: 6px 0;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      box-shadow: 0 0 6px var(--primary);
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, var(--primary), #2563eb);
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--danger), #b91c1c);
+    }
+    .btn-danger:hover {
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, var(--warning), #d97706);
+    }
+    .btn-warning:hover {
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), #047857);
+    }
+    .btn-success:hover {
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Grafana Panel Visual */
+    .grafana-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .grafana-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-box {
+      background: rgba(10, 8, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 6px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chart-current {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .chart-current.danger-text { color: var(--danger); text-shadow: 0 0 5px rgba(239, 68, 68, 0.3); }
+    .chart-current.warn-text { color: var(--warning); text-shadow: 0 0 5px rgba(245, 158, 11, 0.3); }
+    .chart-current.success-text { color: var(--success); text-shadow: 0 0 5px rgba(16, 185, 129, 0.3); }
+
+    .chart-canvas {
+      width: 100%;
+      height: 120px;
+      background-color: #030206;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+
+    /* Scraper log panel */
+    .logger-console {
+      background-color: #010003;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 10px;
+      height: 200px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+      margin-bottom: 12px;
+    }
+
+    .console-line {
+      display: flex;
+      gap: 6px;
+      line-height: 1.3;
+    }
+
+    .console-ts {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .console-tag {
+      font-weight: bold;
+      padding: 0px 4px;
+      border-radius: 3px;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .tag-scrape { background-color: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); }
+    .tag-sd { background-color: var(--info-glow); color: var(--info); border: 1px solid rgba(6, 182, 212, 0.2); }
+    .tag-rule { background-color: var(--warning-glow); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .tag-system { background-color: rgba(255, 255, 255, 0.04); color: #fff; }
+
+    .console-txt {
+      color: #e2e8f0;
+      word-break: break-all;
+    }
+    .console-txt.err { color: var(--danger); }
+    .console-txt.ok { color: var(--success); }
+
+    /* Alert Manager Alert Board */
+    .alert-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      height: 180px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+    }
+
+    .alert-card {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 5px;
+      padding: 8px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      position: relative;
+    }
+
+    .alert-card.critical {
+      background: rgba(239, 68, 68, 0.03);
+      border-color: rgba(239, 68, 68, 0.15);
+    }
+    .alert-card.warning {
+      background: rgba(245, 158, 11, 0.03);
+      border-color: rgba(245, 158, 11, 0.15);
+    }
+
+    .alert-badge {
+      font-size: 0.6rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #fff;
+    }
+    .alert-badge.crit { background-color: var(--danger); }
+    .alert-badge.warn { background-color: var(--warning); }
+
+    .alert-info {
+      flex: 1;
+    }
+    .alert-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .alert-desc {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+    .alert-route {
+      font-size: 0.6rem;
+      color: var(--info);
+      font-weight: 600;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .empty-alerts {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      border: 1px dashed rgba(255, 255, 255, 0.05);
+      border-radius: 5px;
+    }
+
+    /* Target Discovery Info Panel */
+    .sd-panel {
+      background: rgba(10, 8, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 0.75rem;
+      margin-top: 10px;
+    }
+    .sd-header {
+      font-weight: bold;
+      color: #fff;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .sd-targets-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .sd-target-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 6px;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sd-target-state {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.6rem;
+      font-weight: bold;
+    }
+    .sd-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-badge">PROM</div>
+      <div class="title-group">
+        <h1>Kubernetes Observability Command Center</h1>
+        <p>Interactive Prometheus Scraping, PromQL & Alertmanager Simulator</p>
+      </div>
+    </div>
+    <div class="system-status">
+      <div class="status-item">
+        <span class="status-dot" id="system-status-dot"></span>
+        <span id="system-status-text">TSDB Status: Healthy</span>
+      </div>
+      <div class="status-item">
+        <span>Active Targets: <strong style="color: var(--info);" id="active-targets-count">5 / 5</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Guided Missions Interface -->
+  <div class="mission-container">
+    <div class="mission-header">
+      <span>🎯 Active Learning Missions (Select to launch scenario)</span>
+    </div>
+    <div class="mission-selector">
+      <div class="mission-card active" id="mission-overview" onclick="selectMission('overview')">
+        <span class="mission-card-title">1. Observability Overview</span>
+        <span class="mission-card-desc">Observe normal traffic flow, Golden Signals, and Prometheus scrape target health.</span>
+      </div>
+      <div class="mission-card" id="mission-leak" onclick="selectMission('leak')">
+        <span class="mission-card-title">2. Memory Leak & OOMKill</span>
+        <span class="mission-card-desc">Inject a memory leak. Watch Saturation rise, trigger warning alerts, and patch.</span>
+      </div>
+      <div class="mission-card" id="mission-errors" onclick="selectMission('errors')">
+        <span class="mission-card-title">3. Error Spikes & SLO Burn</span>
+        <span class="mission-card-desc">Increase error rates. See HttpErrorSpike trigger Alertmanager pager routing.</span>
+      </div>
+      <div class="mission-card" id="mission-node" onclick="selectMission('node')">
+        <span class="mission-card-title">4. Node Failure & Alert Storm</span>
+        <span class="mission-card-desc">Simulate a node hardware crash. Study Alert Inhibition and silence rules.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Learning Inspector Panel -->
+  <div class="inspector-panel" id="inspector-panel">
+    <div class="inspector-header">
+      <span id="inspector-title">Active Inspector: 1. Observability Overview</span>
+      <span style="font-size: 0.7rem; background: var(--info-glow); color: var(--info); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(6, 182, 212, 0.3);">SRE Training Module</span>
+    </div>
+    <div class="inspector-body" id="inspector-content">
+      <div class="inspector-section">
+        <h4>Objective</h4>
+        <p>Explore the monitoring layout. On the left, select a target service and adjust its Traffic (RPS), Latency, and Error rates. The middle dashboard acts like Grafana, visualizing the 4 Golden Signals. The right side shows raw Prometheus scrape polls and Alertmanager routes.</p>
+      </div>
+      <div class="inspector-section" style="margin-top: 6px;">
+        <h4>Key Concept: The Pull Model</h4>
+        <p>Note the Prometheus logs in the console. Every 3 seconds (accelerated for training), Prometheus makes HTTP requests to `/metrics` endpoints. This pull-model gives the server control over ingestion load.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <!-- Left Column: Controls and Injection -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>⚙️ Target Controls & Fault Injection</span>
+        <span class="panel-header-icon">🎛️</span>
+      </div>
+
+      <div class="form-group">
+        <label for="service-selector">Select Scrape Target</label>
+        <select id="service-selector" onchange="changeActiveService()">
+          <option value="api-service">customer-api (Go Service)</option>
+          <option value="kafka-cluster">kafka-broker (Messaging Cluster)</option>
+          <option value="postgres-db">postgres-primary (StatefulSet DB)</option>
+          <option value="apache-pinot">pinot-query (Real-time Analytics)</option>
+        </select>
+      </div>
+
+      <div class="slider-container">
+        <div class="slider-header">
+          <label>Traffic (Requests/Sec)</label>
+          <span class="slider-val" id="val-traffic">120 RPS</span>
+        </div>
+        <input type="range" id="input-traffic" min="0" max="1000" value="120" oninput="updateControls()">
+      </div>
+
+      <div class="slider-container">
+        <div class="slider-header">
+          <label>Latency (P99 delay)</label>
+          <span class="slider-val" id="val-latency">45 ms</span>
+        </div>
+        <input type="range" id="input-latency" min="10" max="2000" value="45" oninput="updateControls()">
+      </div>
+
+      <div class="slider-container">
+        <div class="slider-header">
+          <label>Error Rate (%)</label>
+          <span class="slider-val" id="val-errors">0.0 %</span>
+        </div>
+        <input type="range" id="input-errors" min="0" max="100" step="0.5" value="0" oninput="updateControls()">
+      </div>
+
+      <div style="margin-top: 16px;">
+        <label>Fault Injectors</label>
+        <button class="btn btn-warning" id="btn-leak" onclick="toggleMemoryLeak()">Inject Memory Leak</button>
+        <button class="btn btn-danger" id="btn-node" onclick="toggleNodeFailure()">Simulate Node Failure</button>
+        <button class="btn btn-success" onclick="executeSrePatch()">Deploy SRE Hotfix Patch</button>
+        <button class="btn btn-success" style="background: linear-gradient(135deg, var(--info), #0891b2);" onclick="autoscalePods()">Autoscale Replicas</button>
+      </div>
+
+      <div class="sd-panel">
+        <div class="sd-header">
+          <span>Active Targets Status</span>
+          <span style="font-size: 0.65rem; color: var(--success);" id="sd-summary">All targets UP</span>
+        </div>
+        <div class="sd-targets-grid" id="sd-targets-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle Column: Grafana Metrics Visualizer -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>📊 Grafana Dashboard: Core Golden Signals</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Datasource: Prometheus</span>
+      </div>
+
+      <div class="grafana-grid">
+        <!-- Chart 1: Traffic -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <span>RPS (Traffic)</span>
+            <span class="chart-current" id="lbl-traffic">120 RPS</span>
+          </div>
+          <canvas class="chart-canvas" id="canvas-traffic"></canvas>
+        </div>
+
+        <!-- Chart 2: Latency -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <span>P99 Latency</span>
+            <span class="chart-current" id="lbl-latency">45 ms</span>
+          </div>
+          <canvas class="chart-canvas" id="canvas-latency"></canvas>
+        </div>
+
+        <!-- Chart 3: Errors -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <span>HTTP 5xx Rate (Errors)</span>
+            <span class="chart-current" id="lbl-errors">0.0 %</span>
+          </div>
+          <canvas class="chart-canvas" id="canvas-errors"></canvas>
+        </div>
+
+        <!-- Chart 4: Saturation -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <span>RAM Saturation</span>
+            <span class="chart-current" id="lbl-saturation">38 %</span>
+          </div>
+          <canvas class="chart-canvas" id="canvas-saturation"></canvas>
+        </div>
+      </div>
+
+      <!-- PromQL Query Explainer -->
+      <div style="margin-top: 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 10px;">
+        <span style="font-size: 0.7rem; font-weight: bold; text-transform: uppercase; color: var(--info); display: block; margin-bottom: 4px;">Dynamic PromQL Expression Evaluator</span>
+        <code style="font-family: var(--font-mono); font-size: 0.75rem; color: #a5f3fc; word-break: break-all;" id="promql-expression">
+          sum(rate(http_requests_total{service="customer-api"}[1m]))
+        </code>
+      </div>
+    </div>
+
+    <!-- Right Column: Prometheus Engine & Alertmanager -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>🔎 Prometheus Engine Scraper</span>
+        <span class="panel-header-icon">🔄</span>
+      </div>
+
+      <div class="logger-console" id="console-logs">
+        <!-- Appended by JS -->
+      </div>
+
+      <div class="panel-header" style="margin-top: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 4px;">
+        <span>🔔 Alertmanager Alarm Queue</span>
+        <span style="font-size: 0.65rem; color: var(--danger);" id="active-alerts-badge">0 Alerts Firing</span>
+      </div>
+
+      <div class="alert-list" id="alertmanager-queue">
+        <div class="empty-alerts">No active alert triggers. TSDB operating nominally.</div>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-secondary" style="flex: 1; padding: 6px; font-size: 0.7rem; background: rgba(255,255,255,0.03);" onclick="silenceAllAlerts()">Mute Alerts</button>
+        <button class="btn btn-secondary" style="flex: 1; padding: 6px; font-size: 0.7rem; background: rgba(255,255,255,0.03);" onclick="clearLogs()">Clear Console</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // System Configurations and Mock Database
+    const services = {
+      "api-service": {
+        name: "customer-api",
+        traffic: 120,
+        latency: 45,
+        errors: 0.0,
+        saturation: 38,
+        replicas: 2,
+        maxReplicas: 10,
+        status: "UP"
+      },
+      "kafka-cluster": {
+        name: "kafka-broker",
+        traffic: 450,
+        latency: 12,
+        errors: 0.0,
+        saturation: 55,
+        replicas: 3,
+        maxReplicas: 6,
+        status: "UP"
+      },
+      "postgres-db": {
+        name: "postgres-primary",
+        traffic: 340,
+        latency: 8,
+        errors: 0.0,
+        saturation: 25,
+        replicas: 1,
+        maxReplicas: 3,
+        status: "UP"
+      },
+      "apache-pinot": {
+        name: "pinot-query",
+        traffic: 80,
+        latency: 350,
+        errors: 0.0,
+        saturation: 62,
+        replicas: 2,
+        maxReplicas: 8,
+        status: "UP"
+      }
+    };
+
+    let activeServiceId = "api-service";
+    let isMemoryLeakActive = false;
+    let memoryLeakTimer = null;
+    let isNodeFailureActive = false;
+    let areAlertsMuted = false;
+
+    // Charts In-memory buffer data
+    const chartHistory = {
+      traffic: Array(30).fill(120),
+      latency: Array(30).fill(45),
+      errors: Array(30).fill(0),
+      saturation: Array(30).fill(38)
+    };
+
+    // Scraper target configuration lists
+    const sdTargets = [
+      { id: "api-service", name: "customer-api:9898", role: "pod", status: "UP", address: "10.244.1.28" },
+      { id: "kafka-cluster", name: "kafka-broker:9092", role: "endpoints", status: "UP", address: "10.244.2.14" },
+      { id: "postgres-db", name: "postgres-primary:5432", role: "endpoints", status: "UP", address: "10.244.3.4" },
+      { id: "apache-pinot", name: "pinot-query:8000", role: "endpoints", status: "UP", address: "10.244.1.99" },
+      { id: "node-exporter", name: "node-exporter:9100", role: "node", status: "UP", address: "192.168.1.10" }
+    ];
+
+    // Page alarms
+    let activeAlerts = {};
+
+    // Initial load
+    window.onload = function() {
+      initCharts();
+      renderSdTargets();
+      updateControlsUI();
+      
+      // Start Scraper Loop
+      setInterval(runScraperIteration, 3000);
+      
+      // Start UI update Loop
+      setInterval(tickSystemState, 1000);
+    };
+
+    // Canvas Charts Initialization
+    const canvases = {};
+    const contexts = {};
+
+    function initCharts() {
+      const ids = ['traffic', 'latency', 'errors', 'saturation'];
+      ids.forEach(id => {
+        canvases[id] = document.getElementById('canvas-' + id);
+        contexts[id] = canvases[id].getContext('2d');
+        // Handle High DPI displays
+        const rect = canvases[id].getBoundingClientRect();
+        canvases[id].width = rect.width;
+        canvases[id].height = rect.height;
+      });
+      drawAllCharts();
+    }
+
+    function drawAllCharts() {
+      const ids = ['traffic', 'latency', 'errors', 'saturation'];
+      ids.forEach(id => {
+        drawChart(id);
+      });
+    }
+
+    function drawChart(id) {
+      const ctx = contexts[id];
+      const canvas = canvases[id];
+      const data = chartHistory[id];
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Clear Canvas
+      ctx.fillStyle = "#030206";
+      ctx.fillRect(0, 0, w, h);
+
+      // Draw Gridlines
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+      ctx.lineWidth = 1;
+      // Verticals
+      for (let i = 0; i < w; i += w / 6) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, h);
+        ctx.stroke();
+      }
+      // Horizontals
+      for (let i = 0; i < h; i += h / 4) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(w, i);
+        ctx.stroke();
+      }
+
+      // Draw Plot Line
+      ctx.lineWidth = 2;
+      let strokeColor = "var(--primary)";
+      let fillColor = "rgba(59, 130, 246, 0.05)";
+
+      // Setup colors based on values / limits
+      const lastVal = data[data.length - 1];
+      if (id === 'errors') {
+        if (lastVal > 5) {
+          strokeColor = "var(--danger)";
+          fillColor = "rgba(239, 68, 68, 0.08)";
+        } else if (lastVal > 1) {
+          strokeColor = "var(--warning)";
+          fillColor = "rgba(245, 158, 11, 0.08)";
+        } else {
+          strokeColor = "var(--success)";
+          fillColor = "rgba(16, 185, 129, 0.08)";
+        }
+      } else if (id === 'latency') {
+        if (lastVal > 1000) {
+          strokeColor = "var(--danger)";
+          fillColor = "rgba(239, 68, 68, 0.08)";
+        } else if (lastVal > 400) {
+          strokeColor = "var(--warning)";
+          fillColor = "rgba(245, 158, 11, 0.08)";
+        } else {
+          strokeColor = "var(--primary)";
+          fillColor = "rgba(59, 130, 246, 0.08)";
+        }
+      } else if (id === 'saturation') {
+        if (lastVal > 90) {
+          strokeColor = "var(--danger)";
+          fillColor = "rgba(239, 68, 68, 0.08)";
+        } else if (lastVal > 75) {
+          strokeColor = "var(--warning)";
+          fillColor = "rgba(245, 158, 11, 0.08)";
+        } else {
+          strokeColor = "var(--info)";
+          fillColor = "rgba(6, 182, 212, 0.08)";
+        }
+      }
+
+      ctx.strokeStyle = strokeColor;
+      ctx.fillStyle = fillColor;
+
+      ctx.beginPath();
+      // Plot paths
+      const step = w / (data.length - 1);
+      
+      // Compute scales
+      let maxScale = 100;
+      if (id === 'traffic') maxScale = 1000;
+      else if (id === 'latency') maxScale = 2000;
+      else if (id === 'errors') maxScale = 100;
+      else if (id === 'saturation') maxScale = 100;
+
+      for (let i = 0; i < data.length; i++) {
+        // Map data value to canvas Y coordinates
+        const yVal = h - ((data[i] / maxScale) * (h - 20)) - 10;
+        const xVal = i * step;
+        
+        if (i === 0) ctx.moveTo(xVal, yVal);
+        else ctx.lineTo(xVal, yVal);
+      }
+      ctx.stroke();
+
+      // Complete path area fill
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Dynamic Variables update on slider shift
+    function updateControls() {
+      const activeSvc = services[activeServiceId];
+      
+      activeSvc.traffic = parseInt(document.getElementById('input-traffic').value);
+      activeSvc.latency = parseInt(document.getElementById('input-latency').value);
+      activeSvc.errors = parseFloat(document.getElementById('input-errors').value);
+
+      updateControlsUI();
+      
+      // Update PromQL Query output string representation
+      updatePromqlText();
+    }
+
+    function updateControlsUI() {
+      const activeSvc = services[activeServiceId];
+
+      document.getElementById('val-traffic').innerText = activeSvc.traffic + " RPS";
+      document.getElementById('val-latency').innerText = activeSvc.latency + " ms";
+      document.getElementById('val-errors').innerText = activeSvc.errors.toFixed(1) + " %";
+
+      document.getElementById('input-traffic').value = activeSvc.traffic;
+      document.getElementById('input-latency').value = activeSvc.latency;
+      document.getElementById('input-errors').value = activeSvc.errors;
+
+      // Update Saturation slider indicator limits if node failures
+      if (activeServiceId === 'api-service') {
+        const satVal = Math.round(activeSvc.saturation);
+        document.getElementById('lbl-saturation').innerText = satVal + " %";
+        setLabelColor('lbl-saturation', satVal, 75, 90);
+      }
+    }
+
+    function changeActiveService() {
+      activeServiceId = document.getElementById('service-selector').value;
+      const activeSvc = services[activeServiceId];
+
+      updateControlsUI();
+      updatePromqlText();
+      
+      // Log Target Switch Event
+      appendLog("sd", `Discovered service context target switch: querying ${activeSvc.name}`, false);
+    }
+
+    function updatePromqlText() {
+      const activeSvc = services[activeServiceId];
+      document.getElementById('promql-expression').innerText = 
+        `sum(rate(http_requests_total{service="${activeSvc.name}", namespace="default"}[1m]))`;
+    }
+
+    function setLabelColor(elementId, value, warnLimit, critLimit) {
+      const el = document.getElementById(elementId);
+      el.className = "chart-current";
+      if (value > critLimit) el.classList.add("danger-text");
+      else if (value > warnLimit) el.classList.add("warn-text");
+      else el.classList.add("success-text");
+    }
+
+    // Active Mission Selectors
+    function selectMission(missionId) {
+      // Manage active highlights
+      const cards = document.querySelectorAll('.mission-card');
+      cards.forEach(c => c.classList.remove('active'));
+      document.getElementById('mission-' + missionId).classList.add('active');
+
+      const title = document.getElementById('inspector-title');
+      const content = document.getElementById('inspector-content');
+
+      // Reset configurations
+      executeSrePatch();
+
+      if (missionId === 'overview') {
+        title.innerText = "Active Inspector: 1. Observability Overview";
+        content.innerHTML = `
+          <div class="inspector-section">
+            <h4>Concept Summary</h4>
+            <p>Study standard metrics pipelines. Under normal conditions, application metrics like RPS (Traffic), Latency, and Error rates stay in stable domains. In the <b>Prometheus Engine Scraper</b> console, notice the constant scrapes from endpoints. This forms the baseline.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Instructions</h4>
+            <p>Move the sliders on the left column to modify service parameters. Watch how the Grafana graphs update live. If you trigger values past threshold parameters, notice how warning limits turn orange in the metrics dashboard indicators.</p>
+          </div>
+        `;
+      } else if (missionId === 'leak') {
+        title.innerText = "Active Inspector: 2. Memory Leak & OOMKill Incident";
+        content.innerHTML = `
+          <div class="inspector-section">
+            <h4>The Threat Vector: Saturation</h4>
+            <p>Containers are restricted by namespace memory boundaries. A software memory leak continuously locks RAM. If usage reaches 100% of limits, the Kubernetes Kernel kills the process instantly using the OOM (Out Of Memory) Killer.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Incident Response Plan</h4>
+            <ol style="margin-left: 16px;">
+              <li>Click <b>Inject Memory Leak</b>. The customer-api saturation will begin crawling up.</li>
+              <li>Wait until saturation reaches 90%. Watch Alertmanager trigger the <b>MemorySaturationWarning</b> alarm receiver.</li>
+              <li>SRE Mitigation: Click the blue <b>Autoscale Replicas</b> button. Watch how scaling pods instantly redistributes traffic, lowering individual CPU/RAM saturation percentiles.</li>
+              <li>Resolution: Click <b>Deploy SRE Hotfix Patch</b> to release patched software dependencies, resolving the leak.</li>
+            </ol>
+          </div>
+        `;
+      } else if (missionId === 'errors') {
+        title.innerText = "Active Inspector: 3. Error Spikes & SLO Burn rates";
+        content.innerHTML = `
+          <div class="inspector-section">
+            <h4>Concepts: Error Budgets & SLA breaches</h4>
+            <p>If an API gateway generates 500 Server Errors, users suffer. SREs alert on error rates using a rolling 1-hour window ratio. If errors exceed 5%, a critical PagerDuty alarm routes to wake the on-call engineer.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Incident Response Plan</h4>
+            <ol style="margin-left: 16px;">
+              <li>Select <b>customer-api</b> target. Increase the <b>Error Rate slider</b> to 8%.</li>
+              <li>Wait for 5 seconds. In the alerting dashboard, the status of <b>HttpErrorSpike</b> transitions from PENDING to FIRING.</li>
+              <li>Observe Alertmanager routing. Notice how critical severity alarms route automatically to PagerDuty with system notifications, bypass slack channels.</li>
+              <li>Remediation: Click <b>Deploy SRE Hotfix Patch</b> to roll back the buggy release, resetting the error rate to 0.</li>
+            </ol>
+          </div>
+        `;
+      } else if (missionId === 'node') {
+        title.innerText = "Active Inspector: 4. Node Failure & Alert Inhibition";
+        content.innerHTML = `
+          <div class="inspector-section">
+            <h4>SRE Concept: Alert Inhibition & Deduplication</h4>
+            <p>When physical nodes crash, all pods running on them go offline. Paging the engineer with 50 container alerts is noise. Inhibition rules configure Alertmanager to suppress minor container alarms if a root host alarm (NodeExporterOffline) is firing.</p>
+          </div>
+          <div class="inspector-section">
+            <h4>Incident Response Plan</h4>
+            <ol style="margin-left: 16px;">
+              <li>Click <b>Simulate Node Failure</b> on the left column.</li>
+              <li>Notice how node-exporter target switches to DOWN, and its status indicator turns red.</li>
+              <li>Observe the Alertmanager queue: <b>NodeExporterOffline</b> fires. Container memory/cpu alarms on that node are automatically suppressed (inhibited).</li>
+              <li>Remediation: Click the green <b>Deploy SRE Hotfix Patch</b> button to simulate host machine reprovisioning, restoring cluster node connectivity.</li>
+            </ol>
+          </div>
+        `;
+      }
+      appendLog("system", `Loaded learning mission: ${missionId.toUpperCase()}`, false);
+    }
+
+    // Memory Leak Simulator
+    function toggleMemoryLeak() {
+      if (isMemoryLeakActive) {
+        clearInterval(memoryLeakTimer);
+        isMemoryLeakActive = false;
+        document.getElementById('btn-leak').innerText = "Inject Memory Leak";
+        document.getElementById('btn-leak').className = "btn btn-warning";
+        appendLog("system", "Stopped memory leak injection simulation.", false);
+      } else {
+        isMemoryLeakActive = true;
+        document.getElementById('btn-leak').innerText = "Leak Active: Injecting...";
+        document.getElementById('btn-leak').className = "btn btn-danger";
+        appendLog("system", "Initiated memory leak injection: RAM resource allocation climbing.", true);
+        
+        memoryLeakTimer = setInterval(function() {
+          const apiSvc = services["api-service"];
+          if (apiSvc.saturation < 99) {
+            // Leak RAM based on count
+            apiSvc.saturation += 3 / apiSvc.replicas;
+            if (apiSvc.saturation >= 99) {
+              apiSvc.saturation = 100;
+              // Trigger OOM event
+              triggerOomKillEvent();
+            }
+          }
+        }, 1000);
+      }
+    }
+
+    function triggerOomKillEvent() {
+      appendLog("rule", "CRITICAL ERROR: customer-api pod OOMKilled - Memory Limit exceeded", true);
+      services["api-service"].status = "OOMKilled";
+      services["api-service"].traffic = 0;
+      services["api-service"].latency = 0;
+      services["api-service"].errors = 100;
+      sdTargets[0].status = "DOWN";
+      renderSdTargets();
+      
+      clearInterval(memoryLeakTimer);
+      isMemoryLeakActive = false;
+      document.getElementById('btn-leak').innerText = "Inject Memory Leak";
+      document.getElementById('btn-leak').className = "btn btn-warning";
+    }
+
+    // Node Failure Simulator
+    function toggleNodeFailure() {
+      if (isNodeFailureActive) {
+        executeSrePatch();
+      } else {
+        isNodeFailureActive = true;
+        document.getElementById('btn-node').innerText = "Restore Node Status";
+        document.getElementById('btn-node').className = "btn btn-success";
+        
+        // Mark node exporter and database targets as offline
+        sdTargets[4].status = "DOWN"; // Node exporter
+        sdTargets[2].status = "DOWN"; // Postgres DB
+        services["postgres-db"].status = "DOWN";
+        services["postgres-db"].traffic = 0;
+        services["postgres-db"].errors = 100;
+        
+        renderSdTargets();
+        appendLog("system", "CRITICAL: Physical Host Node worker-03 hardware crashed.", true);
+      }
+    }
+
+    // SRE Hotfixes actions
+    function executeSrePatch() {
+      // Reset variables
+      if (memoryLeakTimer) clearInterval(memoryLeakTimer);
+      isMemoryLeakActive = false;
+      isNodeFailureActive = false;
+
+      document.getElementById('btn-leak').innerText = "Inject Memory Leak";
+      document.getElementById('btn-leak').className = "btn btn-warning";
+      document.getElementById('btn-node').innerText = "Simulate Node Failure";
+      document.getElementById('btn-node').className = "btn btn-danger";
+
+      // Reset systems database status
+      for (let key in services) {
+        services[key].status = "UP";
+        services[key].errors = 0.0;
+        if (key === 'api-service') {
+          services[key].traffic = 120;
+          services[key].latency = 45;
+          services[key].saturation = 38;
+          services[key].replicas = 2;
+        } else if (key === 'kafka-cluster') {
+          services[key].traffic = 450;
+          services[key].latency = 12;
+          services[key].saturation = 55;
+        } else if (key === 'postgres-db') {
+          services[key].traffic = 340;
+          services[key].latency = 8;
+          services[key].saturation = 25;
+        } else if (key === 'apache-pinot') {
+          services[key].traffic = 80;
+          services[key].latency = 350;
+          services[key].saturation = 62;
+        }
+      }
+
+      sdTargets.forEach(t => t.status = "UP");
+      activeAlerts = {};
+      renderSdTargets();
+      updateControlsUI();
+      drawAllCharts();
+      appendLog("system", "SRE Deployment completed: patches deployed, target endpoints status normal.", false);
+    }
+
+    function autoscalePods() {
+      const apiSvc = services["api-service"];
+      if (apiSvc.replicas < apiSvc.maxReplicas) {
+        apiSvc.replicas += 2;
+        apiSvc.saturation = 38; // Redistribute load drops saturation
+        appendLog("system", `HPA Scale Event: scaled customer-api deployment to ${apiSvc.replicas} replicas.`, false);
+        updateControlsUI();
+      } else {
+        appendLog("system", "Scale Event Ignored: Replicas already at Max Limit.", true);
+      }
+    }
+
+    function silenceAllAlerts() {
+      areAlertsMuted = !areAlertsMuted;
+      appendLog("system", areAlertsMuted ? "Alertmanager silences active: alerts muted." : "Alertmanager silences cleared: alerts active.", false);
+      renderAlertmanagerBoard();
+    }
+
+    // Dynamic metrics generation loops
+    function tickSystemState() {
+      // 1. Fetch metric values of active selected service
+      const activeSvc = services[activeServiceId];
+      
+      // Update charts vectors
+      updateChartVector('traffic', activeSvc.traffic + (Math.random() * 20 - 10));
+      updateChartVector('latency', activeSvc.latency + (Math.random() * 6 - 3));
+      updateChartVector('errors', activeSvc.errors);
+      updateChartVector('saturation', activeSvc.saturation);
+
+      // Redraw Dashboard Graphs
+      drawAllCharts();
+
+      // Update text values
+      document.getElementById('lbl-traffic').innerText = Math.round(chartHistory.traffic[chartHistory.traffic.length - 1]) + " RPS";
+      document.getElementById('lbl-latency').innerText = Math.round(chartHistory.latency[chartHistory.latency.length - 1]) + " ms";
+      document.getElementById('lbl-errors').innerText = chartHistory.errors[chartHistory.errors.length - 1].toFixed(1) + " %";
+      document.getElementById('lbl-saturation').innerText = Math.round(chartHistory.saturation[chartHistory.saturation.length - 1]) + " %";
+
+      setLabelColor('lbl-traffic', chartHistory.traffic[chartHistory.traffic.length - 1], 800, 950);
+      setLabelColor('lbl-latency', chartHistory.latency[chartHistory.latency.length - 1], 400, 1000);
+      setLabelColor('lbl-errors', chartHistory.errors[chartHistory.errors.length - 1], 1, 5);
+      setLabelColor('lbl-saturation', chartHistory.saturation[chartHistory.saturation.length - 1], 75, 90);
+
+      // 2. Evaluate Alerts rules
+      evaluateAlertingRules();
+    }
+
+    function updateChartVector(id, val) {
+      if (val < 0) val = 0;
+      chartHistory[id].push(val);
+      chartHistory[id].shift();
+    }
+
+    // Scraper engine simulations
+    function runScraperIteration() {
+      sdTargets.forEach(target => {
+        const ts = new Date().toLocaleTimeString();
+        if (target.status === "UP") {
+          let metricCount = 120;
+          if (target.id === 'api-service') metricCount = 85;
+          else if (target.id === 'node-exporter') metricCount = 310;
+          
+          appendLog("scrape", `GET http://${target.address}:${target.name.split(':')[1]}/metrics - HTTP 200 - OK (${metricCount} metrics)`, false);
+        } else {
+          appendLog("scrape", `GET http://${target.address}:${target.name.split(':')[1]}/metrics - Connection Timeout (Host Unreachable)`, true);
+        }
+      });
+    }
+
+    // Rules Evaluation Engine
+    function evaluateAlertingRules() {
+      const alertsBefore = Object.keys(activeAlerts).length;
+
+      // Rule 1: HTTP Error rate checks
+      for (let key in services) {
+        const svc = services[key];
+        if (svc.errors > 5 && svc.status === "UP") {
+          activeAlerts["HttpErrorSpike_" + key] = {
+            name: "HttpErrorSpike",
+            severity: "critical",
+            desc: `HTTP 5xx rate for service ${svc.name} is ${svc.errors.toFixed(1)}%, exceeding threshold limit of 5%`,
+            route: "Critical Alerts (SMS/PagerDuty Page)"
+          };
+        } else if (svc.errors <= 5) {
+          delete activeAlerts["HttpErrorSpike_" + key];
+        }
+
+        // Rule 2: Memory/RAM saturation alerts
+        if (svc.saturation > 90 && svc.status === "UP") {
+          activeAlerts["MemorySaturation_" + key] = {
+            name: "MemorySaturationWarning",
+            severity: "warning",
+            desc: `RAM saturation on pod deployment ${svc.name} is ${Math.round(svc.saturation)}%, risk of OOMKill.`,
+            route: "Warning Alerts (Slack Channel log)"
+          };
+        } else if (svc.saturation <= 90) {
+          delete activeAlerts["MemorySaturation_" + key];
+        }
+      }
+
+      // Rule 3: Node exporter offline alerts (Node failure)
+      if (sdTargets[4].status === "DOWN") {
+        activeAlerts["NodeExporterOffline"] = {
+          name: "NodeExporterOffline",
+          severity: "critical",
+          desc: "Node-exporter target at 192.168.1.10 is unreachable. Hardware metrics collection down.",
+          route: "Infrastructure Alerts (PagerDuty Duty Rotations)"
+        };
+        
+        // Rule 4: Pod Cpu Throttled (Inhibited if Node offline is active)
+        if (!isNodeFailureActive) {
+          activeAlerts["ContainerCpuThrottling"] = {
+            name: "ContainerCpuThrottling",
+            severity: "warning",
+            desc: "Container CPU throttling over 15% of periods on worker node worker-03.",
+            route: "Slack warnings (#alerts-k8s-warnings)"
+          };
+        } else {
+          // If Node is offline, suppress throttling alert
+          delete activeAlerts["ContainerCpuThrottling"];
+        }
+      } else {
+        delete activeAlerts["NodeExporterOffline"];
+        delete activeAlerts["ContainerCpuThrottling"];
+      }
+
+      const alertsAfter = Object.keys(activeAlerts).length;
+      
+      if (alertsBefore !== alertsAfter) {
+        renderAlertmanagerBoard();
+      }
+    }
+
+    function renderAlertmanagerBoard() {
+      const queue = document.getElementById('alertmanager-queue');
+      const badge = document.getElementById('active-alerts-badge');
+      const alertKeys = Object.keys(activeAlerts);
+      
+      const count = areAlertsMuted ? 0 : alertKeys.length;
+      badge.innerText = `${count} Alerts Firing`;
+      badge.className = count > 0 ? "danger-text" : "success-text";
+
+      if (count === 0 || areAlertsMuted) {
+        queue.innerHTML = `<div class="empty-alerts">${areAlertsMuted ? 'Alertmanager Silences Active (Muted)' : 'No active alert triggers. TSDB operating nominally.'}</div>`;
+        return;
+      }
+
+      let html = "";
+      alertKeys.forEach(k => {
+        const alert = activeAlerts[k];
+        html += `
+          <div class="alert-card ${alert.severity}">
+            <span class="alert-badge ${alert.severity === 'critical' ? 'crit' : 'warn'}">${alert.severity.substring(0,4)}</span>
+            <div class="alert-info">
+              <div class="alert-title">${alert.name}</div>
+              <div class="alert-desc">${alert.desc}</div>
+              <div class="alert-route">⚡ Route: <strong>${alert.route}</strong></div>
+            </div>
+          </div>
+        `;
+      });
+      queue.innerHTML = html;
+    }
+
+    function renderSdTargets() {
+      const grid = document.getElementById('sd-targets-list');
+      let html = "";
+      let healthyCount = 0;
+
+      sdTargets.forEach(t => {
+        if (t.status === "UP") healthyCount++;
+        const stateColor = t.status === "UP" ? "var(--success)" : "var(--danger)";
+        
+        html += `
+          <div class="sd-target-card">
+            <div style="font-weight: 600; color: #fff; font-size: 0.65rem;">${t.name}</div>
+            <div class="sd-target-state" style="color: ${stateColor}">
+              <span class="sd-dot" style="background-color: ${stateColor}"></span>
+              <span>${t.status}</span>
+            </div>
+            <div style="font-size: 0.55rem; color: var(--text-muted);">${t.role} (${t.address})</div>
+          </div>
+        `;
+      });
+
+      grid.innerHTML = html;
+      document.getElementById('active-targets-count').innerText = `${healthyCount} / ${sdTargets.length}`;
+      document.getElementById('active-targets-count').style.color = healthyCount === sdTargets.length ? "var(--success)" : "var(--danger)";
+      
+      const summary = document.getElementById('sd-summary');
+      if (healthyCount === sdTargets.length) {
+        summary.innerText = "All targets UP";
+        summary.style.color = "var(--success)";
+      } else {
+        summary.innerText = `${sdTargets.length - healthyCount} target offline`;
+        summary.style.color = "var(--danger)";
+      }
+    }
+
+    // Console Logging Helpers
+    function appendLog(type, text, isError) {
+      const consoleBox = document.getElementById('console-logs');
+      const time = new Date().toLocaleTimeString();
+      
+      const line = document.createElement('div');
+      line.className = "console-line";
+      
+      const tsSpan = document.createElement('span');
+      tsSpan.className = "console-ts";
+      tsSpan.innerText = time;
+      
+      const tagSpan = document.createElement('span');
+      tagSpan.className = "console-tag tag-" + type;
+      tagSpan.innerText = type;
+      
+      const txtSpan = document.createElement('span');
+      txtSpan.className = "console-txt" + (isError ? " err" : "");
+      txtSpan.innerText = text;
+      
+      line.appendChild(tsSpan);
+      line.appendChild(tagSpan);
+      line.appendChild(txtSpan);
+      
+      consoleBox.appendChild(line);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+
+      // Cap lines at 100
+      if (consoleBox.childNodes.length > 100) {
+        consoleBox.removeChild(consoleBox.firstChild);
+      }
+    }
+
+    function clearLogs() {
+      document.getElementById('console-logs').innerHTML = "";
+    }
+  </script>
+</body>
+</html>
