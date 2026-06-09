@@ -107,24 +107,29 @@
             <h3 class="text-xs font-semibold text-slate-300">Failure & Latency Injectors</h3>
             
             <div>
-              <label class="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <label class="flex items-center justify-between text-xs text-slate-400">
                 <span>Inventory DB Latency</span>
                 <span id="label-db-delay" class="text-amber-400 font-semibold">0 ms</span>
               </label>
+              <span class="text-[10px] text-slate-500 block mb-1.5 leading-tight">Simulates database lock contention & sequential delays.</span>
               <input type="range" id="input-db-delay" min="0" max="2500" step="100" value="0" oninput="updateDelayLabel('db', this.value)" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
             </div>
 
             <div>
-              <label class="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <label class="flex items-center justify-between text-xs text-slate-400">
                 <span>Payment Service Error Rate</span>
                 <span id="label-pay-error" class="text-rose-400 font-semibold">0%</span>
               </label>
+              <span class="text-[10px] text-slate-500 block mb-1.5 leading-tight">Simulates payment timeouts & Stripe API aborts.</span>
               <input type="range" id="input-pay-error" min="0" max="100" step="10" value="0" oninput="updateErrorLabel('pay', this.value)" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-rose-500">
             </div>
 
             <div class="flex items-center justify-between pt-1">
-              <span class="text-xs text-slate-400">Lock Auth Service Thread</span>
-              <button id="btn-auth-lock" onclick="toggleAuthLock()" class="px-3 py-1 text-xs border border-slate-700 hover:border-slate-600 rounded bg-slate-800 text-slate-300 transition">
+              <div>
+                <span class="text-xs text-slate-400 block">Lock Auth Service Thread</span>
+                <span class="text-[10px] text-slate-500 block leading-tight">Simulates gateway thread starvation.</span>
+              </div>
+              <button id="btn-auth-lock" onclick="toggleAuthLock()" class="px-3 py-1 text-xs border border-slate-700 hover:border-slate-600 rounded bg-slate-800 text-slate-300 transition shrink-0">
                 Inactive
               </button>
             </div>
@@ -175,6 +180,32 @@
 
     <!-- Center Workspace: Map, Gantt Chart and Metric Panels -->
     <section class="flex-1 flex flex-col overflow-hidden bg-slate-950 p-6 space-y-6">
+
+      <!-- Onboarding Tutorial Banner -->
+      <div class="bg-blue-950/20 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3 shrink-0 glow-shadow">
+        <span class="text-xl mt-0.5">🚀</span>
+        <div class="flex-1 space-y-1">
+          <h3 class="text-sm font-semibold text-blue-300">Quick Start: Interactive Tracing Walkthrough</h3>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-1.5 text-xs text-slate-400">
+            <div>
+              <span class="text-blue-400 font-bold block mb-0.5">1. Generate Request</span>
+              Click <code class="text-blue-300 bg-slate-900 px-1 py-0.5 rounded text-[10px]">/checkout</code> or <code class="text-purple-300 bg-slate-900 px-1 py-0.5 rounded text-[10px]">/orders</code> on the left to send mock traffic.
+            </div>
+            <div>
+              <span class="text-purple-400 font-bold block mb-0.5">2. Watch Ingestion</span>
+              See the active path pulse across the topology map and register spans in the OTel collector.
+            </div>
+            <div>
+              <span class="text-teal-400 font-bold block mb-0.5">3. Select Trace</span>
+              Click on a trace in the **Trace List** to render its Jaeger Gantt chart timeline.
+            </div>
+            <div>
+              <span class="text-pink-400 font-bold block mb-0.5">4. Inspect Spans</span>
+              Click on individual span bars in the Gantt chart to inspect W3C Trace context and tags.
+            </div>
+          </div>
+        </div>
+      </div>
       
       <!-- Top Row: Service Map & OTel Metric Monitor -->
       <div class="grid grid-cols-5 gap-6 h-64 shrink-0">
