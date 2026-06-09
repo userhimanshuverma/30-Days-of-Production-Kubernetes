@@ -1,0 +1,137 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    name: observability
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: all-in-one
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:1.57.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: SPAN_STORAGE_TYPE
+              value: "memory" # Set to "elasticsearch" or "grpc" in full production deployments
+            - name: MEMORY_MAX_SPANS
+              value: "100000" # Soft limits spans kept in memory for this dev deployment
+            - name: COLLECTOR_ZIPKIN_HOST_PORT
+              value: ":9411"
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          ports:
+            - name: ui
+              containerPort: 16686
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: zipkin
+              containerPort: 9411
+            - name: c-grpc
+              containerPort: 14250
+            - name: c-http
+              containerPort: 14268
+          readinessProbe:
+            httpGet:
+              path: "/"
+              port: 14269 # Jaeger admin port
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: "/"
+              port: 14269
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+spec:
+  type: ClusterIP
+  ports:
+    - name: ui
+      port: 16686
+      targetPort: 16686
+  selector:
+    app: jaeger
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: collector
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
+    - name: c-grpc
+      port: 14250
+      targetPort: 14250
+    - name: c-http
+      port: 14268
+      targetPort: 14268
+  selector:
+    app: jaeger

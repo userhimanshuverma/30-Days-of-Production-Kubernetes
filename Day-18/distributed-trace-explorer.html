@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distributed Trace Explorer - Day 18 Interactive Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+    }
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom animations for pulses and network streams */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.9); opacity: 1; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .node-pulse {
+      position: relative;
+    }
+    .node-pulse::after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 3px solid currentColor;
+      top: 0;
+      left: 0;
+      animation: pulse-ring 1.8s cubic-bezier(0.215, 0.610, 0.355, 1) infinite;
+      pointer-events: none;
+    }
+    /* SVG dashed line flows */
+    .net-path {
+      stroke-dasharray: 8, 8;
+      animation: flow 20s linear infinite;
+    }
+    @keyframes flow {
+      to { stroke-dashoffset: -400; }
+    }
+    .glow-shadow {
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+    }
+    .glow-shadow-red {
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    }
+    .glow-shadow-green {
+      box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="bg-blue-600 text-white p-2 rounded-lg font-bold glow-shadow">
+        DT
+      </div>
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          Distributed Trace Explorer
+          <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Day 18 Operations</span>
+        </h1>
+        <p class="text-xs text-slate-400">Microservice Context Propagation & Bottleneck Diagnostics Simulator</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-4">
+      <div id="active-scenario-badge" class="hidden text-xs bg-amber-500/10 text-amber-400 px-3 py-1.5 rounded-full border border-amber-500/30 flex items-center gap-1.5 animate-pulse">
+        <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+        Active Incident Scenario: <span id="active-scenario-name">None</span>
+      </div>
+      <button onclick="resetSimulator()" class="px-3 py-1.5 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 rounded bg-slate-800 transition">
+        Reset Simulation
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace Layout -->
+  <main class="flex-1 flex overflow-hidden min-h-0">
+    
+    <!-- Left Sidebar: Controls & Triggers -->
+    <section class="w-80 bg-slate-900/60 border-r border-slate-800 flex flex-col overflow-y-auto p-4 space-y-5 shrink-0">
+      
+      <!-- Panel 1: Ingest Simulation Controllers -->
+      <div>
+        <h2 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">Simulation Triggers</h2>
+        <div class="space-y-3">
+          <div class="bg-slate-900 p-3 rounded-lg border border-slate-800">
+            <label class="block text-xs text-slate-400 mb-1.5">Request Endpoint</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="triggerRequest('checkout')" class="px-3 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded transition text-left flex items-center justify-between">
+                <span>/checkout</span>
+                <span class="text-[10px] text-blue-200">POST</span>
+              </button>
+              <button onclick="triggerRequest('get_orders')" class="px-3 py-2 text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white rounded transition text-left flex items-center justify-between">
+                <span>/orders</span>
+                <span class="text-[10px] text-purple-200">GET</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-3">
+            <h3 class="text-xs font-semibold text-slate-300">Failure & Latency Injectors</h3>
+            
+            <div>
+              <label class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Inventory DB Latency</span>
+                <span id="label-db-delay" class="text-amber-400 font-semibold">0 ms</span>
+              </label>
+              <input type="range" id="input-db-delay" min="0" max="2500" step="100" value="0" oninput="updateDelayLabel('db', this.value)" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+            </div>
+
+            <div>
+              <label class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Payment Service Error Rate</span>
+                <span id="label-pay-error" class="text-rose-400 font-semibold">0%</span>
+              </label>
+              <input type="range" id="input-pay-error" min="0" max="100" step="10" value="0" oninput="updateErrorLabel('pay', this.value)" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-rose-500">
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-xs text-slate-400">Lock Auth Service Thread</span>
+              <button id="btn-auth-lock" onclick="toggleAuthLock()" class="px-3 py-1 text-xs border border-slate-700 hover:border-slate-600 rounded bg-slate-800 text-slate-300 transition">
+                Inactive
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Sampling Pipeline Controller -->
+      <div>
+        <h2 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">OTel Collector Sampling</h2>
+        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-3">
+          <div>
+            <label class="block text-xs text-slate-300 mb-2">Sampling Strategy</label>
+            <select id="select-sampling" onchange="changeSamplingStrategy()" class="w-full bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-slate-200">
+              <option value="head_100">Head-based: 100% Ingest (Standard)</option>
+              <option value="head_10">Head-based: Probabilistic 10%</option>
+              <option value="tail_error">Tail-based: Errors & Slow Traces Only</option>
+            </select>
+          </div>
+          <div class="text-[11px] text-slate-500 bg-slate-950 p-2 rounded leading-relaxed">
+            <span class="font-semibold text-slate-400">Rules Applied:</span>
+            <span id="sampling-desc">Record all transactions sent from SDK client.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3: Incident Investigation Lab -->
+      <div class="flex-1 flex flex-col justify-end">
+        <h2 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">SRE Incident Lab</h2>
+        <div class="bg-slate-900/90 p-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 space-y-3">
+          <p class="text-xs text-slate-300 leading-normal">Simulate production outages, explore live traces, isolate the bottleneck, and resolve the incident.</p>
+          <div class="space-y-2">
+            <button onclick="startScenario('db_contention')" class="w-full text-left px-3 py-2 text-xs border border-slate-800 hover:border-slate-700 rounded bg-slate-950 text-slate-300 hover:text-white transition flex items-center justify-between">
+              <span>1. The "Staircase DB Lock"</span>
+              <span class="text-amber-500 text-[10px]">Slowdown</span>
+            </button>
+            <button onclick="startScenario('payment_api')" class="w-full text-left px-3 py-2 text-xs border border-slate-800 hover:border-slate-700 rounded bg-slate-950 text-slate-300 hover:text-white transition flex items-center justify-between">
+              <span>2. The "Friday Pay Outage"</span>
+              <span class="text-rose-500 text-[10px]">Errors</span>
+            </button>
+            <button id="btn-submit-assessment" onclick="checkIncidentAssessment()" class="hidden w-full text-center py-2 text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition mt-2">
+              Submit Outage Assessment
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Center Workspace: Map, Gantt Chart and Metric Panels -->
+    <section class="flex-1 flex flex-col overflow-hidden bg-slate-950 p-6 space-y-6">
+      
+      <!-- Top Row: Service Map & OTel Metric Monitor -->
+      <div class="grid grid-cols-5 gap-6 h-64 shrink-0">
+        
+        <!-- Interactive Service Dependency Map (SVG) -->
+        <div class="col-span-3 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col relative overflow-hidden">
+          <div class="absolute top-4 left-4 z-10">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Service Dependency Topology</h3>
+          </div>
+          
+          <div class="flex-1 flex items-center justify-center relative mt-4">
+            <!-- Node Connections SVG Overlay -->
+            <svg class="absolute inset-0 w-full h-full pointer-events-none" id="network-svg">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569" />
+                </marker>
+              </defs>
+              <!-- Lines between nodes -->
+              <!-- Client -> Gateway -->
+              <line id="line-client-gw" x1="50" y1="100" x2="150" y2="100" stroke="#475569" stroke-width="2" class="net-path" marker-end="url(#arrow)" />
+              <!-- Gateway -> Auth -->
+              <line id="line-gw-auth" x1="150" y1="100" x2="270" y2="40" stroke="#475569" stroke-width="2" class="net-path" marker-end="url(#arrow)" />
+              <!-- Gateway -> Order -->
+              <line id="line-gw-order" x1="150" y1="100" x2="270" y2="160" stroke="#475569" stroke-width="2" class="net-path" marker-end="url(#arrow)" />
+              <!-- Order -> Payment -->
+              <line id="line-order-pay" x1="270" y1="160" x2="410" y2="100" stroke="#475569" stroke-width="2" class="net-path" marker-end="url(#arrow)" />
+              <!-- Order -> Inventory DB -->
+              <line id="line-order-db" x1="270" y1="160" x2="410" y2="200" stroke="#475569" stroke-width="2" class="net-path" marker-end="url(#arrow)" />
+            </svg>
+
+            <!-- Topology Nodes -->
+            <!-- Client (User) -->
+            <div id="node-client" class="absolute left-6 text-center z-10 transition duration-300">
+              <div class="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 font-bold">👤</div>
+              <span class="text-[10px] text-slate-400 mt-1 block">Browser</span>
+            </div>
+
+            <!-- API Gateway -->
+            <div id="node-gateway" class="absolute left-[130px] text-center z-10 transition duration-300">
+              <div class="w-14 h-14 rounded-full bg-blue-950 border-2 border-blue-500 flex flex-col items-center justify-center text-blue-400 font-bold text-xs">
+                <span>GW</span>
+              </div>
+              <span class="text-[10px] text-slate-400 mt-1 block font-semibold">API Gateway</span>
+            </div>
+
+            <!-- Auth Service -->
+            <div id="node-auth" class="absolute left-[250px] top-4 text-center z-10 transition duration-300">
+              <div class="w-12 h-12 rounded-full bg-indigo-950 border-2 border-indigo-500 flex items-center justify-center text-indigo-400 font-bold text-xs">Auth</div>
+              <span class="text-[10px] text-slate-400 mt-1 block">Auth Service</span>
+            </div>
+
+            <!-- Order Processor -->
+            <div id="node-order" class="absolute left-[250px] bottom-4 text-center z-10 transition duration-300">
+              <div class="w-14 h-14 rounded-full bg-purple-950 border-2 border-purple-500 flex items-center justify-center text-purple-400 font-bold text-xs">Order</div>
+              <span class="text-[10px] text-slate-400 mt-1 block">Order Service</span>
+            </div>
+
+            <!-- Payment Gateway -->
+            <div id="node-payment" class="absolute left-[390px] top-[70px] text-center z-10 transition duration-300">
+              <div class="w-12 h-12 rounded-full bg-pink-950 border-2 border-pink-500 flex items-center justify-center text-pink-400 font-bold text-xs">Pay</div>
+              <span class="text-[10px] text-slate-400 mt-1 block">Payment API</span>
+            </div>
+
+            <!-- Inventory DB -->
+            <div id="node-db" class="absolute left-[390px] bottom-2 text-center z-10 transition duration-300">
+              <div class="w-12 h-12 rounded-full bg-teal-950 border-2 border-teal-500 flex items-center justify-center text-teal-400 font-bold text-xs">DB</div>
+              <span class="text-[10px] text-slate-400 mt-1 block">Inventory DB</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- OpenTelemetry Collector Pipeline Monitor -->
+        <div class="col-span-2 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">OTel Collector Gateway Pipeline</h3>
+          
+          <div class="grid grid-cols-2 gap-4 flex-1">
+            <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+              <span class="text-xs text-slate-400">Total Spans Ingested</span>
+              <span id="metric-ingested" class="text-2xl font-bold font-mono text-blue-400">0</span>
+            </div>
+            <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+              <span class="text-xs text-slate-400">Spans Processed</span>
+              <span id="metric-processed" class="text-2xl font-bold font-mono text-emerald-400">0</span>
+            </div>
+            <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+              <span class="text-xs text-slate-400">Spans Dropped</span>
+              <span id="metric-dropped" class="text-2xl font-bold font-mono text-rose-500">0</span>
+            </div>
+            <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+              <span class="text-xs text-slate-400">Active Buffer Size</span>
+              <div class="flex items-center justify-between">
+                <span id="metric-buffer" class="text-xl font-bold font-mono text-amber-500">0%</span>
+                <div class="w-12 bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div id="metric-buffer-bar" class="bg-amber-500 h-full w-0 transition-all"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Row: Trace List & Gantt/Inspector (Jaeger UI Mock) -->
+      <div class="flex-1 grid grid-cols-12 gap-6 min-h-0">
+        
+        <!-- Trace Selection List -->
+        <div class="col-span-4 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col min-h-0">
+          <div class="flex items-center justify-between mb-3 shrink-0">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Trace List (Jaeger UI Mock)</h3>
+            <span id="trace-count" class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono">0 Traces</span>
+          </div>
+          <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="trace-list-container">
+            <!-- Traces injected dynamically here -->
+            <div class="text-xs text-slate-500 text-center py-8">No traces generated yet. Trigger a request above to start tracing.</div>
+          </div>
+        </div>
+
+        <!-- Trace Gantt Chart and Span Details -->
+        <div class="col-span-8 bg-slate-900/40 border border-slate-800 rounded-xl p-4 flex flex-col min-h-0 overflow-hidden">
+          <div class="flex border-b border-slate-800 pb-2 mb-3 shrink-0 justify-between items-center">
+            <div class="flex space-x-6 text-xs font-semibold text-slate-400">
+              <span class="text-blue-400 cursor-pointer border-b-2 border-blue-400 pb-2">Timeline Gantt Chart</span>
+            </div>
+            <div id="gantt-duration-header" class="text-xs text-slate-400 font-mono hidden">
+              Trace Duration: <span id="trace-total-duration" class="font-bold text-white">0ms</span>
+            </div>
+          </div>
+
+          <div class="flex-1 flex overflow-hidden min-h-0">
+            <!-- Gantt Bars Container -->
+            <div class="flex-1 overflow-y-auto space-y-3 pr-2" id="gantt-container">
+              <div class="text-xs text-slate-500 text-center py-12">Select a trace from the left panel to inspect span latency profiles.</div>
+            </div>
+
+            <!-- Span Inspector Drawer -->
+            <div id="span-inspector" class="w-72 bg-slate-950 border border-slate-800 rounded-lg p-3 ml-3 flex flex-col overflow-y-auto hidden">
+              <div class="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-800">
+                <h4 class="text-xs font-bold text-slate-300 uppercase">Span Inspector</h4>
+                <button onclick="hideSpanInspector()" class="text-slate-500 hover:text-slate-400 text-xs">✕</button>
+              </div>
+              
+              <div class="space-y-3 text-xs flex-1">
+                <div>
+                  <span class="text-[10px] text-slate-500 uppercase block font-semibold">Span Name</span>
+                  <span id="inspect-span-name" class="font-mono font-bold text-blue-400 block break-words"></span>
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-500 uppercase block font-semibold">Service</span>
+                  <span id="inspect-service-name" class="font-mono text-slate-300"></span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <span class="text-[10px] text-slate-500 uppercase block font-semibold">Start Offset</span>
+                    <span id="inspect-start-time" class="font-mono text-slate-300"></span>
+                  </div>
+                  <div>
+                    <span class="text-[10px] text-slate-500 uppercase block font-semibold">Duration</span>
+                    <span id="inspect-duration" class="font-mono text-slate-300 font-bold"></span>
+                  </div>
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-500 uppercase block font-semibold">W3C Context Metadata</span>
+                  <div class="bg-slate-900 p-2 rounded border border-slate-800 font-mono text-[10px] break-all leading-tight text-slate-400 space-y-1">
+                    <div>TraceID: <span id="inspect-trace-id" class="text-slate-300"></span></div>
+                    <div>SpanID: <span id="inspect-span-id" class="text-slate-300"></span></div>
+                    <div>ParentID: <span id="inspect-parent-id" class="text-slate-300"></span></div>
+                  </div>
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-500 uppercase block font-semibold mb-1">Semantic Attributes</span>
+                  <div class="bg-slate-900 border border-slate-800 rounded divide-y divide-slate-800/60 font-mono text-[10px]" id="inspect-attributes">
+                    <!-- Injected dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Incident SRE Assessment Modal Overlay (Scenario Checkpoint) -->
+  <div id="assessment-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-slate-900 border border-slate-800 max-w-lg w-full rounded-2xl p-6 shadow-2xl space-y-4 glow-shadow">
+      <div class="flex items-center space-x-3">
+        <span class="text-3xl">🕵️‍♂️</span>
+        <div>
+          <h3 class="text-lg font-bold text-white">SRE Incident Diagnostic Briefing</h3>
+          <p class="text-xs text-slate-400">Identify the root cause based on your trace diagnostics</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+        <p class="text-xs font-semibold text-slate-300">Incident Scenario Symptoms:</p>
+        <p id="scenario-symptoms-desc" class="text-xs text-slate-400 leading-normal"></p>
+      </div>
+
+      <div class="space-y-3">
+        <label class="block text-xs font-semibold text-slate-300">Based on your Trace Timeline, which node or component is failing?</label>
+        <div class="space-y-2" id="scenario-options-container">
+          <!-- Options injected dynamically -->
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800">
+        <button onclick="closeAssessment()" class="px-4 py-2 text-xs text-slate-400 hover:text-slate-300 transition">
+          Resume Investigation
+        </button>
+        <button onclick="submitDiagnostic()" class="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
+          Submit Assessment
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Info Status -->
+  <footer class="bg-slate-950 border-t border-slate-900 px-6 py-2.5 flex items-center justify-between text-xs text-slate-500 shrink-0">
+    <div class="flex items-center space-x-4">
+      <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-green-500 animate-ping"></span> Live simulation active</span>
+      <span>•</span>
+      <span>Use cases: Monolith vs Microservices APM analysis</span>
+    </div>
+    <div>
+      30 Days of Production Kubernetes - Observability Lab
+    </div>
+  </footer>
+
+  <!-- Simulation JavaScript Logic -->
+  <script>
+    // System Configurations & Initial State
+    let state = {
+      dbDelay: 0,
+      payError: 0,
+      authLocked: false,
+      samplingStrategy: 'head_100',
+      ingestedCount: 0,
+      processedCount: 0,
+      droppedCount: 0,
+      traces: [],
+      activeTrace: null,
+      activeScenario: null,
+      selectedSpan: null
+    };
+
+    const scenarios = {
+      db_contention: {
+        id: 'db_contention',
+        name: 'The "Staircase DB Lock"',
+        symptoms: 'Users are complaining that checkout latency is extremely high (exceeding 2 seconds). Look up a slow trace in the timeline and identify the source of latency.',
+        dbDelay: 2100,
+        payError: 0,
+        authLocked: false,
+        question: 'Which component is the bottleneck for checkout requests?',
+        options: [
+          { text: 'A. API Gateway has high internal context injection overhead.', correct: false },
+          { text: 'B. The Inventory Database call is experiencing high lock-waiting blocks.', correct: true },
+          { text: 'C. The Authentication Service validation checks are bottlenecked.', correct: false },
+          { text: 'D. The Stripe API call has sequential delays.', correct: false }
+        ]
+      },
+      payment_api: {
+        id: 'payment_api',
+        name: 'The "Friday Pay Outage"',
+        symptoms: 'A sudden burst of HTTP 500 errors is reported during checkout. Find a failing (red-highlighted) trace in Jaeger and inspect the span details to isolate the code error.',
+        dbDelay: 0,
+        payError: 100,
+        authLocked: false,
+        question: 'Which service returned the root error causing checkout aborts?',
+        options: [
+          { text: 'A. Auth Service failed due to authentication token timeout.', correct: false },
+          { text: 'B. Payment Gateway Service returned a 502/Connection Failure.', correct: true },
+          { text: 'C. API Ingress Gateway rejected the client header formatting.', correct: false },
+          { text: 'D. Inventory Database returned a transaction timeout block.', correct: false }
+        ]
+      }
+    };
+
+    // Initialize Simulator
+    window.onload = function() {
+      resetSimulator();
+    };
+
+    function resetSimulator() {
+      state = {
+        dbDelay: 0,
+        payError: 0,
+        authLocked: false,
+        samplingStrategy: 'head_100',
+        ingestedCount: 0,
+        processedCount: 0,
+        droppedCount: 0,
+        traces: [],
+        activeTrace: null,
+        activeScenario: null,
+        selectedSpan: null
+      };
+
+      // Reset controls UI
+      document.getElementById('input-db-delay').value = 0;
+      document.getElementById('label-db-delay').innerText = '0 ms';
+      document.getElementById('input-pay-error').value = 0;
+      document.getElementById('label-pay-error').innerText = '0%';
+      document.getElementById('select-sampling').value = 'head_100';
+      changeSamplingStrategy();
+      
+      const authBtn = document.getElementById('btn-auth-lock');
+      authBtn.innerText = 'Inactive';
+      authBtn.className = 'px-3 py-1 text-xs border border-slate-700 hover:border-slate-600 rounded bg-slate-800 text-slate-300 transition';
+
+      document.getElementById('active-scenario-badge').classList.add('hidden');
+      document.getElementById('btn-submit-assessment').classList.add('hidden');
+      
+      updateMetrics();
+      renderTraces();
+      renderGantt();
+      hideSpanInspector();
+      resetNodeStyles();
+    }
+
+    // Controls Label Updates
+    function updateDelayLabel(type, val) {
+      document.getElementById(`label-${type}-delay`).innerText = `${val} ms`;
+      state.dbDelay = parseInt(val);
+    }
+
+    function updateErrorLabel(type, val) {
+      document.getElementById(`label-${type}-error`).innerText = `${val}%`;
+      state.payError = parseInt(val);
+    }
+
+    function toggleAuthLock() {
+      state.authLocked = !state.authLocked;
+      const btn = document.getElementById('btn-auth-lock');
+      if (state.authLocked) {
+        btn.innerText = 'Active (Locked)';
+        btn.className = 'px-3 py-1 text-xs border border-amber-500/30 rounded bg-amber-500/10 text-amber-400 transition animate-pulse';
+      } else {
+        btn.innerText = 'Inactive';
+        btn.className = 'px-3 py-1 text-xs border border-slate-700 hover:border-slate-600 rounded bg-slate-800 text-slate-300 transition';
+      }
+    }
+
+    function changeSamplingStrategy() {
+      state.samplingStrategy = document.getElementById('select-sampling').value;
+      const desc = document.getElementById('sampling-desc');
+      if (state.samplingStrategy === 'head_100') {
+        desc.innerText = 'Record 100% of traces. Maximum visibility, highest storage cost.';
+      } else if (state.samplingStrategy === 'head_10') {
+        desc.innerText = 'SDK drops 90% of requests randomly at ingress. Saves cost, ignores critical errors.';
+      } else if (state.samplingStrategy === 'tail_error') {
+        desc.innerText = 'Filter drops healthz checks. Keep 100% of errors or slow spans. Keep 5% of successes.';
+      }
+    }
+
+    // Ingest Pipeline Metrics
+    function updateMetrics() {
+      document.getElementById('metric-ingested').innerText = state.ingestedCount;
+      document.getElementById('metric-processed').innerText = state.processedCount;
+      document.getElementById('metric-dropped').innerText = state.droppedCount;
+      
+      // Calculate buffer queue mock fill state
+      let activeBuffer = 0;
+      if (state.traces.length > 0) {
+        activeBuffer = Math.min(Math.round((state.processedCount % 100) / 1.5), 100);
+      }
+      document.getElementById('metric-buffer').innerText = `${activeBuffer}%`;
+      document.getElementById('metric-buffer-bar').style.width = `${activeBuffer}%`;
+      
+      document.getElementById('trace-count').innerText = `${state.traces.length} Traces`;
+    }
+
+    // Trigger Outbound request flow
+    function triggerRequest(endpoint) {
+      // Node flow visual traversal animation
+      animateNetworkFlow(endpoint);
+      
+      // Generate trace structure
+      setTimeout(() => {
+        createTraceRecord(endpoint);
+      }, 900); // Wait for transition animation to visual nodes
+    }
+
+    // Node Visual Flow Animation
+    function animateNetworkFlow(endpoint) {
+      resetNodeStyles();
+      
+      const client = document.getElementById('node-client');
+      const gw = document.getElementById('node-gateway');
+      const auth = document.getElementById('node-auth');
+      const order = document.getElementById('node-order');
+      const pay = document.getElementById('node-payment');
+      const db = document.getElementById('node-db');
+
+      // Step 1: User to Gateway
+      client.classList.add('node-pulse', 'text-blue-400');
+      
+      setTimeout(() => {
+        gw.classList.add('node-pulse', 'glow-shadow');
+        
+        // Step 2: Gateway validation
+        setTimeout(() => {
+          if (state.authLocked) {
+            auth.classList.add('node-pulse', 'text-amber-500');
+          } else {
+            auth.classList.add('text-indigo-400');
+          }
+          
+          // Step 3: Gateway to backend services
+          setTimeout(() => {
+            if (endpoint === 'checkout') {
+              order.classList.add('node-pulse');
+              
+              setTimeout(() => {
+                // Payment Call
+                let isPayFailed = (Math.random() * 100) < state.payError;
+                if (isPayFailed) {
+                  pay.classList.add('node-pulse', 'text-rose-500', 'glow-shadow-red');
+                } else {
+                  pay.classList.add('text-pink-400');
+                }
+
+                // DB Call
+                if (state.dbDelay > 800) {
+                  db.classList.add('node-pulse', 'text-amber-500');
+                } else {
+                  db.classList.add('text-teal-400');
+                }
+              }, 400);
+
+            } else {
+              // Get Orders path (Directly Order -> DB)
+              order.classList.add('node-pulse');
+              setTimeout(() => {
+                db.classList.add('text-teal-400');
+              }, 300);
+            }
+          }, 300);
+
+        }, 300);
+
+      }, 300);
+    }
+
+    function resetNodeStyles() {
+      const ids = ['node-client', 'node-gateway', 'node-auth', 'node-order', 'node-payment', 'node-db'];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        el.className = el.className.replace('node-pulse', '').replace('glow-shadow-red', '').replace('glow-shadow-green', '').replace('glow-shadow', '');
+        el.classList.remove('text-blue-400', 'text-rose-500', 'text-amber-500', 'text-indigo-400', 'text-pink-400', 'text-teal-400');
+      });
+    }
+
+    // Create spans and metadata
+    function createTraceRecord(endpoint) {
+      const traceId = generateHex(32);
+      const startMs = Date.now();
+      
+      // Calculate individual latencies
+      let authDuration = state.authLocked ? 3000 : 15;
+      let orderDuration = 10;
+      let dbDuration = 5 + state.dbDelay;
+      let isPayError = (Math.random() * 100) < state.payError;
+      let payDuration = isPayError ? 3000 : 45;
+      
+      // Total Root Request calculation
+      let totalDuration = 0;
+      let spans = [];
+      let rootStatus = 'OK';
+
+      // Build Root Span
+      let rootSpanId = generateHex(16);
+      
+      if (endpoint === 'checkout') {
+        // Checkout touches GW -> Auth -> Order -> Pay & DB
+        totalDuration = authDuration + orderDuration + Math.max(dbDuration, payDuration) + 12;
+        if (isPayError || state.authLocked) {
+          rootStatus = 'ERROR';
+        }
+        
+        spans = [
+          {
+            id: rootSpanId,
+            parentId: '0000000000000000',
+            name: 'POST /checkout',
+            service: 'api-gateway',
+            startOffset: 0,
+            duration: totalDuration,
+            status: rootStatus,
+            attributes: { 'http.method': 'POST', 'http.target': '/checkout', 'http.status_code': rootStatus === 'OK' ? '201' : '500' },
+            events: [{ time: 1, name: 'context_injected' }]
+          },
+          {
+            id: generateHex(16),
+            parentId: rootSpanId,
+            name: 'GET /validate-token',
+            service: 'auth-service',
+            startOffset: 2,
+            duration: authDuration,
+            status: state.authLocked ? 'ERROR' : 'OK',
+            attributes: { 'http.method': 'GET', 'auth.provider': 'jwt', 'http.status_code': state.authLocked ? '503' : '200' },
+            events: state.authLocked ? [{ time: 2999, name: 'timeout_error' }] : [{ time: 10, name: 'jwt_valid' }]
+          }
+        ];
+
+        if (!state.authLocked) {
+          let orderSpanId = generateHex(16);
+          spans.push(
+            {
+              id: orderSpanId,
+              parentId: rootSpanId,
+              name: 'POST /orders/create',
+              service: 'order-processor',
+              startOffset: authDuration + 4,
+              duration: totalDuration - authDuration - 6,
+              status: isPayError ? 'ERROR' : 'OK',
+              attributes: { 'http.method': 'POST', 'db.type': 'postgresql' },
+              events: []
+            },
+            {
+              id: generateHex(16),
+              parentId: orderSpanId,
+              name: 'SELECT stock FROM inventory',
+              service: 'inventory-db',
+              startOffset: authDuration + 6,
+              duration: dbDuration,
+              status: 'OK',
+              attributes: { 'db.system': 'postgresql', 'db.statement': 'SELECT stock FROM inventory WHERE item_id = 4552', 'db.name': 'prod_inventory' },
+              events: [{ time: 2, name: 'connection_acquired' }]
+            },
+            {
+              id: generateHex(16),
+              parentId: orderSpanId,
+              name: 'POST /v1/charges',
+              service: 'payment-gateway',
+              startOffset: authDuration + 8,
+              duration: payDuration,
+              status: isPayError ? 'ERROR' : 'OK',
+              attributes: { 'http.method': 'POST', 'payment.provider': 'stripe', 'http.status_code': isPayError ? '502' : '200' },
+              events: isPayError ? [{ time: 2999, name: 'connection_failure_stripe' }] : [{ time: 42, name: 'charge_settled' }]
+            }
+          );
+        }
+
+      } else {
+        // Get Orders touches GW -> DB
+        totalDuration = dbDuration + 10;
+        spans = [
+          {
+            id: rootSpanId,
+            parentId: '0000000000000000',
+            name: 'GET /orders',
+            service: 'api-gateway',
+            startOffset: 0,
+            duration: totalDuration,
+            status: 'OK',
+            attributes: { 'http.method': 'GET', 'http.target': '/orders', 'http.status_code': '200' },
+            events: []
+          },
+          {
+            id: generateHex(16),
+            parentId: rootSpanId,
+            name: 'SELECT * FROM orders',
+            service: 'inventory-db',
+            startOffset: 4,
+            duration: dbDuration,
+            status: 'OK',
+            attributes: { 'db.system': 'postgresql', 'db.statement': 'SELECT * FROM orders LIMIT 20', 'db.name': 'prod_orders' },
+            events: []
+          }
+        ];
+      }
+
+      const traceRecord = {
+        id: traceId,
+        endpoint: endpoint,
+        status: rootStatus,
+        duration: totalDuration,
+        timestamp: new Date().toLocaleTimeString(),
+        spans: spans
+      };
+
+      // Handle Sampling Logic
+      let keepTrace = true;
+      state.ingestedCount += spans.length;
+      
+      if (state.samplingStrategy === 'head_10') {
+        keepTrace = Math.random() < 0.1;
+      } else if (state.samplingStrategy === 'tail_error') {
+        // Tail sampling checks if there is an error status OR slow trace (>1000)
+        let hasError = rootStatus === 'ERROR';
+        let isSlow = totalDuration > 1000;
+        
+        if (hasError || isSlow) {
+          keepTrace = true;
+        } else {
+          keepTrace = Math.random() < 0.05; // 5% sample success
+        }
+      }
+
+      if (keepTrace) {
+        state.traces.unshift(traceRecord);
+        state.processedCount += spans.length;
+        // Automatically select the newest trace
+        selectTrace(traceId);
+      } else {
+        state.droppedCount += spans.length;
+      }
+
+      updateMetrics();
+      renderTraces();
+    }
+
+    // Render left panel trace logs
+    function renderTraces() {
+      const container = document.getElementById('trace-list-container');
+      if (state.traces.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-500 text-center py-8">No traces captured. Use Request triggers above to generate.</div>`;
+        return;
+      }
+
+      container.innerHTML = '';
+      state.traces.forEach(t => {
+        const isActive = state.activeTrace && state.activeTrace.id === t.id;
+        const statusColor = t.status === 'ERROR' ? 'border-rose-500 bg-rose-500/10' : 'border-slate-800 bg-slate-900/40';
+        const selectBorder = isActive ? 'ring-2 ring-blue-500' : '';
+        
+        const card = document.createElement('div');
+        card.className = `p-3 rounded-lg border text-xs cursor-pointer transition ${statusColor} ${selectBorder}`;
+        card.onclick = () => selectTrace(t.id);
+        
+        card.innerHTML = `
+          <div class="flex items-center justify-between font-mono text-[10px] text-slate-400 mb-1.5">
+            <span class="truncate pr-2 max-w-[150px]">ID: ...${t.id.slice(-8)}</span>
+            <span>${t.timestamp}</span>
+          </div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-white">${t.endpoint === 'checkout' ? 'POST /checkout' : 'GET /orders'}</span>
+            <span class="font-mono font-semibold text-slate-300">${t.duration.toFixed(0)} ms</span>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-slate-400">
+            <span>${t.spans.length} spans</span>
+            <span class="font-bold text-[10px] ${t.status === 'ERROR' ? 'text-rose-400' : 'text-emerald-400'}">${t.status}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // Select and inspect trace
+    function selectTrace(traceId) {
+      state.activeTrace = state.traces.find(t => t.id === traceId);
+      renderTraces();
+      renderGantt();
+      
+      document.getElementById('gantt-duration-header').classList.remove('hidden');
+      document.getElementById('trace-total-duration').innerText = `${state.activeTrace.duration.toFixed(0)}ms`;
+    }
+
+    // Render Gantt timelines
+    function renderGantt() {
+      const container = document.getElementById('gantt-container');
+      if (!state.activeTrace) {
+        container.innerHTML = `<div class="text-xs text-slate-500 text-center py-12">Select a trace from the left panel to inspect span latency profiles.</div>`;
+        return;
+      }
+
+      container.innerHTML = '';
+      
+      const totalDuration = state.activeTrace.duration;
+      
+      state.activeTrace.spans.forEach(span => {
+        const leftPercent = (span.startOffset / totalDuration) * 100;
+        const widthPercent = (span.duration / totalDuration) * 100;
+        
+        const serviceColors = {
+          'api-gateway': 'bg-blue-600 border-blue-500 text-blue-200',
+          'auth-service': 'bg-indigo-600 border-indigo-500 text-indigo-200',
+          'order-processor': 'bg-purple-600 border-purple-500 text-purple-200',
+          'inventory-db': 'bg-teal-600 border-teal-500 text-teal-200',
+          'payment-gateway': 'bg-pink-600 border-pink-500 text-pink-200'
+        };
+        
+        const barColor = serviceColors[span.service] || 'bg-slate-600 border-slate-500';
+        const errorFlash = span.status === 'ERROR' ? 'ring-2 ring-rose-500/80 animate-pulse bg-rose-950 border-rose-500 text-rose-300' : '';
+        
+        const row = document.createElement('div');
+        row.className = "space-y-1.5 cursor-pointer hover:bg-slate-900/60 p-1.5 rounded transition";
+        row.onclick = () => showSpanInspector(span);
+        
+        row.innerHTML = `
+          <div class="flex items-center justify-between text-xs font-semibold text-slate-300 px-1">
+            <span class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded bg-current ${span.status === 'ERROR' ? 'text-rose-400' : 'text-slate-400'}"></span>
+              ${span.service} ➔ <span class="font-mono text-slate-400 font-normal text-[11px]">${span.name}</span>
+            </span>
+            <span class="font-mono text-[11px] text-slate-400">${span.duration.toFixed(0)} ms</span>
+          </div>
+          <div class="w-full bg-slate-900 h-6 rounded-md overflow-hidden relative border border-slate-800">
+            <!-- Timeline Span Bar -->
+            <div style="left: ${leftPercent}%; width: ${widthPercent}%; min-width: 3%;" class="absolute h-full rounded border flex items-center justify-center text-[10px] font-mono font-bold transition-all px-2 overflow-hidden truncate ${barColor} ${errorFlash}">
+              ${span.name}
+            </div>
+          </div>
+        `;
+        
+        container.appendChild(row);
+      });
+    }
+
+    // Span Inspection
+    function showSpanInspector(span) {
+      state.selectedSpan = span;
+      document.getElementById('span-inspector').classList.remove('hidden');
+      
+      document.getElementById('inspect-span-name').innerText = span.name;
+      document.getElementById('inspect-service-name').innerText = span.service;
+      document.getElementById('inspect-start-time').innerText = `+${span.startOffset.toFixed(0)} ms`;
+      document.getElementById('inspect-duration').innerText = `${span.duration.toFixed(0)} ms`;
+      
+      document.getElementById('inspect-trace-id').innerText = state.activeTrace.id;
+      document.getElementById('inspect-span-id').innerText = span.id;
+      document.getElementById('inspect-parent-id').innerText = span.parentId;
+      
+      const attrContainer = document.getElementById('inspect-attributes');
+      attrContainer.innerHTML = '';
+      
+      Object.entries(span.attributes).forEach(([key, val]) => {
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center p-1.5 hover:bg-slate-900/60";
+        row.innerHTML = `
+          <span class="text-slate-500 font-semibold truncate pr-2 max-w-[120px]">${key}</span>
+          <span class="text-slate-300 font-bold text-right truncate max-w-[150px]">${val}</span>
+        `;
+        attrContainer.appendChild(row);
+      });
+    }
+
+    function hideSpanInspector() {
+      document.getElementById('span-inspector').classList.add('hidden');
+      state.selectedSpan = null;
+    }
+
+    // Outage Scenarios
+    function startScenario(scenarioId) {
+      resetSimulator();
+      const s = scenarios[scenarioId];
+      state.activeScenario = s;
+      
+      document.getElementById('active-scenario-badge').classList.remove('hidden');
+      document.getElementById('active-scenario-name').innerText = s.name;
+      document.getElementById('btn-submit-assessment').classList.remove('hidden');
+      
+      // Inject scenario config values
+      state.dbDelay = s.dbDelay;
+      state.payError = s.payError;
+      state.authLocked = s.authLocked;
+
+      // Sync Controls UI
+      document.getElementById('input-db-delay').value = s.dbDelay;
+      document.getElementById('label-db-delay').innerText = `${s.dbDelay} ms`;
+      document.getElementById('input-pay-error').value = s.payError;
+      document.getElementById('label-pay-error').innerText = `${s.payError}%`;
+      
+      // Alert/Helper prompt
+      setTimeout(() => {
+        alert(`🚨 Outage Triggered!\n\nSymptoms: ${s.symptoms}\n\nExecute a few checkout requests to analyze the hot-paths.`);
+      }, 500);
+    }
+
+    // Submit diagnostic answer
+    function checkIncidentAssessment() {
+      if (!state.activeScenario) {
+        alert('There is no active incident scenario. Pick a scenario under the SRE Incident Lab first.');
+        return;
+      }
+      
+      const s = state.activeScenario;
+      document.getElementById('scenario-symptoms-desc').innerText = s.symptoms;
+      
+      const container = document.getElementById('scenario-options-container');
+      container.innerHTML = '';
+      
+      s.options.forEach((opt, idx) => {
+        const label = document.createElement('label');
+        label.className = "flex items-center space-x-3 p-3 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-slate-950 cursor-pointer transition";
+        label.innerHTML = `
+          <input type="radio" name="assessment-opt" value="${idx}" class="text-blue-600 focus:ring-blue-500">
+          <span class="text-xs text-slate-300">${opt.text}</span>
+        `;
+        container.appendChild(label);
+      });
+
+      document.getElementById('assessment-modal').classList.remove('hidden');
+    }
+
+    function closeAssessment() {
+      document.getElementById('assessment-modal').classList.add('hidden');
+    }
+
+    function submitDiagnostic() {
+      const selected = document.querySelector('input[name="assessment-opt"]:checked');
+      if (!selected) {
+        alert('Please select an option before submitting.');
+        return;
+      }
+      
+      const val = parseInt(selected.value);
+      const opt = state.activeScenario.options[val];
+      
+      if (opt.correct) {
+        alert('🎉 CORRECT DIAGNOSTIC!\n\nExcellent SRE work. You isolated the bottleneck from the trace tree metrics. The incident has been resolved!');
+        closeAssessment();
+        resetSimulator();
+      } else {
+        alert('❌ INCORRECT ASSESSMENT.\n\nInspect the Gantt durations or errors again to see which component accounts for the execution delay or crash.');
+      }
+    }
+
+    // Support trigger assessment dynamically if a trace is clicked in scenario mode
+    setInterval(() => {
+      if (state.activeScenario && state.traces.length >= 2 && !state.selectedSpan) {
+        // If they have run requests, invite them to submit diagnostic
+        const activeScenarioBadge = document.getElementById('active-scenario-badge');
+        if (activeScenarioBadge && !activeScenarioBadge.onclick) {
+          activeScenarioBadge.className += ' cursor-pointer border-amber-500 bg-amber-500/20';
+          activeScenarioBadge.onclick = checkIncidentAssessment;
+        }
+      }
+    }, 1000);
+
+    // Helpers
+    function generateHex(len) {
+      let result = '';
+      const chars = '0123456789abcdef';
+      for (let i = 0; i < len; i++) {
+        result += chars[Math.floor(Math.random() * 16)];
+      }
+      return result;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracing-frontend
+  namespace: default
+  labels:
+    app: tracing-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracing-frontend
+  template:
+    metadata:
+      labels:
+        app: tracing-frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: frontend
+          image: ghcr.io/himanshuverma/tracing-frontend-mock:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "frontend"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4318" # HTTP receiver port
+            - name: BACKEND_URL
+              value: "http://tracing-backend.default.svc.cluster.local:8080"
+            - name: OTEL_TRACES_SAMPLER
+              value: "parentbased_always_on"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: "/healthz"
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: "/healthz"
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracing-frontend
+  namespace: default
+  labels:
+    app: tracing-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  selector:
+    app: tracing-frontend
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracing-backend
+  namespace: default
+  labels:
+    app: tracing-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracing-backend
+  template:
+    metadata:
+      labels:
+        app: tracing-backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: backend
+          image: ghcr.io/himanshuverma/tracing-backend-mock:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "order-processor"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4318"
+            - name: DATABASE_URL
+              value: "postgresql://db-service.default.svc.cluster.local:5432"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: "/healthz"
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: "/healthz"
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracing-backend
+  namespace: default
+  labels:
+    app: tracing-backend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: tracing-backend
