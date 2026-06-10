@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Incident Command Center — Day 19 Simulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #121824;
+            --bg-tertiary: #1b2336;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --color-primary: #3b82f6;
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-danger: #ef4444;
+            --color-cyan: #06b6d4;
+            --border-glow: rgba(59, 130, 246, 0.25);
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            overflow-x: hidden;
+            line-height: 1.5;
+        }
+
+        /* Layout Grid */
+        .wrapper {
+            display: grid;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Top Header */
+        header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-cyan));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .logo-title h1 {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .logo-title p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .metrics-bar {
+            display: flex;
+            gap: 32px;
+        }
+
+        .metric-card {
+            text-align: right;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .metric-value.healthy { color: var(--color-success); }
+        .metric-value.degraded { color: var(--color-warning); }
+        .metric-value.critical { color: var(--color-danger); }
+
+        /* Main Workspace Container */
+        .main-container {
+            display: grid;
+            grid-template-columns: 280px 1fr 340px;
+            height: calc(100vh - 70px);
+            overflow: hidden;
+        }
+
+        /* Sidebar: Incident Controls */
+        .control-sidebar {
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--bg-tertiary);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            border-left: 3px solid var(--color-primary);
+            padding-left: 8px;
+        }
+
+        .scenario-btn {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-main);
+            padding: 12px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .scenario-btn:hover {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 10px var(--border-glow);
+            transform: translateY(-1px);
+        }
+
+        .scenario-btn.active {
+            border-color: var(--color-primary);
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .scenario-btn .title {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .scenario-btn .desc {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Center Display: Interactive Terminal & Log Stream */
+        .workspace-center {
+            display: grid;
+            grid-template-rows: 2.5fr 1.5fr;
+            overflow: hidden;
+            background-color: var(--bg-primary);
+        }
+
+        /* Console Terminal UI */
+        .terminal-container {
+            border-bottom: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 16px;
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .terminal-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-tab {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+        }
+
+        .terminal-tab.active {
+            border-color: var(--color-primary);
+            color: var(--text-main);
+            background-color: var(--bg-tertiary);
+        }
+
+        .terminal-suggestions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .suggest-btn {
+            background-color: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            color: var(--color-cyan);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            transition: all 0.15s ease;
+        }
+
+        .suggest-btn:hover {
+            background-color: var(--color-cyan);
+            color: var(--bg-primary);
+        }
+
+        .terminal-body {
+            background-color: #05070c;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            flex-grow: 1;
+            padding: 16px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            overflow-y: auto;
+            color: #38bdf8;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.7);
+        }
+
+        .terminal-output {
+            white-space: pre-wrap;
+            margin-bottom: 16px;
+        }
+
+        .terminal-input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prompt {
+            color: var(--color-success);
+            font-weight: bold;
+        }
+
+        .terminal-input-field {
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            flex-grow: 1;
+        }
+
+        /* Logs & Events split view */
+        .logs-events-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 16px;
+            border-right: 1px solid var(--bg-tertiary);
+        }
+
+        .pane:last-child {
+            border-right: none;
+        }
+
+        .pane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .pane-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .logs-stream {
+            background-color: #030712;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: #cbd5e1;
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .log-entry.error { color: var(--color-danger); }
+        .log-entry.warn { color: var(--color-warning); }
+        .log-entry.info { color: var(--color-success); }
+
+        .events-table-container {
+            background-color: #030712;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .events-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-align: left;
+        }
+
+        .events-table th, .events-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+
+        .events-table th {
+            color: var(--text-muted);
+            background-color: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        /* Right Sidebar: Mitigation & Post Mortem */
+        .ops-sidebar {
+            background-color: var(--bg-secondary);
+            border-left: 1px solid var(--bg-tertiary);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            overflow-y: auto;
+        }
+
+        .mitigate-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .action-card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .action-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .action-title {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .action-desc {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .action-btn {
+            background-color: var(--color-primary);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            font-size: 11px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.15s ease;
+        }
+
+        .action-btn:hover {
+            opacity: 0.9;
+        }
+
+        .action-btn:disabled {
+            background-color: var(--bg-tertiary);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        /* RCA / Post Mortem Builder */
+        .rca-container {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .rca-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .rca-form-group label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .rca-select {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-main);
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .rca-submit-btn {
+            background: linear-gradient(135deg, var(--color-success), #059669);
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .rca-submit-btn:hover {
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Timeline Tracker */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 11px;
+        }
+
+        .timeline-step {
+            display: flex;
+            gap: 10px;
+            position: relative;
+        }
+
+        .timeline-step::before {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 14px;
+            bottom: -16px;
+            width: 2px;
+            background-color: var(--bg-tertiary);
+        }
+
+        .timeline-step:last-child::before {
+            display: none;
+        }
+
+        .timeline-bullet {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            border: 2px solid var(--bg-secondary);
+            z-index: 1;
+            margin-top: 2px;
+        }
+
+        .timeline-bullet.completed {
+            background-color: var(--color-success);
+            box-shadow: 0 0 6px var(--color-success);
+        }
+
+        .timeline-bullet.active {
+            background-color: var(--color-warning);
+            box-shadow: 0 0 6px var(--color-warning);
+        }
+
+        .timeline-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .timeline-time {
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 10px;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+        }
+
+        /* Toast Modal */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: var(--bg-secondary);
+            border-left: 4px solid var(--color-primary);
+            padding: 16px 20px;
+            border-radius: 6px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 100;
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast-title {
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .toast-body {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <!-- Header -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">k8s</div>
+            <div class="logo-title">
+                <h1>Incident Command Center</h1>
+                <p>Kubernetes Live Debugging Simulator</p>
+            </div>
+        </div>
+        <div class="metrics-bar">
+            <div class="metric-card">
+                <div class="metric-label">Active Outage</div>
+                <div class="metric-value critical" id="metric-outage">None</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Cluster Health SLA</div>
+                <div class="metric-value healthy" id="metric-sla">100.0%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">MTTR Stopwatch</div>
+                <div class="metric-value" id="metric-mttr">00:00</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="main-container">
+        <!-- Sidebar Controls -->
+        <div class="control-sidebar">
+            <div>
+                <h3 class="sidebar-section-title">Trigger Outage</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="scenario-btn" onclick="triggerScenario('crashloop')">
+                        <span class="title">1. CrashLoopBackOff</span>
+                        <span class="desc">Payment processor startup configuration error</span>
+                    </button>
+                    <button class="scenario-btn" onclick="triggerScenario('oom')">
+                        <span class="title">2. OOMKilled</span>
+                        <span class="desc">Memory-leaking worker hitting cgroup limits</span>
+                    </button>
+                    <button class="scenario-btn" onclick="triggerScenario('dns')">
+                        <span class="title">3. DNS Failure</span>
+                        <span class="desc">Pod-level nameserver settings overridden</span>
+                    </button>
+                    <button class="scenario-btn" onclick="triggerScenario('service')">
+                        <span class="title">4. Service Outage</span>
+                        <span class="desc">Mismatched label selectors blocking routing</span>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="sidebar-section-title">Incident Timeline</h3>
+                <div class="timeline" id="timeline-list">
+                    <div class="timeline-step">
+                        <div class="timeline-bullet completed"></div>
+                        <div class="timeline-content">
+                            <span class="timeline-time">00:00:00</span>
+                            <span class="timeline-title">System Stable</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Terminal & Logs Workspace -->
+        <div class="workspace-center">
+            <!-- Kubectl Console Panel -->
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Kubectl Command Line</span>
+                    <div class="terminal-tabs">
+                        <button class="terminal-tab active">default-namespace</button>
+                    </div>
+                </div>
+                <div class="terminal-suggestions" id="command-suggestions">
+                    <button class="suggest-btn" onclick="executeSuggestion('kubectl get pods')">kubectl get pods</button>
+                    <button class="suggest-btn" onclick="executeSuggestion('kubectl get events')">kubectl get events</button>
+                </div>
+                <div class="terminal-body" id="terminal-body">
+                    <div class="terminal-output" id="terminal-output">Kubernetes API server console initialized. Run commands to inspect resources.</div>
+                    <div class="terminal-input-row">
+                        <span class="prompt">k8s-sre-shell:~$</span>
+                        <input type="text" class="terminal-input-field" id="terminal-input" placeholder="Type a kubectl command..." autocomplete="off" onkeydown="handleCommand(event)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs & Events Split Screen -->
+            <div class="logs-events-split">
+                <!-- Live Logs -->
+                <div class="pane">
+                    <div class="pane-header">
+                        <span class="pane-title">Pod Log Stream (stdout/stderr)</span>
+                    </div>
+                    <div class="logs-stream" id="logs-stream">
+                        <div class="log-entry info">[system] logs initialized. Select a pod or trigger an outage to watch.</div>
+                    </div>
+                </div>
+
+                <!-- Events Table -->
+                <div class="pane">
+                    <div class="pane-header">
+                        <span class="pane-title">Kubernetes Event Auditor</span>
+                    </div>
+                    <div class="events-table-container">
+                        <table class="events-table">
+                            <thead>
+                                <tr>
+                                    <th>Reason</th>
+                                    <th>Type</th>
+                                    <th>Object</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-body">
+                                <tr>
+                                    <td colspan="4" style="color: var(--text-muted); text-align: center;">No warning events recorded. Cluster stable.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar: Mitigation and Post-Mortem -->
+        <div class="ops-sidebar">
+            <div>
+                <h3 class="sidebar-section-title">Mitigation Controls</h3>
+                <div class="mitigate-actions">
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Inject Env Configuration</span>
+                            <span class="action-desc">Fixes DB_PASSWORD environment mismatch</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-env" disabled onclick="applyFix('env')">Fix</button>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Scale Memory Cgroups</span>
+                            <span class="action-desc">Increases container limit to 256Mi</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-oom" disabled onclick="applyFix('oom')">Scale</button>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Restore DNS Settings</span>
+                            <span class="action-desc">Resets resolv.conf to ClusterIP</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-dns" disabled onclick="applyFix('dns')">Restore</button>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Align Selector Labels</span>
+                            <span class="action-desc">Remedies Service selector mismatches</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-svc" disabled onclick="applyFix('svc')">Align</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="sidebar-section-title">Root Cause Analysis (RCA)</h3>
+                <div class="rca-container">
+                    <div class="rca-form-group">
+                        <label>Symptom</label>
+                        <select class="rca-select" id="rca-symptom">
+                            <option value="">-- Select --</option>
+                            <option value="crash">Container exits with Status Code 1 immediately on start</option>
+                            <option value="oom">Exit Code 137, Memory usage spikes rapidly</option>
+                            <option value="dns">nslookup resolves names to 8.8.8.8, ignores cluster records</option>
+                            <option value="svc">Service Endpoint is empty (none), requests fail</option>
+                        </select>
+                    </div>
+                    <div class="rca-form-group">
+                        <label>Root Cause</label>
+                        <select class="rca-select" id="rca-cause">
+                            <option value="">-- Select --</option>
+                            <option value="config_env">Missing mandatory DB_PASSWORD env key in ConfigMap</option>
+                            <option value="leak_limit">Memory leak exceeds 50Mi limits, triggering cgroup OOM killer</option>
+                            <option value="dns_none">Pod spec set dnsPolicy: None and hardcoded nameservers</option>
+                            <option value="label_port">Mismatched selectors between Service and backend Deployment labels</option>
+                        </select>
+                    </div>
+                    <button class="rca-submit-btn" onclick="submitRca()">Submit RCA Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Alert -->
+<div class="toast" id="toast-alert">
+    <div class="toast-title" id="toast-title" style="color: var(--color-danger)">[ALERT] PagerDuty Triggered</div>
+    <div class="toast-body" id="toast-body">Checkout service is experiencing high HTTP 5xx error spikes.</div>
+</div>
+
+<script>
+    // State Management
+    let activeScenario = null;
+    let mttrTimer = null;
+    let mttrSeconds = 0;
+    let sla = 100.0;
+    let commandHistory = [];
+    let logInterval = null;
+    let systemHealed = false;
+
+    // Simulation Databases
+    const DB_STATES = {
+        crashloop: {
+            podName: "payment-processor-8d65-ab12",
+            status: "CrashLoopBackOff",
+            restarts: 4,
+            logs: [
+                '{"level":"INFO","msg":"Starting Payment Processor Daemon... v1.2.0"}',
+                '{"level":"INFO","msg":"Validating configurations..."}',
+                '{"level":"FATAL","msg":"Database configuration DB_PASSWORD not found! Exiting."}',
+                '{"level":"INFO","msg":"Process exited with status code 1"}'
+            ],
+            events: [
+                { reason: "BackOff", type: "Warning", object: "Pod/payment-processor-8d65-ab12", msg: "Back-off restarting failed container" },
+                { reason: "Failed", type: "Warning", object: "Pod/payment-processor-8d65-ab12", msg: "Error: Failed to start container" }
+            ],
+            fixId: "btn-fix-env"
+        },
+        oom: {
+            podName: "memory-leaker-7b44-xyz3",
+            status: "OOMKilled",
+            restarts: 2,
+            logs: [
+                '{"level":"INFO","msg":"Starting Worker Node Pool..."}',
+                '{"level":"INFO","msg":"Iteration 1: Allocating 10MB chunk..."}',
+                '{"level":"INFO","msg":"Iteration 2: Allocating 10MB chunk..."}',
+                '{"level":"INFO","msg":"Iteration 3: Allocating 10MB chunk..."}',
+                '{"level":"INFO","msg":"Iteration 4: Allocating 10MB chunk..."}',
+                '{"level":"FATAL","msg":"Kernel signal received: SIGKILL (Exit Code 137)"}'
+            ],
+            events: [
+                { reason: "Killing", type: "Warning", object: "Pod/memory-leaker-7b44-xyz3", msg: "Container leaker exceeded memory limits" },
+                { reason: "Failed", type: "Warning", object: "Pod/memory-leaker-7b44-xyz3", msg: "OOMKilled: Process terminated with status code 137" }
+            ],
+            fixId: "btn-fix-oom"
+        },
+        dns: {
+            podName: "dns-broken-client-66c",
+            status: "Running",
+            restarts: 0,
+            logs: [
+                '{"level":"INFO","msg":"Resolving dependencies..."}',
+                '{"level":"ERROR","msg":"dial tcp: lookup auth-service: Host not found (DNS Failure)"}',
+                '{"level":"ERROR","msg":"dns client failed lookup validation"}'
+            ],
+            events: [
+                { reason: "Unhealthy", type: "Warning", object: "Pod/dns-broken-client-66c", msg: "Readiness probe failed: connection refused" }
+            ],
+            fixId: "btn-fix-dns"
+        },
+        service: {
+            podName: "order-api-v1-9d8a",
+            status: "Running",
+            restarts: 0,
+            logs: [
+                '{"level":"INFO","msg":"Order API v1 listening on port 80..."}',
+                '{"level":"INFO","msg":"Service handler registration complete"}'
+            ],
+            events: [
+                { reason: "Warning", type: "Warning", object: "Service/order-service", msg: "Service selector matches zero backend pods" }
+            ],
+            fixId: "btn-fix-svc"
+        }
+    };
+
+    // Trigger Outage Scenarios
+    function triggerScenario(type) {
+        if (activeScenario) return; // Must solve active incident first
+        
+        activeScenario = type;
+        systemHealed = false;
+        sla = 100.0;
+        
+        // Reset metrics UI
+        document.getElementById("metric-outage").innerText = type.toUpperCase() + " FAILED";
+        document.getElementById("metric-outage").className = "metric-value critical";
+        document.getElementById("metric-sla").className = "metric-value degraded";
+
+        // Enable matching mitigation button
+        const config = DB_STATES[type];
+        document.getElementById(config.fixId).removeAttribute("disabled");
+
+        // Start MTTR Clock
+        mttrSeconds = 0;
+        clearInterval(mttrTimer);
+        mttrTimer = setInterval(() => {
+            mttrSeconds++;
+            const mins = String(Math.floor(mttrSeconds / 60)).padStart(2, '0');
+            const secs = String(mttrSeconds % 60).padStart(2, '0');
+            document.getElementById("metric-mttr").innerText = `${mins}:${secs}`;
+            
+            // Degrading SLA
+            if (sla > 45) {
+                sla = (sla - 0.7).toFixed(1);
+                document.getElementById("metric-sla").innerText = `${sla}%`;
+                if (sla < 70) document.getElementById("metric-sla").className = "metric-value critical";
+            }
+        }, 1000);
+
+        // Add timeline event
+        addTimelineEvent(`Alert: Outage ${type.toUpperCase()} triggered.`, "active");
+
+        // Update CLI Suggestions
+        updateCliSuggestions(type);
+
+        // Scroll Logs and Events
+        runSimulatedTelemetry(type);
+
+        // Alert Toast
+        showToast(`[ALERT] Production Failure`, `Incident command center triggered: ${type.toUpperCase()}`);
+    }
+
+    function updateCliSuggestions(type) {
+        const parent = document.getElementById("command-suggestions");
+        parent.innerHTML = "";
+        
+        const commands = ["kubectl get pods", "kubectl get events"];
+        if (type === "crashloop") {
+            commands.push("kubectl describe pod payment-processor-8d65-ab12", "kubectl logs payment-processor-8d65-ab12 --previous");
+        } else if (type === "oom") {
+            commands.push("kubectl describe pod memory-leaker-7b44-xyz3", "kubectl logs memory-leaker-7b44-xyz3");
+        } else if (type === "dns") {
+            commands.push("kubectl describe pod dns-broken-client-66c", "kubectl exec dns-broken-client-66c -- cat /etc/resolv.conf", "kubectl exec dns-broken-client-66c -- nslookup auth-service");
+        } else if (type === "service") {
+            commands.push("kubectl get endpoints order-service", "kubectl describe service order-service");
+        }
+
+        commands.forEach(cmd => {
+            const btn = document.createElement("button");
+            btn.className = "suggest-btn";
+            btn.innerText = cmd;
+            btn.onclick = () => executeSuggestion(cmd);
+            parent.appendChild(btn);
+        });
+    }
+
+    // Command shell engine
+    function handleCommand(event) {
+        if (event.key === "Enter") {
+            const input = document.getElementById("terminal-input");
+            const cmd = input.value.trim();
+            if (cmd === "") return;
+
+            // Output execution
+            const outputArea = document.getElementById("terminal-output");
+            outputArea.innerHTML += `\n\n<span class="prompt">k8s-sre-shell:~$</span> ${cmd}\n`;
+            
+            const response = processCommand(cmd);
+            outputArea.innerHTML += response;
+            
+            input.value = "";
+            document.getElementById("terminal-body").scrollTop = document.getElementById("terminal-body").scrollHeight;
+        }
+    }
+
+    function executeSuggestion(cmd) {
+        const outputArea = document.getElementById("terminal-output");
+        outputArea.innerHTML += `\n\n<span class="prompt">k8s-sre-shell:~$</span> ${cmd}\n`;
+        const response = processCommand(cmd);
+        outputArea.innerHTML += response;
+        document.getElementById("terminal-body").scrollTop = document.getElementById("terminal-body").scrollHeight;
+    }
+
+    function processCommand(cmd) {
+        if (cmd === "clear") {
+            document.getElementById("terminal-output").innerHTML = "Console cleared.";
+            return "";
+        }
+        
+        if (cmd === "kubectl get pods") {
+            if (!activeScenario) {
+                return `NAME                           READY   STATUS    RESTARTS   AGE\norder-api-v1-9d8a              1/1     Running   0          5m\npayment-processor-8d65-ab12    1/1     Running   0          5m`;
+            }
+            const config = DB_STATES[activeScenario];
+            const activeStatus = systemHealed ? "Running" : config.status;
+            const activeReady = systemHealed ? "1/1" : "0/1";
+            return `NAME                           READY   STATUS              RESTARTS   AGE\n${config.podName}      ${activeReady}     ${activeStatus}     ${config.restarts}          2m\norder-api-v1-9d8a              1/1     Running             0          5m`;
+        }
+
+        if (cmd === "kubectl get events") {
+            if (!activeScenario || systemHealed) {
+                return `No events recorded in default namespace.`;
+            }
+            const events = DB_STATES[activeScenario].events;
+            return events.map(e => `${e.reason}      ${e.type}      ${e.object}      ${e.msg}`).join("\n");
+        }
+
+        // Describe pods
+        if (cmd.startsWith("kubectl describe pod")) {
+            if (!activeScenario) return "Error from server (NotFound): pod not found";
+            const config = DB_STATES[activeScenario];
+            
+            if (activeScenario === "crashloop") {
+                return `Name:         ${config.podName}\nNamespace:    default\nStatus:       ${systemHealed ? "Running" : "Failed"}\nContainers:\n  processor:\n    State:          ${systemHealed ? "Running" : "Waiting (CrashLoopBackOff)"}\n    Last State:     Terminated (Exit Code 1)\n    Ready:          ${systemHealed ? "True" : "False"}\nEvents:\n  Back-off restarting failed container`;
+            }
+            if (activeScenario === "oom") {
+                return `Name:         ${config.podName}\nNamespace:    default\nStatus:       ${systemHealed ? "Running" : "Failed"}\nContainers:\n  leaker:\n    State:          ${systemHealed ? "Running" : "Terminated (Reason: OOMKilled, Exit Code 137)"}\n    Limits:\n      memory: 50Mi\nEvents:\n  Container exceeded memory cgroup limits`;
+            }
+            if (activeScenario === "dns") {
+                return `Name:         ${config.podName}\nNamespace:    default\nStatus:       Running\nIP:           10.244.1.4\ndnsPolicy:    None\ndnsConfig:\n  nameservers: [8.8.8.8]`;
+            }
+        }
+
+        // Logs commands
+        if (cmd.includes("logs")) {
+            if (!activeScenario) return "Error: pod logs not available";
+            const config = DB_STATES[activeScenario];
+            return config.logs.join("\n");
+        }
+
+        // exec commands (resolv.conf and DNS test)
+        if (cmd.includes("cat /etc/resolv.conf")) {
+            if (activeScenario === "dns") {
+                return `nameserver 8.8.8.8\nsearch default.svc.cluster.local svc.cluster.local\noptions ndots:5`;
+            }
+            return `nameserver 10.96.0.10\nsearch default.svc.cluster.local svc.cluster.local\noptions ndots:5`;
+        }
+
+        if (cmd.includes("nslookup")) {
+            if (activeScenario === "dns" && !systemHealed) {
+                return `Server:    8.8.8.8\nAddress:   8.8.8.8#53\n\n** server can't find auth-service: NXDOMAIN`;
+            }
+            return `Server:    10.96.0.10\nAddress:   10.96.0.10#53\n\nName:      auth-service.default.svc.cluster.local\nAddress:   10.96.45.88`;
+        }
+
+        // Service checking
+        if (cmd === "kubectl get endpoints order-service") {
+            if (activeScenario === "service" && !systemHealed) {
+                return `NAME            ENDPOINTS   AGE\norder-service   <none>      5m`;
+            }
+            return `NAME            ENDPOINTS         AGE\norder-service   10.244.1.8:80     5m`;
+        }
+
+        if (cmd === "kubectl describe service order-service") {
+            return `Name:              order-service\nNamespace:         default\nSelector:          app=order-api\nTargetPort:        80/TCP\nEndpoints:         ${(activeScenario === 'service' && !systemHealed) ? '<none>' : '10.244.1.8:80'}`;
+        }
+
+        return `Command execution failed or unknown command. Standard SRE shell supports kubectl.`;
+    }
+
+    // Telemetry Engine (Logs & Events)
+    function runSimulatedTelemetry(type) {
+        const config = DB_STATES[type];
+        const logStream = document.getElementById("logs-stream");
+        const eventsBody = document.getElementById("events-body");
+        
+        logStream.innerHTML = "";
+        eventsBody.innerHTML = "";
+
+        // Fill static events
+        config.events.forEach(ev => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td><span style="color: var(--color-danger)">${ev.reason}</span></td><td>${ev.type}</td><td>${ev.object}</td><td>${ev.msg}</td>`;
+            eventsBody.appendChild(tr);
+        });
+
+        // Run logs intervals
+        let lineIdx = 0;
+        clearInterval(logInterval);
+        logInterval = setInterval(() => {
+            if (lineIdx >= config.logs.length) lineIdx = 0;
+            const logLine = config.logs[lineIdx];
+            const div = document.createElement("div");
+            div.className = logLine.includes("FATAL") || logLine.includes("ERROR") ? "log-entry error" : "log-entry";
+            div.innerText = logLine;
+            logStream.appendChild(div);
+            logStream.scrollTop = logStream.scrollHeight;
+            lineIdx++;
+        }, 1500);
+    }
+
+    // Apply Mitigation Fixes
+    function applyFix(type) {
+        if (!activeScenario) return;
+        
+        // Match active scenario to the type of fix
+        if (activeScenario === 'crashloop' && type === 'env' ||
+            activeScenario === 'oom' && type === 'oom' ||
+            activeScenario === 'dns' && type === 'dns' ||
+            activeScenario === 'service' && type === 'svc') {
+            
+            systemHealed = true;
+            clearInterval(mttrTimer);
+            clearInterval(logInterval);
+
+            // UI adjustments
+            document.getElementById("metric-outage").innerText = "CLEARED";
+            document.getElementById("metric-outage").className = "metric-value healthy";
+            document.getElementById("metric-sla").innerText = "100.0%";
+            document.getElementById("metric-sla").className = "metric-value healthy";
+
+            // Disable fix buttons
+            document.getElementById("btn-fix-env").setAttribute("disabled", "true");
+            document.getElementById("btn-fix-oom").setAttribute("disabled", "true");
+            document.getElementById("btn-fix-dns").setAttribute("disabled", "true");
+            document.getElementById("btn-fix-svc").setAttribute("disabled", "true");
+
+            // Write logs showing recovery
+            const logStream = document.getElementById("logs-stream");
+            logStream.innerHTML += `\n<div class="log-entry info">[system] Applying configuration updates...</div>`;
+            logStream.innerHTML += `<div class="log-entry info">[system] Restarting pods...</div>`;
+            logStream.innerHTML += `<div class="log-entry info">[system] Pod healthy! Readiness check passed. SLA stable.</div>`;
+            logStream.scrollTop = logStream.scrollHeight;
+
+            addTimelineEvent(`Mitigation Applied: System recovered. MTTR: ${document.getElementById("metric-mttr").innerText}`, "completed");
+            showToast("System Restored", "All pods running. Service SLA restored.", "success");
+        } else {
+            showToast("Wrong Action", "This mitigation does not target the root cause of this incident!", "error");
+        }
+    }
+
+    // RCA Form Submission
+    function submitRca() {
+        const symptom = document.getElementById("rca-symptom").value;
+        const cause = document.getElementById("rca-cause").value;
+
+        if (!activeScenario) {
+            showToast("No active incident", "Please trigger a scenario first.", "error");
+            return;
+        }
+
+        if (symptom === "" || cause === "") {
+            showToast("Form Incomplete", "Please select both a symptom and a root cause.", "error");
+            return;
+        }
+
+        let isCorrect = false;
+        if (activeScenario === 'crashloop' && symptom === 'crash' && cause === 'config_env') isCorrect = true;
+        if (activeScenario === 'oom' && symptom === 'oom' && cause === 'leak_limit') isCorrect = true;
+        if (activeScenario === 'dns' && symptom === 'dns' && cause === 'dns_none') isCorrect = true;
+        if (activeScenario === 'service' && symptom === 'svc' && cause === 'label_port') isCorrect = true;
+
+        if (isCorrect) {
+            showToast("RCA Approved!", "Outstanding analysis! Blameless post-mortem generated successfully.", "success");
+            
+            // Render detailed markdown/html report in console
+            const outputArea = document.getElementById("terminal-output");
+            outputArea.innerHTML += `\n\n<span style="color: var(--color-success)">=== RCA POST-MORTEM REPORT ===</span>\n`;
+            outputArea.innerHTML += `Incident Category: ${activeScenario.toUpperCase()}\n`;
+            outputArea.innerHTML += `Symptom Profile: ${symptom}\n`;
+            outputArea.innerHTML += `Confirmed Root Cause: ${cause}\n`;
+            outputArea.innerHTML += `Resolution Status: HEALED\n`;
+            outputArea.innerHTML += `Action Items Generated: [1] Apply linter checks [2] Update scaling HPA rules.\n`;
+            document.getElementById("terminal-body").scrollTop = document.getElementById("terminal-body").scrollHeight;
+            
+            activeScenario = null;
+        } else {
+            showToast("RCA Mismatch", "The symptom-to-cause pairing is incorrect for this outage.", "error");
+        }
+    }
+
+    // Helpers
+    function addTimelineEvent(text, status) {
+        const timeline = document.getElementById("timeline-list");
+        const step = document.createElement("div");
+        step.className = "timeline-step";
+        
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        
+        step.innerHTML = `<div class="timeline-bullet ${status}"></div><div class="timeline-content"><span class="timeline-time">${timeStr}</span><span class="timeline-title">${text}</span></div>`;
+        timeline.appendChild(step);
+    }
+
+    function showToast(title, body, status = "danger") {
+        const toast = document.getElementById("toast-alert");
+        const titleEl = document.getElementById("toast-title");
+        const bodyEl = document.getElementById("toast-body");
+
+        titleEl.innerText = title;
+        bodyEl.innerText = body;
+        
+        if (status === "success") {
+            toast.style.borderLeftColor = "var(--color-success)";
+            titleEl.style.color = "var(--color-success)";
+        } else if (status === "error") {
+            toast.style.borderLeftColor = "var(--color-danger)";
+            titleEl.style.color = "var(--color-danger)";
+        } else {
+            toast.style.borderLeftColor = "var(--color-warning)";
+            titleEl.style.color = "var(--color-warning)";
+        }
+
+        toast.classList.add("show");
+        setTimeout(() => {
+            toast.classList.remove("show");
+        }, 4000);
+    }
+</script>
+</body>
+</html>

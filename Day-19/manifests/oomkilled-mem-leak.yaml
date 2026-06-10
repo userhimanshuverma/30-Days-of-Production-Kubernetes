@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-leaker
+  namespace: default
+  labels:
+    app: memory-leaker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-leaker
+  template:
+    metadata:
+      labels:
+        app: memory-leaker
+    spec:
+      containers:
+      - name: leaker
+        image: python:3.9-slim
+        command: ["python", "-c"]
+        args:
+        - |
+          import sys, time
+          print("Starting Memory Aggressive Worker...", flush=True)
+          memory_sink = []
+          chunk_size_mb = 10
+          iteration = 1
+          while True:
+              print(f"Iteration {iteration}: Allocating {chunk_size_mb}MB memory chunk...", flush=True)
+              # Allocate a chunk of memory (roughly 10MB of characters)
+              memory_sink.append("x" * (chunk_size_mb * 1024 * 1024))
+              allocated = chunk_size_mb * iteration
+              print(f"Allocated total: ~{allocated}MB. Residing in RAM...", flush=True)
+              iteration += 1
+              time.sleep(1)
+        resources:
+          limits:
+            memory: "50Mi" # Tight memory limit
+            cpu: "200m"
+          requests:
+            memory: "25Mi"
+            cpu: "100m"
