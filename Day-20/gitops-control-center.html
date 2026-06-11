@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes GitOps Control Center - Simulation</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0b0f19;
+      --bg-surface: #131b2e;
+      --bg-surface-elevated: #1e294b;
+      --border-color: #2e3b5e;
+      
+      --color-cyan: #06b6d4;
+      --color-cyan-glow: rgba(6, 182, 212, 0.15);
+      --color-emerald: #10b981;
+      --color-emerald-glow: rgba(16, 185, 129, 0.15);
+      --color-rose: #f43f5e;
+      --color-rose-glow: rgba(244, 63, 94, 0.15);
+      --color-amber: #f59e0b;
+      --color-amber-glow: rgba(245, 158, 11, 0.15);
+      
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --font-ui: 'Outfit', 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header Styling */
+    header {
+      background-color: rgba(19, 27, 46, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--color-cyan), var(--color-emerald));
+      color: #000;
+      font-weight: 700;
+      font-family: var(--font-ui);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    h1 {
+      font-family: var(--font-ui);
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .status-capsule {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid var(--border-color);
+      font-size: 0.85rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--color-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--color-emerald);
+    }
+
+    /* Grid Layout */
+    .dashboard-container {
+      flex: 1;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 1.5rem;
+      max-width: 1800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Column Container */
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      min-height: 0; /* Important for flex child scrolling */
+    }
+
+    /* UI Cards */
+    .card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-title {
+      font-family: var(--font-ui);
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Git Configuration Control Panel */
+    .git-control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    input, select {
+      background-color: var(--bg-base);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.6rem;
+      border-radius: 6px;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--color-cyan);
+    }
+
+    .btn {
+      background-color: var(--color-cyan);
+      color: #000;
+      font-family: var(--font-ui);
+      font-weight: 600;
+      padding: 0.65rem 1rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: var(--text-secondary);
+    }
+
+    .btn-danger {
+      background-color: var(--color-rose);
+      color: var(--text-primary);
+    }
+
+    /* CI Runner Pipeline */
+    .ci-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .ci-step {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px dashed var(--border-color);
+      font-size: 0.85rem;
+    }
+
+    .ci-step.active {
+      border-color: var(--color-cyan);
+      background-color: var(--color-cyan-glow);
+    }
+
+    .ci-step.success {
+      border-color: var(--color-emerald);
+      background-color: var(--color-emerald-glow);
+    }
+
+    .ci-status-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--text-muted);
+      display: inline-block;
+    }
+
+    .ci-step.active .ci-status-icon {
+      border-color: var(--color-cyan);
+      border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .ci-step.success .ci-status-icon {
+      background-color: var(--color-emerald);
+      border-color: var(--color-emerald);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Cluster Map / Pods UI */
+    .cluster-status-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+    }
+
+    .pods-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .pod-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .pod-node {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 2px solid var(--border-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+
+    .pod-node.v1 {
+      border-color: var(--color-cyan);
+      box-shadow: 0 0 10px var(--color-cyan-glow);
+    }
+
+    .pod-node.v2 {
+      border-color: var(--color-emerald);
+      box-shadow: 0 0 10px var(--color-emerald-glow);
+    }
+
+    .pod-node.drifted {
+      border-color: var(--color-amber);
+      box-shadow: 0 0 10px var(--color-amber-glow);
+      animation: pulse-amber 1.5s infinite;
+    }
+
+    .pod-node.terminating {
+      opacity: 0.4;
+      border-style: dashed;
+      animation: fade-out 1s infinite alternate;
+    }
+
+    .pod-node.pending {
+      border-style: dotted;
+      animation: pulse-border 1s infinite alternate;
+    }
+
+    @keyframes pulse-amber {
+      50% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+    }
+
+    @keyframes pulse-border {
+      from { opacity: 0.3; }
+      to { opacity: 1; }
+    }
+
+    @keyframes fade-out {
+      from { opacity: 0.2; }
+      to { opacity: 0.6; }
+    }
+
+    .pod-label {
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      max-width: 80px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Service Selector Routing Visualizer */
+    .selector-routing {
+      background-color: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .traffic-lane {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      flex: 1;
+      margin: 0 1rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: var(--color-cyan);
+      transition: width 0.3s;
+    }
+
+    .progress-fill.v2 {
+      background-color: var(--color-emerald);
+    }
+
+    /* ArgoCD Sync Tree Panel */
+    .sync-status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .sync-status-header.synced {
+      background-color: var(--color-emerald-glow);
+      color: var(--color-emerald);
+      border: 1px solid var(--color-emerald);
+    }
+
+    .sync-status-header.outofsync {
+      background-color: var(--color-amber-glow);
+      color: var(--color-amber);
+      border: 1px solid var(--color-amber);
+    }
+
+    .sync-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      background-color: rgba(255, 255, 255, 0.01);
+    }
+
+    .tree-indent {
+      border-left: 1px dashed var(--border-color);
+      margin-left: 0.75rem;
+      padding-left: 0.75rem;
+    }
+
+    /* Terminal Console */
+    .terminal-container {
+      background-color: #050811;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      min-height: 180px;
+    }
+
+    .terminal-header {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 0.35rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.7rem;
+    }
+
+    .terminal-body {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      max-height: 250px;
+    }
+
+    .terminal-line {
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    .terminal-cmd {
+      color: var(--color-cyan);
+    }
+
+    .terminal-input-row {
+      display: flex;
+      align-items: center;
+      margin-top: 0.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.5rem;
+    }
+
+    .terminal-prompt {
+      color: var(--color-cyan);
+      margin-right: 0.5rem;
+    }
+
+    .terminal-input {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      flex: 1;
+      outline: none;
+    }
+
+    /* Event log timeline */
+    .event-log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+      max-height: 220px;
+      font-size: 0.75rem;
+    }
+
+    .event-item {
+      padding: 0.4rem;
+      border-left: 2px solid var(--border-color);
+      background-color: rgba(255, 255, 255, 0.01);
+    }
+
+    .event-item.info { border-left-color: var(--color-cyan); }
+    .event-item.success { border-left-color: var(--color-emerald); }
+    .event-item.warning { border-left-color: var(--color-amber); }
+    .event-item.error { border-left-color: var(--color-rose); }
+
+    .event-time {
+      color: var(--text-muted);
+      margin-right: 0.5rem;
+      font-family: var(--font-mono);
+    }
+
+    /* Diff View Overlay styling */
+    .diff-pane {
+      background-color: #080d1a;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      margin-top: 0.5rem;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .diff-added { color: var(--color-emerald); background: rgba(16, 185, 129, 0.08); }
+    .diff-removed { color: var(--color-rose); background: rgba(244, 63, 94, 0.08); }
+
+    /* Controls Grid spacing */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: rgba(255, 255, 255, 0.02);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    /* Simple Switch Toggle styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 20px;
+    }
+
+    .switch input { 
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--text-muted);
+      transition: .3s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--color-emerald);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Header Banner -->
+  <header>
+    <div class="logo-container">
+      <span class="logo-badge">K8s GitOps</span>
+      <h1>GitOps Control Center & Pipeline Simulator</h1>
+    </div>
+    <div class="status-capsule">
+      <div class="status-dot" id="system-status-dot"></div>
+      <span id="system-status-text">System Synced</span>
+    </div>
+  </header>
+
+  <!-- Dashboard Container -->
+  <div class="dashboard-container">
+    
+    <!-- LEFT COLUMN: Code Commit & CI Pipeline -->
+    <div class="column">
+      
+      <!-- Git Source Control -->
+      <div class="card">
+        <div class="card-title">
+          <span>Git Configuration</span>
+          <span style="font-size: 0.75rem; color: var(--color-cyan);">Source of Truth</span>
+        </div>
+        <div class="git-control-group">
+          <div>
+            <label>Repository Branch</label>
+            <select id="git-branch" disabled>
+              <option>main</option>
+            </select>
+          </div>
+          <div>
+            <label>Image Version (Tag)</label>
+            <input type="text" id="git-tag" value="v1.0.0" placeholder="e.g. v2.0.0">
+          </div>
+          <div>
+            <label>Desired Replicas</label>
+            <input type="number" id="git-replicas" value="2" min="1" max="8">
+          </div>
+          
+          <div class="btn-grid">
+            <button class="btn" id="btn-commit" onclick="triggerCommit()">
+              💾 Commit Changes
+            </button>
+            <button class="btn btn-secondary" id="btn-pr" onclick="simulatePR()">
+              🔀 Create PR
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CI pipeline status runner -->
+      <div class="card" style="flex: 1;">
+        <div class="card-title">
+          <span>CI Build Pipeline</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);" id="ci-run-label">Ready</span>
+        </div>
+        <div class="ci-steps">
+          <div class="ci-step" id="ci-step-1">
+            <span class="ci-status-icon"></span>
+            <span>Lint Manifests & Dockerfile</span>
+          </div>
+          <div class="ci-step" id="ci-step-2">
+            <span class="ci-status-icon"></span>
+            <span>Execute Unit & Integration Tests</span>
+          </div>
+          <div class="ci-step" id="ci-step-3">
+            <span class="ci-status-icon"></span>
+            <span>Compile & Build Container Image</span>
+          </div>
+          <div class="ci-step" id="ci-step-4">
+            <span class="ci-status-icon"></span>
+            <span>Push Image Tag to Container Registry</span>
+          </div>
+          <div class="ci-step" id="ci-step-5">
+            <span class="ci-status-icon"></span>
+            <span>Update Tag in Manifest Git Repo</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MIDDLE COLUMN: Live Cluster Map & Operations -->
+    <div class="column">
+      
+      <!-- Interactive Kubernetes Cluster grid map -->
+      <div class="card" style="flex: 2;">
+        <div class="card-title">
+          <span>Kubernetes Cluster: dev-env Namespace</span>
+          <span style="font-size: 0.75rem; color: var(--color-cyan);" id="cluster-running-label">Image: v1.0.0</span>
+        </div>
+        
+        <div class="cluster-status-bar">
+          <div>Healthy Pods: <span id="healthy-pod-count" style="color: var(--color-emerald);">2</span></div>
+          <div>Cluster Target Replicas: <span id="cluster-replicas-count">2</span></div>
+        </div>
+
+        <div class="pods-grid" id="pods-display-grid">
+          <!-- Dynamically populated pods -->
+        </div>
+
+        <!-- Service Routing Visualizer -->
+        <div class="selector-routing">
+          <div style="font-size: 0.75rem; font-weight: bold; color: var(--text-secondary);">
+            SERVICE ENDPOINT TRAFFIC ROUTING (SELECTOR SELECTS VERSION)
+          </div>
+          <div class="traffic-lane">
+            <span style="color: var(--color-cyan); font-family: var(--font-mono);">payment-service (V1)</span>
+            <div class="progress-bar">
+              <div class="progress-fill" id="traffic-bar-v1" style="width: 100%;"></div>
+            </div>
+            <span id="traffic-pct-v1" style="font-family: var(--font-mono); width: 40px; text-align: right;">100%</span>
+          </div>
+          <div class="traffic-lane">
+            <span style="color: var(--color-emerald); font-family: var(--font-mono);">payment-service (V2)</span>
+            <div class="progress-bar">
+              <div class="progress-fill v2" id="traffic-bar-v2" style="width: 0%;"></div>
+            </div>
+            <span id="traffic-pct-v2" style="font-family: var(--font-mono); width: 40px; text-align: right;">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Mock terminal emulator -->
+      <div class="card" style="flex: 1.2;">
+        <div class="card-title">Interactive CLI Console</div>
+        <div class="terminal-container">
+          <div class="terminal-header">
+            <span>Terminal: kubectl client</span>
+            <span>Type 'help' for options</span>
+          </div>
+          <div class="terminal-body" id="cli-output">
+            <div class="terminal-line">Welcome SRE. Cluster initialized. Connection status: OK.</div>
+          </div>
+          <div class="terminal-input-row">
+            <span class="terminal-prompt">$</span>
+            <input type="text" class="terminal-input" id="cli-input" placeholder="kubectl get pods -n dev-env" onkeydown="handleCliInput(event)">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: ArgoCD / Flux Status & Drift -->
+    <div class="column">
+      
+      <!-- ArgoCD reconciler state -->
+      <div class="card">
+        <div class="card-title">
+          <span>ArgoCD Engine</span>
+          <span style="font-size: 0.75rem; color: var(--color-emerald);" id="argocd-sync-capsule">Synced</span>
+        </div>
+        
+        <div class="sync-status-header synced" id="argocd-header-state">
+          <span id="argocd-status-text">Application: payment-service-app</span>
+          <span id="argocd-status-subtext">SYNCED</span>
+        </div>
+
+        <div class="sync-tree">
+          <div class="tree-node">
+            <span>🔹</span> <span>Application: payment-service-app</span>
+          </div>
+          <div class="tree-indent">
+            <div class="tree-node">
+              <span>🔹</span> <span>Deployment: payment-service</span>
+            </div>
+            <div class="tree-indent">
+              <div class="tree-node">
+                <span>🔹</span> <span>ReplicaSet: payment-service-5c68f94946</span>
+              </div>
+              <div class="tree-indent" id="argo-pods-tree">
+                <!-- Argo pod list -->
+              </div>
+            </div>
+            <div class="tree-node">
+              <span>🔹</span> <span>Service: payment-service (ClusterIP)</span>
+            </div>
+            <div class="tree-node">
+              <span>🔹</span> <span>ConfigMap: payment-config</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="diff-pane" id="argo-diff-pane" style="display: none;">
+          <!-- Git diff box -->
+        </div>
+      </div>
+
+      <!-- Drift Operations -->
+      <div class="card">
+        <div class="card-title">Operations Control</div>
+        <div class="git-control-group">
+          
+          <div class="toggle-container">
+            <span style="font-size: 0.8rem; font-weight: 500;">Automated Self-Healing</span>
+            <label class="switch">
+              <input type="checkbox" id="toggle-self-heal" checked onchange="toggleSelfHeal()">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="btn-grid">
+            <button class="btn btn-danger" onclick="injectDrift()">
+              ⚡ Inject Drift
+            </button>
+            <button class="btn btn-secondary" onclick="manualSync()">
+              🔄 Manual Sync
+            </button>
+          </div>
+
+          <!-- Deployment strategies -->
+          <div style="border-top: 1px solid var(--border-color); margin-top: 0.5rem; padding-top: 0.5rem;">
+            <label>Reconciliation Strategy</label>
+            <select id="deploy-strategy" onchange="changeStrategy()">
+              <option value="rolling">Standard Rolling Update (Default)</option>
+              <option value="bluegreen">Blue / Green Strategy</option>
+              <option value="canary">Progressive Canary Strategy (10% -> 50% -> 100%)</option>
+            </select>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Event Log Feed -->
+      <div class="card" style="flex: 1;">
+        <div class="card-title">Reconciliation Log Timeline</div>
+        <div class="event-log-list" id="event-logs">
+          <!-- Timed events -->
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // State representation
+    let state = {
+      git: {
+        tag: 'v1.0.0',
+        replicas: 2
+      },
+      cluster: {
+        tag: 'v1.0.0',
+        replicas: 2,
+        pods: [
+          { id: 'pod-abcde', version: 'v1.0.0', status: 'Running' },
+          { id: 'pod-fghij', version: 'v1.0.0', status: 'Running' }
+        ],
+        configLogLevel: 'info'
+      },
+      argo: {
+        status: 'Synced', // Synced, OutOfSync, Progressing
+        selfHeal: true,
+        driftDetected: false
+      },
+      strategy: 'rolling',
+      isDeploying: false,
+      traffic: {
+        v1: 100,
+        v2: 0
+      }
+    };
+
+    // Initialize UI
+    document.addEventListener("DOMContentLoaded", () => {
+      updateUI();
+      addLog("System initialized. Listening for code pushes...", "info");
+    });
+
+    // Logging helper
+    function addLog(msg, type = 'info') {
+      const logsContainer = document.getElementById("event-logs");
+      const timeStr = new Date().toLocaleTimeString();
+      const div = document.createElement("div");
+      div.className = `event-item ${type}`;
+      div.innerHTML = `<span class="event-time">${timeStr}</span> ${msg}`;
+      logsContainer.insertBefore(div, logsContainer.firstChild);
+    }
+
+    // Update the dashboard visuals based on state
+    function updateUI() {
+      // 1. Pod Grid Render
+      const grid = document.getElementById("pods-display-grid");
+      grid.innerHTML = '';
+      
+      state.cluster.pods.forEach(pod => {
+        const container = document.createElement("div");
+        container.className = "pod-container";
+        
+        let classList = "pod-node";
+        if (pod.status === 'Running') {
+          classList += (pod.version === 'v1.0.0') ? " v1" : " v2";
+        } else if (pod.status === 'Terminating') {
+          classList += " terminating";
+        } else if (pod.status === 'Pending') {
+          classList += " pending";
+        }
+        
+        if (pod.drifted) {
+          classList += " drifted";
+        }
+        
+        container.innerHTML = `
+          <div class="${classList}" title="Status: ${pod.status}">
+            ${pod.status === 'Running' ? '⎈' : '⚙'}
+          </div>
+          <div class="pod-label">${pod.id} (${pod.version})</div>
+        `;
+        grid.appendChild(container);
+      });
+
+      // Update Counts
+      const activeCount = state.cluster.pods.filter(p => p.status === 'Running').length;
+      document.getElementById("healthy-pod-count").textContent = activeCount;
+      document.getElementById("cluster-replicas-count").textContent = state.cluster.replicas;
+      document.getElementById("cluster-running-label").textContent = `Active App: ${state.cluster.tag}`;
+
+      // 2. ArgoCD Status Rendering
+      const argoHeader = document.getElementById("argocd-header-state");
+      const argoCapsule = document.getElementById("argocd-sync-capsule");
+      const sysDot = document.getElementById("system-status-dot");
+      const sysText = document.getElementById("system-status-text");
+      const diffBox = document.getElementById("argo-diff-pane");
+
+      if (state.argo.status === 'Synced') {
+        argoHeader.className = "sync-status-header synced";
+        argoHeader.querySelector("#argocd-status-subtext").textContent = "SYNCED";
+        argoCapsule.textContent = "Synced";
+        argoCapsule.style.color = "var(--color-emerald)";
+        sysDot.style.backgroundColor = "var(--color-emerald)";
+        sysDot.style.boxShadow = "0 0 8px var(--color-emerald)";
+        sysText.textContent = "System Synced";
+        diffBox.style.display = "none";
+      } else if (state.argo.status === 'OutOfSync') {
+        argoHeader.className = "sync-status-header outofsync";
+        argoHeader.querySelector("#argocd-status-subtext").textContent = "OUT OF SYNC";
+        argoCapsule.textContent = "OutOfSync";
+        argoCapsule.style.color = "var(--color-amber)";
+        sysDot.style.backgroundColor = "var(--color-amber)";
+        sysDot.style.boxShadow = "0 0 8px var(--color-amber)";
+        sysText.textContent = "Drift Detected";
+        diffBox.style.display = "block";
+      } else {
+        // Progressing
+        argoHeader.className = "sync-status-header";
+        argoHeader.style.backgroundColor = "var(--color-cyan-glow)";
+        argoHeader.style.color = "var(--color-cyan)";
+        argoHeader.style.border = "1px solid var(--color-cyan)";
+        argoHeader.querySelector("#argocd-status-subtext").textContent = "RECONCILING...";
+        argoCapsule.textContent = "Progressing";
+        argoCapsule.style.color = "var(--color-cyan)";
+        sysDot.style.backgroundColor = "var(--color-cyan)";
+        sysDot.style.boxShadow = "0 0 8px var(--color-cyan)";
+        sysText.textContent = "Syncing Workloads";
+        diffBox.style.display = "none";
+      }
+
+      // Update tree view of pods in ArgoCD panel
+      const argoPodsTree = document.getElementById("argo-pods-tree");
+      argoPodsTree.innerHTML = '';
+      state.cluster.pods.forEach(pod => {
+        const div = document.createElement("div");
+        div.className = "tree-node";
+        div.innerHTML = `<span>🟢</span> <span>Pod: ${pod.id} (${pod.status})</span>`;
+        argoPodsTree.appendChild(div);
+      });
+
+      // Update Traffic Selectors
+      document.getElementById("traffic-bar-v1").style.width = `${state.traffic.v1}%`;
+      document.getElementById("traffic-bar-v2").style.width = `${state.traffic.v2}%`;
+      document.getElementById("traffic-pct-v1").textContent = `${state.traffic.v1}%`;
+      document.getElementById("traffic-pct-v2").textContent = `${state.traffic.v2}%`;
+    }
+
+    // Trigger Code Commit flow
+    function triggerCommit() {
+      if (state.isDeploying) {
+        alert("Wait until current deployment finishes!");
+        return;
+      }
+      
+      const newTag = document.getElementById("git-tag").value.trim();
+      const replicas = parseInt(document.getElementById("git-replicas").value);
+
+      if (!newTag) {
+        alert("Please enter an image tag version!");
+        return;
+      }
+
+      state.git.tag = newTag;
+      state.git.replicas = replicas;
+
+      addLog(`Git commit: Bump version to ${newTag}, replicas = ${replicas}`, "info");
+      runCIPipeline();
+    }
+
+    // CI pipeline simulation
+    function runCIPipeline() {
+      state.isDeploying = true;
+      document.getElementById("ci-run-label").textContent = "Running...";
+      
+      // Reset steps visual state
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`ci-step-${i}`).className = "ci-step";
+      }
+
+      let stepNum = 1;
+      addLog("Starting CI Pipeline execution...", "info");
+
+      function executeStep() {
+        if (stepNum > 5) {
+          document.getElementById("ci-run-label").textContent = "Success";
+          addLog("CI Pipeline complete! Image pushed & Git manifests updated.", "success");
+          
+          // Now Git has updated manifests, so ArgoCD goes OutOfSync
+          state.argo.status = 'OutOfSync';
+          
+          // Write the diff
+          const diffBox = document.getElementById("argo-diff-pane");
+          diffBox.innerHTML = `
+<span class="diff-removed">- replicas: ${state.cluster.replicas}</span>
+<span class="diff-added">+ replicas: ${state.git.replicas}</span>
+<span class="diff-removed">- image: nginx:${state.cluster.tag}</span>
+<span class="diff-added">+ image: nginx:${state.git.tag}</span>
+`;
+          updateUI();
+          
+          // Handle Self-Healing triggers
+          if (state.argo.selfHeal) {
+            addLog("[ArgoCD] Automated Sync Triggered (Self-Healing Active)", "info");
+            setTimeout(reconcileDeployment, 2000);
+          } else {
+            addLog("[ArgoCD] Manifest drift detected. Manual reconciliation required.", "warning");
+          }
+          return;
+        }
+
+        const stepEl = document.getElementById(`ci-step-${stepNum}`);
+        stepEl.className = "ci-step active";
+        
+        setTimeout(() => {
+          stepEl.className = "ci-step success";
+          stepNum++;
+          executeStep();
+        }, 1000);
+      }
+
+      executeStep();
+    }
+
+    // Change deployment strategies
+    function changeStrategy() {
+      state.strategy = document.getElementById("deploy-strategy").value;
+      addLog(`Reconciliation strategy updated to: ${state.strategy}`, "info");
+    }
+
+    // Toggle self healing
+    function toggleSelfHeal() {
+      state.argo.selfHeal = document.getElementById("toggle-self-heal").checked;
+      addLog(`ArgoCD self-healing set to: ${state.argo.selfHeal}`, "info");
+    }
+
+    // Reconcile according to strategy
+    function reconcileDeployment() {
+      state.argo.status = 'Progressing';
+      updateUI();
+
+      if (state.strategy === 'rolling') {
+        runRollingUpdate();
+      } else if (state.strategy === 'bluegreen') {
+        runBlueGreenUpdate();
+      } else {
+        runCanaryUpdate();
+      }
+    }
+
+    // Manual sync button trigger
+    function manualSync() {
+      if (state.argo.status === 'Synced') {
+        addLog("Application already in sync. No action needed.", "info");
+        return;
+      }
+      addLog("Manual reconciliation requested by operator...", "info");
+      reconcileDeployment();
+    }
+
+    // Inject manual cluster drift
+    function injectDrift() {
+      addLog("Operator bypassed Git: Scaling replica count manually via kubectl...", "warning");
+      
+      // Mutate live cluster directly
+      state.cluster.replicas = 5;
+      
+      // Inject new drifted pods
+      while (state.cluster.pods.length < 5) {
+        const randomId = Math.random().toString(36).substring(7);
+        state.cluster.pods.push({ id: `pod-${randomId}`, version: state.cluster.tag, status: 'Running', drifted: true });
+      }
+
+      state.argo.status = 'OutOfSync';
+      const diffBox = document.getElementById("argo-diff-pane");
+      diffBox.innerHTML = `
+<span class="diff-removed">- replicas: ${state.git.replicas} (Git Desired)</span>
+<span class="diff-added">+ replicas: 5 (Live Cluster Drifted)</span>
+`;
+      updateUI();
+      addLog("[ArgoCD] Drift detected: replicas: 2 in Git vs 5 in Cluster API!", "error");
+
+      if (state.argo.selfHeal) {
+        addLog("[ArgoCD] Self-healing loop active. Correcting drift in 3 seconds...", "info");
+        setTimeout(() => {
+          addLog("[ArgoCD] Correcting drift. Restoring replica count back to Git configurations.", "info");
+          
+          // Terminate extra pods
+          state.cluster.replicas = state.git.replicas;
+          // Animate pod scale down
+          let kept = 0;
+          state.cluster.pods = state.cluster.pods.map(pod => {
+            if (kept < state.git.replicas) {
+              kept++;
+              pod.drifted = false;
+              return pod;
+            } else {
+              pod.status = 'Terminating';
+              return pod;
+            }
+          });
+          updateUI();
+
+          setTimeout(() => {
+            state.cluster.pods = state.cluster.pods.filter(p => p.status !== 'Terminating');
+            state.argo.status = 'Synced';
+            state.isDeploying = false;
+            updateUI();
+            addLog("[ArgoCD] Application state successfully reconciled. Clean Synced.", "success");
+          }, 1500);
+
+        }, 3000);
+      }
+    }
+
+    // 1. Standard Rolling Update execution
+    function runRollingUpdate() {
+      addLog("Starting standard Rolling Update. Surge: 1, MaxUnavailable: 0...", "info");
+      
+      const newTag = state.git.tag;
+      const targetCount = state.git.replicas;
+
+      // Mark old pods as terminating slowly, spin up new version pods
+      // Setup initial state: pods become pending
+      let step = 0;
+      
+      function executeRollStep() {
+        // Find if we have running pods that still have old version
+        const oldPods = state.cluster.pods.filter(p => p.version !== newTag && p.status === 'Running');
+        const activeNewPods = state.cluster.pods.filter(p => p.version === newTag && p.status === 'Running').length;
+        
+        if (oldPods.length === 0 && activeNewPods === targetCount) {
+          state.cluster.tag = newTag;
+          state.cluster.replicas = targetCount;
+          state.cluster.pods = state.cluster.pods.filter(p => p.status !== 'Terminating');
+          state.argo.status = 'Synced';
+          state.isDeploying = false;
+          updateUI();
+          addLog(`Rolling update finished. All pods upgraded to ${newTag}.`, "success");
+          return;
+        }
+
+        // Spin up one new V2 pod as pending
+        if (state.cluster.pods.filter(p => p.version === newTag).length < targetCount) {
+          const randomId = Math.random().toString(36).substring(7);
+          state.cluster.pods.push({ id: `pod-${randomId}`, version: newTag, status: 'Pending' });
+          updateUI();
+          
+          // Move pending to running in 1s, and terminate one old pod
+          setTimeout(() => {
+            const pend = state.cluster.pods.find(p => p.status === 'Pending');
+            if (pend) pend.status = 'Running';
+            
+            // Terminate one old V1 pod
+            const old = state.cluster.pods.find(p => p.version !== newTag && p.status === 'Running');
+            if (old) old.status = 'Terminating';
+            
+            updateUI();
+            
+            setTimeout(() => {
+              // Remove terminated pods from array
+              state.cluster.pods = state.cluster.pods.filter(p => p.status !== 'Terminating');
+              updateUI();
+              executeRollStep();
+            }, 1000);
+
+          }, 1000);
+        } else {
+          // If replica count matches, just terminate any remaining old pods
+          const old = state.cluster.pods.find(p => p.version !== newTag && p.status === 'Running');
+          if (old) old.status = 'Terminating';
+          updateUI();
+          setTimeout(() => {
+            state.cluster.pods = state.cluster.pods.filter(p => p.status !== 'Terminating');
+            updateUI();
+            executeRollStep();
+          }, 1000);
+        }
+      }
+
+      executeRollStep();
+    }
+
+    // 2. Blue / Green Update execution
+    function runBlueGreenUpdate() {
+      addLog("Starting Blue/Green Rollout. Initializing Green environment (V2)...", "info");
+      
+      const newTag = state.git.tag;
+      const targetCount = state.git.replicas;
+
+      // Spin up 2 completely new Green pods in parallel
+      for (let i = 0; i < targetCount; i++) {
+        const randomId = Math.random().toString(36).substring(7);
+        state.cluster.pods.push({ id: `green-${randomId}`, version: newTag, status: 'Pending' });
+      }
+      updateUI();
+
+      setTimeout(() => {
+        // Upgrade Green pods to Running (0% Traffic)
+        state.cluster.pods.forEach(p => {
+          if (p.version === newTag) p.status = 'Running';
+        });
+        updateUI();
+        addLog("Green environment ready. Running smoke & API validation tests...", "info");
+
+        setTimeout(() => {
+          addLog("Smoke tests pass! Routing production traffic selector to Green (100%)...", "success");
+          
+          // Switch selector
+          state.traffic.v1 = 0;
+          state.traffic.v2 = 100;
+          updateUI();
+
+          setTimeout(() => {
+            addLog("Cooling period complete. Terminating old Blue environment (V1)...", "info");
+            
+            state.cluster.pods.forEach(p => {
+              if (p.version !== newTag) p.status = 'Terminating';
+            });
+            updateUI();
+
+            setTimeout(() => {
+              state.cluster.pods = state.cluster.pods.filter(p => p.status !== 'Terminating');
+              state.cluster.tag = newTag;
+              state.cluster.replicas = targetCount;
+              state.argo.status = 'Synced';
+              state.isDeploying = false;
+              // Reset traffic sliders to default for future deployments
+              state.traffic.v1 = 100;
+              state.traffic.v2 = 0;
+              updateUI();
+              addLog("Blue/Green deployment completed successfully.", "success");
+            }, 1000);
+
+          }, 2000);
+
+        }, 1500);
+
+      }, 1500);
+    }
+
+    // 3. Canary Update execution
+    function runCanaryUpdate() {
+      addLog("Initiating Progressive Canary Rollout...", "info");
+      const newTag = state.git.tag;
+      const targetCount = state.git.replicas;
+
+      // 10% Canary Traffic
+      addLog("Spawning V2 Canary Pod. Routing 10% traffic selector weight...", "info");
+      const randomId = Math.random().toString(36).substring(7);
+      state.cluster.pods.push({ id: `canary-${randomId}`, version: newTag, status: 'Pending' });
+      updateUI();
+
+      setTimeout(() => {
+        const can = state.cluster.pods.find(p => p.id.startsWith("canary"));
+        if (can) can.status = 'Running';
+        
+        state.traffic.v1 = 90;
+        state.traffic.v2 = 100; // Visual logic to show 10% weight
+        document.getElementById("traffic-pct-v1").textContent = "90%";
+        document.getElementById("traffic-pct-v2").textContent = "10%";
+        updateUI();
+
+        setTimeout(() => {
+          addLog("Prometheus alert checks passed. Routing 50% traffic selector weight...", "success");
+          state.traffic.v1 = 50;
+          state.traffic.v2 = 50;
+          document.getElementById("traffic-pct-v1").textContent = "50%";
+          document.getElementById("traffic-pct-v2").textContent = "50%";
+          updateUI();
+
+          setTimeout(() => {
+            addLog("Canary checks complete. Rolling out V2 across all replicas (100% traffic)...", "info");
+            
+            // Reconcile and clean V1
+            state.cluster.pods.forEach(p => {
+              if (p.version !== newTag) p.status = 'Terminating';
+            });
+            
+            // Add remaining target pods
+            while (state.cluster.pods.filter(p => p.version === newTag).length < targetCount) {
+              const rId = Math.random().toString(36).substring(7);
+              state.cluster.pods.push({ id: `pod-${rId}`, version: newTag, status: 'Running' });
+            }
+            updateUI();
+
+            setTimeout(() => {
+              state.cluster.pods = state.cluster.pods.filter(p => p.status !== 'Terminating');
+              state.cluster.tag = newTag;
+              state.cluster.replicas = targetCount;
+              state.argo.status = 'Synced';
+              state.isDeploying = false;
+              state.traffic.v1 = 100;
+              state.traffic.v2 = 0;
+              updateUI();
+              addLog("Canary deployment fully promoted to Stable.", "success");
+            }, 1000);
+
+          }, 2000);
+
+        }, 2000);
+
+      }, 1500);
+    }
+
+    // Mock CLI Command Handling
+    function handleCliInput(event) {
+      if (event.key === 'Enter') {
+        const inputEl = document.getElementById("cli-input");
+        const rawCmd = inputEl.value.trim();
+        inputEl.value = '';
+
+        if (!rawCmd) return;
+
+        const terminal = document.getElementById("cli-output");
+        
+        // Append command line
+        const cmdRow = document.createElement("div");
+        cmdRow.className = "terminal-line";
+        cmdRow.innerHTML = `<span class="terminal-prompt">$</span> <span class="terminal-cmd">${rawCmd}</span>`;
+        terminal.appendChild(cmdRow);
+
+        // Process Command
+        const response = processCommand(rawCmd.toLowerCase());
+        
+        const respRow = document.createElement("div");
+        respRow.className = "terminal-line";
+        respRow.textContent = response;
+        terminal.appendChild(respRow);
+
+        // Scroll terminal
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+    }
+
+    // Process terminal outputs
+    function processCommand(cmd) {
+      if (cmd === 'help') {
+        return `Available commands:
+  kubectl get pods -n dev-env
+  kubectl get service payment-service -n dev-env
+  argocd app get payment-service-app
+  flux get kustomizations
+  clear`;
+      }
+      if (cmd.includes('get pods')) {
+        let output = `NAME                              READY   STATUS    RESTARTS   AGE\n`;
+        state.cluster.pods.forEach(p => {
+          output += `${p.id.padEnd(32)} 1/1     ${p.status.padEnd(9)} 0          5m\n`;
+        });
+        return output;
+      }
+      if (cmd.includes('get service') || cmd.includes('get svc')) {
+        return `NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+payment-service   ClusterIP   10.96.142.180   <none>        80/TCP    1d`;
+      }
+      if (cmd.includes('argocd app get')) {
+        return `Name:               payment-service-app
+Project:            payment-project
+Server:             https://kubernetes.default.svc
+Namespace:          dev-env
+URL:                https://localhost:8080/applications/payment-service-app
+Repo:               https://github.com/userhimanshuverma/30-Days-of-Production-Kubernetes.git
+Path:               Day-20/manifests
+Sync Window:        Sync Allowed
+Sync Policy:        Automated (Prune, SelfHeal)
+Sync Status:        ${state.argo.status} to main (${state.git.tag})
+Health Status:      Healthy`;
+      }
+      if (cmd.includes('flux get')) {
+        return `NAME                         REVISION   SUSPENDED   READY   MESSAGE
+payment-service-reconcile    main@sha1  false       True    Applied revision: main@sha1:e0a12b3...`;
+      }
+      if (cmd === 'clear') {
+        document.getElementById("cli-output").innerHTML = '';
+        return 'Console cleared.';
+      }
+      return `bash: command not found: ${cmd}. Type 'help' for options.`;
+    }
+
+    // Dynamic PR promotion helper
+    function simulatePR() {
+      addLog("Creating promotion Pull Request: Promote staging-env config to prod-env...", "info");
+      setTimeout(() => {
+        addLog("PR #104 Created: 'Merge staging overrides (v2.0.0) to production' - Passed YAML check.", "success");
+        setTimeout(() => {
+          addLog("PR #104 Approved by Platform Team. Merged to main config branch.", "success");
+        }, 1500);
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

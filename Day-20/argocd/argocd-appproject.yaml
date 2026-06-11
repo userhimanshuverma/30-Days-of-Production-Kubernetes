@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: payment-project
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Secure logical boundary for Payment Team microservices"
+  # Allowed source Git repositories
+  sourceRepos:
+    - 'https://github.com/userhimanshuverma/30-Days-of-Production-Kubernetes.git'
+  # Allowed target clusters and namespaces
+  destinations:
+    - namespace: dev-env
+      server: https://kubernetes.default.svc
+    - namespace: staging-env
+      server: https://kubernetes.default.svc
+  # Permit namespace-scoped resources, block cluster-scoped resources (e.g. ClusterRoles)
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  clusterResourceBlacklist:
+    - group: '*'
+      kind: ClusterRole
+    - group: '*'
+      kind: ClusterRoleBinding
+    - group: '*'
+      kind: CustomResourceDefinition
+  # Enforce orphan resource monitoring
+  orphanedResources:
+    warn: true

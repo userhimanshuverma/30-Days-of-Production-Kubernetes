@@ -1,0 +1,30 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: main-config-source
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  url: https://github.com/userhimanshuverma/30-Days-of-Production-Kubernetes.git
+  ref:
+    branch: main
+  timeout: 60s
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: payment-service-reconcile
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./Day-20/manifests
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: main-config-source
+  targetNamespace: dev-env
+  # Optional: Decrypt secrets using SOPS
+  # decrypter:
+  #   provider: sops
+  validation: client
+  timeout: 2m
