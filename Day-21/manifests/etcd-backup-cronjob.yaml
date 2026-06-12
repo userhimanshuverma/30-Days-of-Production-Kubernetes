@@ -1,0 +1,90 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+  labels:
+    k8s-app: etcd-backup
+    tier: control-plane
+spec:
+  # Run every hour at minute 0
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            k8s-app: etcd-backup
+        spec:
+          # The pod must run on a control plane node to access etcd certificates
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          
+          # Run on host network to access local 127.0.0.1 etcd instance
+          hostNetwork: true
+          restartPolicy: OnFailure
+          
+          containers:
+            - name: etcd-backup
+              # Use the same etcd image version as the cluster
+              image: registry.k8s.io/etcd:3.5.13-0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  export ETCDCTL_API=3
+                  BACKUP_DIR="/backup"
+                  BACKUP_FILE="${BACKUP_DIR}/etcd-snapshot-$(date +%Y-%m-%d-%H%M%S).db"
+                  
+                  echo "[$(date)] Starting etcd backup..."
+                  
+                  # Take the etcd snapshot using secure TLS authentication
+                  etcdctl \
+                    --endpoints=https://127.0.0.1:2379 \
+                    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                    --cert=/etc/kubernetes/pki/etcd/server.crt \
+                    --key=/etc/kubernetes/pki/etcd/server.key \
+                    snapshot save "${BACKUP_FILE}"
+                  
+                  echo "[$(date)] Snapshot saved successfully to ${BACKUP_FILE}"
+                  
+                  # Verify the snapshot integrity
+                  etcdctl --write-out=table snapshot status "${BACKUP_FILE}"
+                  
+                  # Optional: Add AWS CLI or gsutil commands here to upload snapshot to remote bucket
+                  # aws s3 cp "${BACKUP_FILE}" "s3://prod-k8s-backups-bucket/etcd/"
+                  # echo "[$(date)] Uploaded backup to S3."
+                  
+                  # Prune snapshots older than 7 days (168 hours) to prevent disk fill
+                  find "${BACKUP_DIR}" -name "etcd-snapshot-*.db" -type f -mmin +10080 -delete
+                  echo "[$(date)] Old backups pruned."
+              env:
+                - name: ETCDCTL_API
+                  value: "3"
+              volumeMounts:
+                - name: etcd-certs
+                  mountPath: /etc/kubernetes/pki/etcd
+                  readOnly: true
+                - name: backup-volume
+                  mountPath: /backup
+          volumes:
+            - name: etcd-certs
+              hostPath:
+                path: /etc/kubernetes/pki/etcd
+                type: Directory
+            - name: backup-volume
+              hostPath:
+                path: /var/backups/kubernetes/etcd
+                type: DirectoryOrCreate

@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-gateway-pdb
+  namespace: production
+spec:
+  # Maintain quorum / high availability by requiring at least 2 active replicas
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: payment-gateway

@@ -1,0 +1,50 @@
+# This file contains reference configurations for topology spread constraints.
+# You can incorporate these snippets directly into your Pod spec templates
+# to control how workloads are distributed across zones and hosts.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zone-resilient-app
+  namespace: production
+  labels:
+    app: zone-resilient-app
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: zone-resilient-app
+  template:
+    metadata:
+      labels:
+        app: zone-resilient-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+      topologySpreadConstraints:
+        # 1. HARD ZONE SPREAD (DoNotSchedule)
+        # Guarantees that the difference in pod counts between any two availability zones
+        # will not exceed 1. If a zone is down or full, scheduling will block rather than 
+        # unbalancing the distribution.
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: zone-resilient-app
+          
+        # 2. SOFT HOST SPREAD (ScheduleAnyway)
+        # Best-effort distribution of pods across individual nodes (hosts). If there are
+        # more pods than nodes, or some nodes are unschedulable, pods will still run
+        # but the scheduler will try to spread them as evenly as possible.
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: zone-resilient-app

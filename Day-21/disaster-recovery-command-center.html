@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Disaster Recovery Command Center</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+    .monospace {
+      font-family: 'Fira Code', monospace;
+    }
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    .glowing-text-green {
+      text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+    }
+    .glowing-text-red {
+      text-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    }
+    .terminal-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .terminal-scrollbar::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    .terminal-scrollbar::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-12 overflow-x-hidden">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i data-lucide="shield-alert" class="text-white h-6 w-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+            PROD-OMEGA-01 <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono">DR COMMAND</span>
+          </h1>
+          <p class="text-xs text-slate-400">Kubernetes SRE Reliability & Disaster Recovery Simulator</p>
+        </div>
+      </div>
+      
+      <!-- Cluster status badge -->
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" id="pulse-bg"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" id="pulse-core"></span>
+          </span>
+          <span class="text-xs font-semibold text-slate-300" id="cluster-global-status">SYSTEMS NOMINAL</span>
+        </div>
+        <button onclick="resetSimulator()" class="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-950/40 border border-indigo-900/60 px-3 py-1.5 rounded-lg transition">
+          <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i> Reset Center
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- LEFT SIDE: INCIDENT DASHBOARD & TOPOLOGY (8 COLS) -->
+    <div class="lg:col-span-8 flex flex-col gap-8">
+      
+      <!-- Metrics Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="glass-panel p-4 rounded-xl flex flex-col">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Raft Quorum</span>
+          <span class="text-2xl font-bold mt-1 text-emerald-400 glowing-text-green" id="quorum-stat">3 / 3 OK</span>
+          <span class="text-[10px] text-slate-400 mt-1" id="quorum-sub">2 active needed</span>
+        </div>
+        <div class="glass-panel p-4 rounded-xl flex flex-col">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Database Status</span>
+          <span class="text-2xl font-bold mt-1 text-emerald-400 glowing-text-green" id="etcd-stat">HEALTHY</span>
+          <span class="text-[10px] text-slate-400 mt-1" id="etcd-sub">etcd v3.5.13</span>
+        </div>
+        <div class="glass-panel p-4 rounded-xl flex flex-col">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Active Pods</span>
+          <span class="text-2xl font-bold mt-1 text-indigo-400" id="pods-stat">3 / 3</span>
+          <span class="text-[10px] text-slate-400 mt-1" id="pods-sub">100% Traffic Target</span>
+        </div>
+        <div class="glass-panel p-4 rounded-xl flex flex-col">
+          <span class="text-xs text-slate-400 font-semibold uppercase">Reliability Index</span>
+          <span class="text-2xl font-bold mt-1 text-amber-400" id="sla-stat">99.999%</span>
+          <span class="text-[10px] text-slate-400 mt-1">Simulated SLA window</span>
+        </div>
+      </div>
+
+      <!-- Topology Map Visualization -->
+      <div class="glass-panel p-6 rounded-2xl">
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="network" class="h-5 w-5 text-indigo-400"></i> Multi-Zone Topology Map
+            </h2>
+            <p class="text-xs text-slate-400">Nodes and Pods mapped across 3 Availability Zones (Region: us-east-1)</p>
+          </div>
+          <span class="text-xs bg-slate-800 border border-slate-700 px-2.5 py-1 rounded text-slate-300 font-mono">
+            3 AZs | 6 Nodes | 3 Replicas
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <!-- ZONE A -->
+          <div class="border border-slate-800 bg-slate-900/40 rounded-xl p-4 flex flex-col gap-4 relative transition duration-300" id="zone-A">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-green-500" id="zone-A-indicator"></span> us-east-1a
+              </span>
+              <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">AZ-A</span>
+            </div>
+            
+            <!-- Nodes in Zone A -->
+            <div class="flex flex-col gap-3">
+              <!-- Node 1: Control Plane -->
+              <div class="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition" id="node-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-semibold text-slate-200">master-01</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-800/40">Control Plane</span>
+                </div>
+                <div class="flex justify-between items-center mt-1">
+                  <span class="text-[10px] text-slate-400">etcd status</span>
+                  <span class="text-[10px] font-semibold text-green-400" id="node-1-etcd">ONLINE</span>
+                </div>
+              </div>
+              
+              <!-- Node 4: Worker Node -->
+              <div class="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition" id="node-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-semibold text-slate-200">worker-01</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-900/40">Worker</span>
+                </div>
+                <!-- Pod in Worker Node -->
+                <div class="mt-2 bg-slate-900/80 border border-slate-800 rounded p-2 flex items-center justify-between" id="pod-1">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="box" class="h-3.5 w-3.5 text-indigo-400"></i>
+                    <span class="text-[10px] text-slate-300 font-mono">payment-gw-pod1</span>
+                  </div>
+                  <span class="text-[9px] bg-green-950 text-green-300 px-1 py-0.2 rounded border border-green-900/50" id="pod-1-status">RUNNING</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ZONE B -->
+          <div class="border border-slate-800 bg-slate-900/40 rounded-xl p-4 flex flex-col gap-4 relative transition duration-300" id="zone-B">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-green-500" id="zone-B-indicator"></span> us-east-1b
+              </span>
+              <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">AZ-B</span>
+            </div>
+            
+            <!-- Nodes in Zone B -->
+            <div class="flex flex-col gap-3">
+              <!-- Node 2: Control Plane -->
+              <div class="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition" id="node-2">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-semibold text-slate-200">master-02</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-800/40">Control Plane</span>
+                </div>
+                <div class="flex justify-between items-center mt-1">
+                  <span class="text-[10px] text-slate-400">etcd status</span>
+                  <span class="text-[10px] font-semibold text-green-400" id="node-2-etcd">ONLINE</span>
+                </div>
+              </div>
+              
+              <!-- Node 5: Worker Node -->
+              <div class="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition" id="node-5">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-semibold text-slate-200">worker-02</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-900/40">Worker</span>
+                </div>
+                <!-- Pod in Worker Node -->
+                <div class="mt-2 bg-slate-900/80 border border-slate-800 rounded p-2 flex items-center justify-between" id="pod-2">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="box" class="h-3.5 w-3.5 text-indigo-400"></i>
+                    <span class="text-[10px] text-slate-300 font-mono">payment-gw-pod2</span>
+                  </div>
+                  <span class="text-[9px] bg-green-950 text-green-300 px-1 py-0.2 rounded border border-green-900/50" id="pod-2-status">RUNNING</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ZONE C -->
+          <div class="border border-slate-800 bg-slate-900/40 rounded-xl p-4 flex flex-col gap-4 relative transition duration-300" id="zone-C">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-green-500" id="zone-C-indicator"></span> us-east-1c
+              </span>
+              <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">AZ-C</span>
+            </div>
+            
+            <!-- Nodes in Zone C -->
+            <div class="flex flex-col gap-3">
+              <!-- Node 3: Control Plane -->
+              <div class="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition" id="node-3">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-semibold text-slate-200">master-03</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-800/40">Control Plane</span>
+                </div>
+                <div class="flex justify-between items-center mt-1">
+                  <span class="text-[10px] text-slate-400">etcd status</span>
+                  <span class="text-[10px] font-semibold text-green-400" id="node-3-etcd">ONLINE</span>
+                </div>
+              </div>
+              
+              <!-- Node 6: Worker Node -->
+              <div class="bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition" id="node-6">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-semibold text-slate-200">worker-03</span>
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-900/40">Worker</span>
+                </div>
+                <!-- Pod in Worker Node -->
+                <div class="mt-2 bg-slate-900/80 border border-slate-800 rounded p-2 flex items-center justify-between" id="pod-3">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="box" class="h-3.5 w-3.5 text-indigo-400"></i>
+                    <span class="text-[10px] text-slate-300 font-mono">payment-gw-pod3</span>
+                  </div>
+                  <span class="text-[9px] bg-green-950 text-green-300 px-1 py-0.2 rounded border border-green-900/50" id="pod-3-status">RUNNING</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Interactive Controls Panel -->
+      <div class="glass-panel p-6 rounded-2xl">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-4">
+          <i data-lucide="sliders" class="h-5 w-5 text-indigo-400"></i> Incident Control Desk
+        </h2>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          
+          <!-- Failure Triggers -->
+          <div class="border border-slate-800 p-4 rounded-xl bg-slate-900/50 flex flex-col gap-3">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Inject Outages</h3>
+            <button onclick="failNode(2)" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700/60 transition flex justify-between items-center" id="btn-fail-node">
+              <span>Fail master-02 node</span>
+              <span class="h-2 w-2 rounded-full bg-red-500"></span>
+            </button>
+            <button onclick="failZone('B')" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700/60 transition flex justify-between items-center" id="btn-fail-zone">
+              <span>Fail Zone B Outage</span>
+              <span class="h-2 w-2 rounded-full bg-red-500"></span>
+            </button>
+            <button onclick="corruptEtcd()" class="w-full text-left bg-red-950/20 hover:bg-red-950/40 text-red-400 px-3 py-2 rounded-lg text-xs font-semibold border border-red-900/30 transition flex justify-between items-center" id="btn-corrupt-db">
+              <span>Corrupt etcd Database</span>
+              <i data-lucide="bomb" class="h-3.5 w-3.5 text-red-500"></i>
+            </button>
+          </div>
+
+          <!-- DR Tasks -->
+          <div class="border border-slate-800 p-4 rounded-xl bg-slate-900/50 flex flex-col gap-3">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">DR Operations</h3>
+            <button onclick="runEtcdBackup()" class="w-full text-left bg-indigo-950/40 hover:bg-indigo-950/60 text-indigo-300 px-3 py-2 rounded-lg text-xs font-semibold border border-indigo-900/40 transition flex justify-between items-center">
+              <span>Trigger etcd Snapshot</span>
+              <i data-lucide="database" class="h-3.5 w-3.5 text-indigo-400"></i>
+            </button>
+            <button onclick="restoreEtcd()" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700/60 transition flex justify-between items-center" id="btn-restore">
+              <span>Perform etcd Restore</span>
+              <i data-lucide="arrow-up-right" class="h-3.5 w-3.5"></i>
+            </button>
+            <button onclick="triggerFailover()" class="w-full text-left bg-emerald-950/30 hover:bg-emerald-950/50 text-emerald-400 px-3 py-2 rounded-lg text-xs font-semibold border border-emerald-900/30 transition flex justify-between items-center">
+              <span>Force Load Balancer Failover</span>
+              <i data-lucide="shuffle" class="h-3.5 w-3.5 text-emerald-400"></i>
+            </button>
+          </div>
+
+          <!-- Recovery Info -->
+          <div class="border border-slate-800 p-4 rounded-xl bg-slate-900/50 flex flex-col gap-3 col-span-1 sm:col-span-2 md:col-span-1">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Recovery Stats</h3>
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400">Last Snapshot:</span>
+              <span class="font-mono text-slate-200" id="last-backup-stat">None</span>
+            </div>
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400">Restore Timeline:</span>
+              <span class="text-slate-200" id="restore-progress-stat">Idle</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1">
+              <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%" id="restore-bar"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT SIDE: TERMINAL CONSOLE, RPO/RTO AND RUNBOOKS (4 COLS) -->
+    <div class="lg:col-span-4 flex flex-col gap-8">
+      
+      <!-- RPO/RTO Analyzer -->
+      <div class="glass-panel p-6 rounded-2xl">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-3">
+          <i data-lucide="timer" class="h-5 w-5 text-amber-400"></i> RPO / RTO Cost Calculator
+        </h2>
+        <p class="text-xs text-slate-400 mb-4">See how backup frequency and automation impact business data loss risks and costs.</p>
+        
+        <div class="flex flex-col gap-4">
+          <!-- Slider 1: Backup Frequency -->
+          <div class="flex flex-col gap-1.5">
+            <div class="flex justify-between text-xs font-medium">
+              <span class="text-slate-300">Backup Frequency</span>
+              <span class="text-indigo-400" id="val-backup-freq">Hourly (1 hour)</span>
+            </div>
+            <input type="range" min="1" max="24" value="1" oninput="calculateRpoRto()" class="w-full accent-indigo-500 cursor-pointer" id="slider-backup-freq">
+            <span class="text-[9px] text-slate-500">Determines Recovery Point Objective (RPO)</span>
+          </div>
+
+          <!-- Slider 2: Restore Automation -->
+          <div class="flex flex-col gap-1.5">
+            <div class="flex justify-between text-xs font-medium">
+              <span class="text-slate-300">Restore Automation</span>
+              <span class="text-indigo-400" id="val-restore-level">Semi-Automated (SRE Scripted)</span>
+            </div>
+            <input type="range" min="1" max="3" value="2" oninput="calculateRpoRto()" class="w-full accent-indigo-500 cursor-pointer" id="slider-restore-level">
+            <span class="text-[9px] text-slate-500">Determines Recovery Time Objective (RTO)</span>
+          </div>
+
+          <!-- Results Grid -->
+          <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 mt-2 flex flex-col gap-3">
+            <div class="flex justify-between items-center border-b border-slate-800/80 pb-2">
+              <div class="flex flex-col">
+                <span class="text-[10px] uppercase text-slate-500 font-semibold">Max Data Loss (RPO)</span>
+                <span class="text-lg font-bold text-slate-200" id="result-rpo">1 Hour</span>
+              </div>
+              <i data-lucide="database-backup" class="h-5 w-5 text-indigo-400/80"></i>
+            </div>
+            
+            <div class="flex justify-between items-center border-b border-slate-800/80 pb-2">
+              <div class="flex flex-col">
+                <span class="text-[10px] uppercase text-slate-500 font-semibold">Downtime (RTO)</span>
+                <span class="text-lg font-bold text-slate-200" id="result-rto">30 Mins</span>
+              </div>
+              <i data-lucide="activity" class="h-5 w-5 text-amber-400/80"></i>
+            </div>
+
+            <div class="flex justify-between items-center">
+              <div class="flex flex-col">
+                <span class="text-[10px] uppercase text-slate-500 font-semibold">Estimated Outage Cost</span>
+                <span class="text-lg font-extrabold text-red-400" id="result-cost">$25,000</span>
+              </div>
+              <i data-lucide="banknote" class="h-5 w-5 text-red-400/80"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Log Console -->
+      <div class="glass-panel rounded-2xl flex flex-col overflow-hidden h-[360px] border border-slate-800">
+        <div class="bg-slate-900 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+          <div class="flex items-center gap-2">
+            <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+            <span class="text-xs font-semibold text-slate-300 font-mono">cluster-event-stream.log</span>
+          </div>
+          <button onclick="clearConsole()" class="text-[10px] text-slate-400 hover:text-slate-200 bg-slate-800 px-2 py-0.5 rounded">Clear</button>
+        </div>
+        
+        <div class="flex-1 p-4 monospace text-xs text-slate-300 overflow-y-auto terminal-scrollbar flex flex-col gap-1.5" id="console-logs">
+          <!-- Initial Log items -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // Simulator Global States
+    let nodes = {
+      1: { name: 'master-01', active: true, etcd: 'ONLINE' },
+      2: { name: 'master-02', active: true, etcd: 'ONLINE' },
+      3: { name: 'master-03', active: true, etcd: 'ONLINE' },
+      4: { name: 'worker-01', active: true, running: true },
+      5: { name: 'worker-02', active: true, running: true },
+      6: { name: 'worker-03', active: true, running: true }
+    };
+    
+    let zones = {
+      'A': { active: true },
+      'B': { active: true },
+      'C': { active: true }
+    };
+
+    let clusterHealthy = true;
+    let etcdCorrupted = false;
+    let databaseBackups = [];
+    let isRestoring = false;
+
+    // Initialize Page elements and setup lucide icons
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      logToConsole("INFO", "SRE Control Center initialized. Watching cluster 'prod-omega-01'.");
+      logToConsole("INFO", "Stacked control plane running etcd v3.5.13 across 3 zones.");
+      calculateRpoRto();
+      updateStatVisuals();
+    });
+
+    function logToConsole(level, message) {
+      const consoleBox = document.getElementById("console-logs");
+      const timeStr = new Date().toLocaleTimeString();
+      let colorClass = "text-slate-400";
+      
+      if (level === "ERROR") colorClass = "text-red-400 font-semibold";
+      else if (level === "WARN") colorClass = "text-amber-400";
+      else if (level === "INFO") colorClass = "text-slate-300";
+      else if (level === "SUCCESS") colorClass = "text-emerald-400 font-medium";
+
+      const line = document.createElement("div");
+      line.className = `${colorClass} leading-relaxed`;
+      line.innerHTML = `<span class="text-slate-500 font-mono">[${timeStr}]</span> <span class="text-indigo-400">[${level}]</span> ${message}`;
+      consoleBox.appendChild(line);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById("console-logs").innerHTML = "";
+    }
+
+    function calculateRpoRto() {
+      const freqVal = parseInt(document.getElementById("slider-backup-freq").value);
+      const autoVal = parseInt(document.getElementById("slider-restore-level").value);
+
+      // Display Label updates
+      const freqText = freqVal === 1 ? "Hourly (1 hour)" : `${freqVal} Hours`;
+      document.getElementById("val-backup-freq").innerText = freqText;
+
+      let autoText = "Manual (Operator Runbooks)";
+      let rtoMinutes = 180; // 3 hours
+      if (autoVal === 2) {
+        autoText = "Semi-Automated (SRE Scripted)";
+        rtoMinutes = 30; // 30 mins
+      } else if (autoVal === 3) {
+        autoText = "Fully Automated (Operator Orchestrated)";
+        rtoMinutes = 5; // 5 mins
+      }
+      document.getElementById("val-restore-level").innerText = autoText;
+
+      // Calculate SLA loss and Cost metrics (fictional SRE math)
+      // Cost increases based on RTO and RPO
+      const rpoHours = freqVal;
+      const hourlyCostRate = 50000; // $50,000 per hour of outage
+      const rtoHours = rtoMinutes / 60;
+      
+      const totalOutageHours = rtoHours + (rpoHours * 0.25); // Assume some transaction re-entry cost proportional to RPO
+      const totalCost = Math.round(totalOutageHours * hourlyCostRate);
+
+      // Render outcomes
+      document.getElementById("result-rpo").innerText = freqVal === 1 ? "1 Hour" : `${freqVal} Hours`;
+      document.getElementById("result-rto").innerText = rtoMinutes < 60 ? `${rtoMinutes} Mins` : `${rtoHours} Hour(s)`;
+      document.getElementById("result-cost").innerText = `$${totalCost.toLocaleString()}`;
+    }
+
+    function updateStatVisuals() {
+      // Check Node states to calculate stats
+      let activeControlCount = 0;
+      if (nodes[1].active && nodes[1].etcd === 'ONLINE') activeControlCount++;
+      if (nodes[2].active && nodes[2].etcd === 'ONLINE') activeControlCount++;
+      if (nodes[3].active && nodes[3].etcd === 'ONLINE') activeControlCount++;
+
+      // Update Quorum display
+      const quorumText = `${activeControlCount} / 3 OK`;
+      const quorumEl = document.getElementById("quorum-stat");
+      quorumEl.innerText = quorumText;
+      
+      if (activeControlCount >= 2) {
+        quorumEl.className = "text-2xl font-bold mt-1 text-emerald-400 glowing-text-green";
+        document.getElementById("quorum-sub").innerText = "Quorum active (majority)";
+      } else {
+        quorumEl.className = "text-2xl font-bold mt-1 text-red-500 glowing-text-red animate-pulse";
+        document.getElementById("quorum-sub").innerText = "QUORUM LOST! Control plane locked.";
+      }
+
+      // Database Status
+      const etcdEl = document.getElementById("etcd-stat");
+      if (etcdCorrupted) {
+        etcdEl.innerText = "CORRUPTED";
+        etcdEl.className = "text-2xl font-bold mt-1 text-red-500 glowing-text-red animate-pulse";
+        document.getElementById("etcd-sub").innerText = "BoltDB file corrupted";
+      } else if (activeControlCount < 2) {
+        etcdEl.innerText = "DEGRADED";
+        etcdEl.className = "text-2xl font-bold mt-1 text-amber-500";
+        document.getElementById("etcd-sub").innerText = "No write consensus";
+      } else {
+        etcdEl.innerText = "HEALTHY";
+        etcdEl.className = "text-2xl font-bold mt-1 text-emerald-400 glowing-text-green";
+        document.getElementById("etcd-sub").innerText = "etcd v3.5.13";
+      }
+
+      // Pod Status & Traffic Stat
+      let runningPodsCount = 0;
+      for (let i = 1; i <= 3; i++) {
+        if (nodes[i + 3].active && nodes[i + 3].running && activeControlCount >= 2 && !etcdCorrupted) {
+          runningPodsCount++;
+          document.getElementById(`pod-${i}-status`).innerText = "RUNNING";
+          document.getElementById(`pod-${i}-status`).className = "text-[9px] bg-green-950 text-green-300 px-1 py-0.2 rounded border border-green-900/50";
+        } else {
+          document.getElementById(`pod-${i}-status`).innerText = "CRASHED";
+          document.getElementById(`pod-${i}-status`).className = "text-[9px] bg-red-950 text-red-300 px-1 py-0.2 rounded border border-red-900/50";
+        }
+      }
+      document.getElementById("pods-stat").innerText = `${runningPodsCount} / 3`;
+
+      // Global status indicator
+      const globalStatusText = document.getElementById("cluster-global-status");
+      const pulseBg = document.getElementById("pulse-bg");
+      const pulseCore = document.getElementById("pulse-core");
+
+      if (activeControlCount === 3 && !etcdCorrupted && runningPodsCount === 3) {
+        globalStatusText.innerText = "SYSTEMS NOMINAL";
+        globalStatusText.className = "text-xs font-semibold text-slate-300";
+        pulseBg.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
+        pulseCore.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+        document.getElementById("sla-stat").innerText = "99.999%";
+        document.getElementById("sla-stat").className = "text-2xl font-bold mt-1 text-emerald-400 glowing-text-green";
+      } else if (activeControlCount >= 2 && !etcdCorrupted) {
+        globalStatusText.innerText = "DEGRADED STATE";
+        globalStatusText.className = "text-xs font-semibold text-amber-400";
+        pulseBg.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75";
+        pulseCore.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+        document.getElementById("sla-stat").innerText = "99.9% (Degrading)";
+        document.getElementById("sla-stat").className = "text-2xl font-bold mt-1 text-amber-400";
+      } else {
+        globalStatusText.innerText = "CLUSTER OUTAGE";
+        globalStatusText.className = "text-xs font-semibold text-red-500 animate-pulse";
+        pulseBg.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75";
+        pulseCore.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+        document.getElementById("sla-stat").innerText = "0.00% (DOWN)";
+        document.getElementById("sla-stat").className = "text-2xl font-bold mt-1 text-red-500 glowing-text-red";
+      }
+    }
+
+    function failNode(nodeNum) {
+      if (nodes[nodeNum].active) {
+        nodes[nodeNum].active = false;
+        nodes[nodeNum].etcd = 'OFFLINE';
+        
+        // Node style changes
+        document.getElementById(`node-${nodeNum}`).classList.add("border-red-500", "bg-red-950/20");
+        document.getElementById(`node-${nodeNum}`).classList.remove("border-slate-700/60", "bg-slate-800/80");
+        document.getElementById(`node-${nodeNum}-etcd`).innerText = "OFFLINE";
+        document.getElementById(`node-${nodeNum}-etcd`).className = "text-[10px] font-semibold text-red-500";
+
+        logToConsole("WARN", `Control Plane Node 'master-02' (IP: 10.0.0.12) lost connection. API Load Balancer removing node.`);
+        
+        // Update dashboard stats
+        updateStatVisuals();
+      }
+    }
+
+    function failZone(zoneChar) {
+      if (zones[zoneChar].active) {
+        zones[zoneChar].active = false;
+        
+        // Fail Zone container elements
+        document.getElementById(`zone-${zoneChar}`).classList.add("border-red-900/60", "bg-red-950/5");
+        document.getElementById(`zone-${zoneChar}-indicator`).classList.replace("bg-green-500", "bg-red-500");
+
+        // Fail all nodes inside this zone
+        if (zoneChar === 'B') {
+          // Master-02 (Node 2)
+          nodes[2].active = false;
+          nodes[2].etcd = 'OFFLINE';
+          document.getElementById("node-2").classList.add("border-red-500", "bg-red-950/20");
+          document.getElementById("node-2-etcd").innerText = "OFFLINE";
+          document.getElementById("node-2-etcd").className = "text-[10px] font-semibold text-red-500";
+
+          // Worker-02 (Node 5)
+          nodes[5].active = false;
+          nodes[5].running = false;
+          document.getElementById("node-5").classList.add("border-red-500", "bg-red-950/20");
+        }
+
+        logToConsole("ERROR", `AVALABILITY ZONE OUTAGE: us-east-1b suffered power hypervisor failure. Eviction timeout triggered.`);
+        updateStatVisuals();
+      }
+    }
+
+    function corruptEtcd() {
+      etcdCorrupted = true;
+      logToConsole("ERROR", "CRITICAL incident: etcd storage write failures on master nodes. BoltDB data block corrupted.");
+      logToConsole("WARN", "kube-apiserver logs: 'etcdserver: duplicate key / panic storage partition'.");
+      updateStatVisuals();
+    }
+
+    function runEtcdBackup() {
+      logToConsole("INFO", "Executing command: etcdctl snapshot save ...");
+      
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 25;
+        logToConsole("INFO", `Streaming database dump... ${progress}%`);
+        if (progress >= 100) {
+          clearInterval(interval);
+          const timestamp = new Date().toISOString().slice(11, 19).replace(/:/g, "");
+          const dbHash = Math.random().toString(16).substr(2, 8);
+          const backupObj = { name: `snap-${timestamp}.db`, hash: dbHash, time: new Date().toLocaleTimeString() };
+          
+          databaseBackups.push(backupObj);
+          document.getElementById("last-backup-stat").innerText = backupObj.name;
+          logToConsole("SUCCESS", `etcd snapshot completed! File: ${backupObj.name} (SHA256: ${dbHash}). Copied to remote S3 bucket.`);
+        }
+      }, 300);
+    }
+
+    function restoreEtcd() {
+      if (databaseBackups.length === 0) {
+        logToConsole("ERROR", "Restoration failed: No valid snapshots found. S3 bucket empty. Run a snapshot first.");
+        return;
+      }
+      if (isRestoring) return;
+
+      isRestoring = true;
+      let progress = 0;
+      const bar = document.getElementById("restore-bar");
+      const progressText = document.getElementById("restore-progress-stat");
+      
+      logToConsole("WARN", "Entering Disaster Recovery restore workflow.");
+      progressText.innerText = "Restoring...";
+      
+      const interval = setInterval(() => {
+        progress += 20;
+        bar.style.width = `${progress}%`;
+
+        if (progress === 20) {
+          logToConsole("INFO", "DR Step 1: Stopping control plane static pods (kube-apiserver/etcd) on master-01.");
+        } else if (progress === 40) {
+          logToConsole("INFO", "DR Step 2: Wiping corrupted data directory (/var/lib/etcd) on master nodes.");
+        } else if (progress === 60) {
+          logToConsole("INFO", "DR Step 3: Executing 'etcdctl snapshot restore' onto target volumes.");
+        } else if (progress === 80) {
+          logToConsole("INFO", "DR Step 4: Re-enabling static pods. Waiting for etcd to establish Raft consensus...");
+        } else if (progress >= 100) {
+          clearInterval(interval);
+          isRestoring = false;
+          etcdCorrupted = false;
+          
+          // Revive all nodes during restore
+          resetNodeVisuals();
+          
+          logToConsole("SUCCESS", "RESTORE COMPLETE: etcd quorum healthy. kube-apiserver online. Traffic target 100% active.");
+          progressText.innerText = "Finished";
+          setTimeout(() => {
+            bar.style.width = "0%";
+            progressText.innerText = "Idle";
+          }, 3000);
+          
+          updateStatVisuals();
+        }
+      }, 1000);
+    }
+
+    function triggerFailover() {
+      logToConsole("INFO", "Command: routing-failover-gate.sh triggered.");
+      logToConsole("SUCCESS", "Global Server Load Balancer (GSLB) pointed to healthy control plane nodes us-east-1a and us-east-1c. Evicted us-east-1b.");
+    }
+
+    function resetNodeVisuals() {
+      for (let i = 1; i <= 6; i++) {
+        nodes[i].active = true;
+        if (nodes[i].etcd) nodes[i].etcd = 'ONLINE';
+        if (nodes[i].running) nodes[i].running = true;
+        
+        const nodeEl = document.getElementById(`node-${i}`);
+        nodeEl.className = "bg-slate-800/80 border border-slate-700/60 p-3 rounded-lg flex flex-col gap-2 transition";
+        
+        if (i <= 3) {
+          const etcdVal = document.getElementById(`node-${i}-etcd`);
+          etcdVal.innerText = "ONLINE";
+          etcdVal.className = "text-[10px] font-semibold text-green-400";
+        }
+      }
+
+      const zonesArr = ['A', 'B', 'C'];
+      zonesArr.forEach(z => {
+        zones[z].active = true;
+        document.getElementById(`zone-${z}`).className = "border border-slate-800 bg-slate-900/40 rounded-xl p-4 flex flex-col gap-4 relative transition duration-300";
+        document.getElementById(`zone-${z}-indicator`).className = "h-2 w-2 rounded-full bg-green-500";
+      });
+    }
+
+    function resetSimulator() {
+      resetNodeVisuals();
+      etcdCorrupted = false;
+      databaseBackups = [];
+      document.getElementById("last-backup-stat").innerText = "None";
+      clearConsole();
+      logToConsole("SUCCESS", "Command Center Reset. All nodes back online. Incident metrics wiped.");
+      updateStatVisuals();
+    }
+  </script>
+</body>
+</html>
