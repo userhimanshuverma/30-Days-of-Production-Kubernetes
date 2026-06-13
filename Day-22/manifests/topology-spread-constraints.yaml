@@ -1,0 +1,41 @@
+apiVersion:apps/v1
+kind: Deployment
+metadata:
+  name: billing-worker
+  namespace: default
+  labels:
+    app: billing-worker
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: billing-worker
+  template:
+    metadata:
+      labels:
+        app: billing-worker
+    spec:
+      containers:
+      - name: worker
+        image: nginx:1.25.4-alpine
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      # Evenly distribute the billing-worker pods across different availability zones
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule # Hard enforcement: do not schedule if skew > 1
+        labelSelector:
+          matchLabels:
+            app: billing-worker
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway # Soft enforcement: try to spread across hosts, but schedule anyway if not possible
+        labelSelector:
+          matchLabels:
+            app: billing-worker

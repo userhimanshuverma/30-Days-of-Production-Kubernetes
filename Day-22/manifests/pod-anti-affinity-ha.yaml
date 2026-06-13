@@ -1,0 +1,51 @@
+apiVersion:apps/v1
+kind: Deployment
+metadata:
+  name: web-frontend
+  namespace: default
+  labels:
+    app: web-frontend
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: web-frontend
+  template:
+    metadata:
+      labels:
+        app: web-frontend
+    spec:
+      containers:
+      - name: web-app
+        image: nginx:1.25.4-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      affinity:
+        podAntiAffinity:
+          # Hard Constraint: Do not schedule multiple frontend replicas on the same physical host (Node level)
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - web-frontend
+            topologyKey: kubernetes.io/hostname
+          # Soft Constraint: Prefer not to schedule replicas in the same availability zone (Zone level)
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - web-frontend
+              topologyKey: topology.kubernetes.io/zone

@@ -1,0 +1,35 @@
+flowchart TD
+    subgraph Topology Spread Constraints
+        MaxSkew[maxSkew: 1]
+        TopologyKey[topologyKey: topology.kubernetes.io/zone]
+        Satisfy[whenUnsatisfiable: DoNotSchedule]
+        Selector[labelSelector: app=api]
+    end
+
+    subgraph Cluster Zones
+        subgraph Zone A [us-east-1a]
+            PodA1[api-pod-1]
+            PodA2[api-pod-2]
+        end
+        subgraph Zone B [us-east-1b]
+            PodB1[api-pod-3]
+        end
+        subgraph Zone C [us-east-1c]
+            %% Empty
+        end
+    end
+
+    NewPod[New api-pod-4] --> EvaluateZones{Evaluate Zones}
+    EvaluateZones --> CalculateSkew{Calculate Skew per Zone}
+    
+    CalculateSkew --> ZoneA_Skew[Zone A count: 2]
+    CalculateSkew --> ZoneB_Skew[Zone B count: 1]
+    CalculateSkew --> ZoneC_Skew[Zone C count: 0]
+
+    ZoneA_Skew --> RejectZoneA[Skew if placed in A: 3 - 0 = 3 > MaxSkew 1 <br/> Reject Zone A]
+    ZoneB_Skew --> RejectZoneB[Skew if placed in B: 2 - 0 = 2 > MaxSkew 1 <br/> Reject Zone B]
+    ZoneC_Skew --> AcceptZoneC[Skew if placed in C: 2 - 1 = 1 <= MaxSkew 1 <br/> Place Pod in Zone C]
+    
+    style RejectZoneA fill:#f43f5e,stroke:#be123c,color:#fff
+    style RejectZoneB fill:#f43f5e,stroke:#be123c,color:#fff
+    style AcceptZoneC fill:#10b981,stroke:#047857,color:#fff

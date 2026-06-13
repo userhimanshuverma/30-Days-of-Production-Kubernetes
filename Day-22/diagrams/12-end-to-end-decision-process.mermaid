@@ -1,0 +1,28 @@
+flowchart TD
+    Start[Pod Created] --> NodeSelected{Is NodeName specified?}
+    NodeSelected -->|Yes: Bypass Scheduler| Bind[Bind Pod to Node]
+    NodeSelected -->|No: Needs Scheduling| Queue[Add Pod to Scheduling Queue]
+    
+    Queue --> Pop[Pop Pod from Queue]
+    Pop --> Filter{Filter Phase: Run Predicates}
+    
+    Filter -->|No matching nodes| Preempt{Preemption enabled?}
+    Preempt -->|Yes: Try to evict lower priority| Evict[Preempt / Evict Pods]
+    Evict --> Queue
+    Preempt -->|No| Pending[Mark Pod PENDING / Unschedulable]
+    Pending --> Queue
+    
+    Filter -->|Feasible Nodes Found| Score{Score Phase: Run Priority Weights}
+    Score --> Select[Select Node with Highest Score]
+    
+    Select --> Reserve[Reserve Node Resources in Cache]
+    Reserve --> Permit{Permit Phase: Run Permit Plugins}
+    Permit -->|Fail / Timeout| Unreserve[Unreserve Node Resources] --> Queue
+    Permit -->|Approve| BindCycle[Asynchronous Bind: Send Bind Request to API]
+    
+    BindCycle --> BindSuccess{Did Bind write succeed in etcd?}
+    BindSuccess -->|No| Unreserve
+    BindSuccess -->|Yes| End[Pod Scheduled & Running]
+    
+    style Pending fill:#f43f5e,stroke:#be123c,color:#fff
+    style End fill:#10b981,stroke:#047857,color:#fff

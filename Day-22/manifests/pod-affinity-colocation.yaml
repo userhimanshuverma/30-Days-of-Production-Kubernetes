@@ -1,0 +1,40 @@
+apiVersion:apps/v1
+kind: Deployment
+metadata:
+  name: cache-redis
+  namespace: default
+  labels:
+    app: cache-redis
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cache-redis
+  template:
+    metadata:
+      labels:
+        app: cache-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2.4-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      affinity:
+        # Hard Constraint: redis pods MUST be scheduled on nodes where web-frontend pods are running
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - web-frontend
+            topologyKey: kubernetes.io/hostname

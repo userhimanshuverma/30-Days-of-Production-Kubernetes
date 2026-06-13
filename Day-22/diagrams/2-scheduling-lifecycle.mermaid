@@ -1,0 +1,35 @@
+stateDiagram-v2
+    [*] --> Unscheduled : Pod Created (NodeName: empty)
+    
+    state "Queueing State" as Queueing {
+        Unscheduled --> ActiveQ : Added to Active Queue
+        ActiveQ --> SchedulingCycle : Pop next pod
+        SchedulingCycle --> BackoffQ : Scheduling failed (Transient Error)
+        BackoffQ --> ActiveQ : Backoff elapsed
+        SchedulingCycle --> UnschedQ : Scheduling failed (Hard Error / Missing Resource)
+        UnschedQ --> ActiveQ : Trigger event (Node update, PVC update)
+    }
+
+    state "Scheduling Cycle (Synchronous)" as S_Cycle {
+        state "Filtering" as Filtering
+        state "Scoring" as Scoring
+        state "Reserving" as Reserving
+        
+        Filtering --> Scoring : Nodes fit criteria
+        Scoring --> Reserving : Select node with highest score
+    }
+
+    state "Binding Cycle (Asynchronous)" as B_Cycle {
+        state "Permitting" as Permitting
+        state "PreBinding" as PreBinding
+        state "Binding" as Binding
+        state "PostBinding" as PostBinding
+
+        Permitting --> PreBinding : Permit approved
+        PreBinding --> Binding : Run pre-bind plugins
+        Binding --> PostBinding : API server writes NodeName
+        PostBinding --> [*] : Pod Scheduled successfully
+    }
+
+    Reserving --> Permitting : Move to binding cycle
+    Binding --> UnschedQ : Binding fails (Conflict)

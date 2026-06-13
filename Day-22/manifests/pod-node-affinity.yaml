@@ -1,0 +1,62 @@
+apiVersion:apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  namespace: default
+  labels:
+    app: payment-api
+    tier: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+        tier: api
+    spec:
+      containers:
+      - name: api-server
+        image: nginx:1.25.4-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+      affinity:
+        nodeAffinity:
+          # Hard Requirement: Pod MUST be scheduled on nodes with the PCI-DSS compliant label
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: security-zone
+                operator: In
+                values:
+                - pci-compliant
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+          # Soft Preference: Scheduler will prefer nodes in high-performance tier (SSD storage), weight 80/100
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 80
+            preference:
+              matchExpressions:
+              - key: disk-type
+                operator: In
+                values:
+                - ssd
+          # Soft Preference: Scheduler will prefer nodes running in us-east-1 region, weight 20/100
+          - weight: 20
+            preference:
+              matchExpressions:
+              - key: topology.kubernetes.io/region
+                operator: In
+                values:
+                - us-east-1

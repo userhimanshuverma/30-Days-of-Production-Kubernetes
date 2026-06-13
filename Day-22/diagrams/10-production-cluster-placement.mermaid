@@ -1,0 +1,29 @@
+graph TD
+    subgraph Enterprise Cluster Node Pools
+        subgraph System Node Pool
+            direction TB
+            SysNode1[system-worker-01<br/>Taint: CriticalAddonsOnly]
+            SysNode2[system-worker-02<br/>Taint: CriticalAddonsOnly]
+        end
+        subgraph GPU Node Pool
+            direction TB
+            GPUNode1[gpu-worker-01<br/>Taint: hardware=gpu:NoSchedule]
+            GPUNode2[gpu-worker-02<br/>Taint: hardware=gpu:NoSchedule]
+        end
+        subgraph Core Workload Pool
+            direction TB
+            CoreNode1[app-worker-01<br/>No Taints]
+            CoreNode2[app-worker-02<br/>No Taints]
+        end
+    end
+
+    subgraph Workload Classifications
+        Ingress[ingress-controller] -->|Tolerates CriticalAddonsOnly| SysNode1
+        CoreDNS[coredns] -->|Tolerates CriticalAddonsOnly| SysNode2
+        
+        MLTraining[PyTorch ML Training Pod] -->|Tolerates hardware=gpu:NoSchedule| GPUNode1
+        MLTraining -->|NodeAffinity: hardware=gpu| GPUNode1
+        
+        WebAPI[frontend-api-pod] -->|Standard request| CoreNode1
+        Worker[payment-worker-pod] -->|Standard request| CoreNode2
+    end

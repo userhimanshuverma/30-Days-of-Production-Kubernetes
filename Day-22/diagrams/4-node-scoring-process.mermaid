@@ -1,0 +1,30 @@
+flowchart TD
+    FeasibleList[Feasible Nodes List] --> LoopNodes[Iterate over Feasible Nodes]
+    
+    subgraph Scoring Plugins
+        direction LR
+        ImageLocality[ImageLocalityPlugin<br/>Weight: 1]
+        BalancedAllocation[NodeResourcesBalancedAllocation<br/>Weight: 1]
+        NodeAffinity[NodeAffinityPriorityPlugin<br/>Weight: 2]
+        TSpread[PodTopologySpreadPriorityPlugin<br/>Weight: 2]
+    end
+
+    LoopNodes --> ImageLocality
+    LoopNodes --> BalancedAllocation
+    LoopNodes --> NodeAffinity
+    LoopNodes --> TSpread
+
+    ImageLocality -->|Score: 0-100| Combine
+    BalancedAllocation -->|Score: 0-100| Combine
+    NodeAffinity -->|Score: 0-100| Combine
+    TSpread -->|Score: 0-100| Combine
+
+    subgraph Score Accumulator
+        Combine[Score * Weight sum per Node] --> Normalize[Normalize scores 0 to 100]
+    end
+
+    Normalize --> SelectMax[Select Node with Highest Score]
+    SelectMax --> TieBreaker{Tie breaker needed?}
+    TieBreaker -->|Yes| RoundRobin[Deterministic Round-Robin Selection]
+    TieBreaker -->|No| Bind[Assign Pod to Selected Node]
+    RoundRobin --> Bind

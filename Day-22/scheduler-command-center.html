@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Scheduling Command Center</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0f19;
+      color: #f1f5f9;
+    }
+    .monospace {
+      font-family: 'Fira Code', monospace;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    }
+    .glowing-text-indigo {
+      text-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+    }
+    .glowing-text-emerald {
+      text-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+    .glowing-text-rose {
+      text-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+    }
+    .scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    .pod-node-anim {
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-12 overflow-x-hidden">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-950/80 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i data-lucide="cpu" class="text-white h-6 w-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+            KUBE-SCHEDULER <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-indigo-400 font-mono">LEARNING CONSOLE</span>
+          </h1>
+          <p class="text-xs text-slate-400">Interactive simulator to study Pod filtering predicates, scoring weights, and taints/affinities.</p>
+        </div>
+      </div>
+      
+      <!-- Cluster status badge & Global controls -->
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-xs font-semibold text-slate-300">ACTIVE ENGINE</span>
+        </div>
+        <button onclick="resetSimulator()" class="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-950/30 border border-indigo-900/50 px-3 py-1.5 rounded-lg transition">
+          <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i> Reset Workspace
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 flex flex-col gap-6">
+
+    <!-- INSTRUCTION & SCENARIOS GUIDE BANNER -->
+    <div class="glass-panel p-5 rounded-2xl border-l-4 border-indigo-500">
+      <div class="flex items-start gap-4">
+        <div class="p-2 bg-indigo-950/60 rounded-lg text-indigo-400">
+          <i data-lucide="book-open" class="h-6 w-6"></i>
+        </div>
+        <div class="flex-1">
+          <h2 class="text-md font-bold text-white mb-1">💡 Interactive Scheduling Lab Walkthroughs</h2>
+          <p class="text-xs text-slate-300 leading-relaxed mb-3">
+            This dashboard simulates exactly how the Kubernetes scheduler filters and scores nodes. Try the quick scenarios below to see how constraints impact scheduler decisions:
+          </p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+            <div class="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg flex flex-col justify-between">
+              <div>
+                <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Scenario 1</span>
+                <h3 class="text-xs font-semibold text-white mt-1.5 mb-1">Taint & Toleration Routing</h3>
+                <p class="text-[11px] text-slate-400">Load the <strong>GPU ML Trainer</strong> template. Notice it has a toleration for <code>hardware=gpu</code>. Step-schedule it and watch it land on the tainted <code>worker-gpu-01</code> node.</p>
+              </div>
+              <button onclick="loadScenario(1)" class="mt-3 text-left text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                Start Scenario <i data-lucide="arrow-right" class="h-3 w-3"></i>
+              </button>
+            </div>
+
+            <div class="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg flex flex-col justify-between">
+              <div>
+                <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Scenario 2</span>
+                <h3 class="text-xs font-semibold text-white mt-1.5 mb-1">High Availability Spreading</h3>
+                <p class="text-[11px] text-slate-400">Load the <strong>Web Frontend</strong> template and queue 4 pods. Click schedule. Host anti-affinity will ensure no two frontend replicas land on the same VM node.</p>
+              </div>
+              <button onclick="loadScenario(2)" class="mt-3 text-left text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                Start Scenario <i data-lucide="arrow-right" class="h-3 w-3"></i>
+              </button>
+            </div>
+
+            <div class="bg-slate-900/60 border border-slate-800/80 p-3 rounded-lg flex flex-col justify-between">
+              <div>
+                <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Scenario 3</span>
+                <h3 class="text-xs font-semibold text-white mt-1.5 mb-1">Bin Packing vs. Spreading</h3>
+                <p class="text-[11px] text-slate-400">Add 3 default pods. Switch the Strategy above to **Bin Pack**. Run them and observe the scheduler packing pods onto <code>worker-01</code> before utilizing others.</p>
+              </div>
+              <button onclick="loadScenario(3)" class="mt-3 text-left text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                Start Scenario <i data-lucide="arrow-right" class="h-3 w-3"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN GRID PANELS -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      
+      <!-- LEFT COLUMN: POD BUILDER & QUEUES (5 COLS) -->
+      <div class="lg:col-span-5 flex flex-col gap-6">
+        
+        <!-- Pod Creator Card -->
+        <div class="glass-panel p-5 rounded-2xl">
+          <h2 class="text-md font-bold text-white flex items-center gap-2 mb-1">
+            <i data-lucide="plus-circle" class="h-5 w-5 text-indigo-400"></i> Workload Configurator
+          </h2>
+          <p class="text-[11px] text-slate-400 mb-4">Define a new container pod request or select an educational preset template.</p>
+          
+          <div class="flex flex-col gap-4">
+            <!-- Preset templates selection -->
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Preset Templates</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="loadTemplate('api')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-xs font-medium transition text-left flex flex-col">
+                  <span class="font-bold text-slate-200">PCI Payment API</span>
+                  <span class="text-[10px] text-slate-400">Hard Node Affinity</span>
+                </button>
+                <button onclick="loadTemplate('web')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-xs font-medium transition text-left flex flex-col">
+                  <span class="font-bold text-slate-200">Web Frontend</span>
+                  <span class="text-[10px] text-slate-400">HA Host Anti-Affinity</span>
+                </button>
+                <button onclick="loadTemplate('gpu')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-xs font-medium transition text-left flex flex-col">
+                  <span class="font-bold text-slate-200">GPU ML Trainer</span>
+                  <span class="text-[10px] text-slate-400">Toleration + GPU Node</span>
+                </button>
+                <button onclick="loadTemplate('cache')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-xs font-medium transition text-left flex flex-col">
+                  <span class="font-bold text-slate-200">Redis Cache</span>
+                  <span class="text-[10px] text-slate-400">Co-locate with Frontend</span>
+                </button>
+              </div>
+            </div>
+
+            <hr class="border-slate-800/80 my-1">
+
+            <!-- Custom pod attributes -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase">Pod Name Prefix</label>
+                <input type="text" id="pod-name-input" value="custom-pod" class="w-full bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase">Priority Class</label>
+                <select id="pod-priority-input" class="w-full bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-indigo-500">
+                  <option value="0">0 (Standard Class)</option>
+                  <option value="100">100 (Medium Class)</option>
+                  <option value="1000">1000 (SystemCritical)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase">CPU Request (Units)</label>
+                <input type="number" id="pod-cpu-input" value="1" min="1" max="4" class="w-full bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase">Memory Request (GiB)</label>
+                <input type="number" id="pod-mem-input" value="2" min="1" max="8" class="w-full bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500">
+              </div>
+            </div>
+
+            <!-- Affinity Rules Configuration -->
+            <div class="border border-slate-800/80 p-3 rounded-lg bg-slate-950/40 flex flex-col gap-2">
+              <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <i data-lucide="settings" class="h-3 w-3"></i> Scheduler Rules & Constraints
+              </h4>
+              <div class="flex flex-col gap-2 text-xs">
+                <label class="flex items-start gap-2 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="chk-node-aff" class="mt-0.5 rounded border-slate-800 accent-indigo-500">
+                  <div class="flex flex-col">
+                    <span class="font-semibold">Node Affinity (PCI compliant)</span>
+                    <span class="text-[9px] text-slate-500 font-mono">security-zone=pci-compliant</span>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="chk-host-anti" class="mt-0.5 rounded border-slate-800 accent-indigo-500">
+                  <div class="flex flex-col">
+                    <span class="font-semibold">Pod Anti-Affinity (Separate Host)</span>
+                    <span class="text-[9px] text-slate-500 font-mono">Repel nodes running app=web-frontend</span>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="chk-pod-aff" class="mt-0.5 rounded border-slate-800 accent-indigo-500">
+                  <div class="flex flex-col">
+                    <span class="font-semibold">Pod Affinity (Co-locate on Host)</span>
+                    <span class="text-[9px] text-slate-500 font-mono">Must land on nodes running app=web-frontend</span>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2 text-slate-300 cursor-pointer">
+                  <input type="checkbox" id="chk-toleration" class="mt-0.5 rounded border-slate-800 accent-indigo-500">
+                  <div class="flex flex-col">
+                    <span class="font-semibold">Tolerate GPU Taint</span>
+                    <span class="text-[9px] text-slate-500 font-mono">Tolerates hardware=gpu:NoSchedule</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <button onclick="submitPod()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-xs font-semibold shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 transition flex items-center justify-center gap-2">
+              <i data-lucide="plus-circle" class="h-4 w-4"></i> Submit to Scheduling Queue
+            </button>
+          </div>
+        </div>
+
+        <!-- Scheduling Queue Viewer -->
+        <div class="glass-panel p-5 rounded-2xl flex-1 flex flex-col min-h-[250px]">
+          <div class="flex justify-between items-center mb-1">
+            <h2 class="text-md font-bold text-white flex items-center gap-2">
+              <i data-lucide="layers" class="h-5 w-5 text-indigo-400"></i> Scheduling Queue (ActiveQ)
+            </h2>
+            <span class="text-xs bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300 font-mono" id="queue-size">0 Pods</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mb-3">Pods lined up in the priority heap, waiting for a node assignment.</p>
+          
+          <div class="flex-1 overflow-y-auto scrollbar border border-slate-800 bg-slate-950/40 rounded-xl p-3 flex flex-col gap-2" id="queue-container">
+            <!-- Queued Pod Items appear here -->
+            <div class="text-center py-6 text-slate-500 text-xs italic" id="empty-queue-msg">Queue empty. Load templates above to get started.</div>
+          </div>
+          
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <button onclick="stepSchedule()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20" id="btn-step">
+              <i data-lucide="play" class="h-4 w-4"></i> Run Scheduler Step
+            </button>
+            <button onclick="clearQueue()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2.5 rounded-lg text-xs font-medium border border-slate-700 transition">
+              Clear Queue
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: TOPOLOGY MATRIX, LIVE SCORECARD & LOG CONSOLE (7 COLS) -->
+      <div class="lg:col-span-7 flex flex-col gap-6">
+        
+        <!-- Scheduling Strategy & Metrics Dashboard -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="glass-panel p-4 rounded-xl flex flex-col justify-between">
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">1. Scoring Strategy</span>
+            <select id="strategy-select" onchange="changeStrategy()" class="bg-slate-900 text-xs text-emerald-400 font-bold border-none focus:ring-0 cursor-pointer mt-1.5 p-1 rounded border border-slate-850">
+              <option value="spread">LEAST ALLOCATED (Spread)</option>
+              <option value="binpack">MOST ALLOCATED (Bin Pack)</option>
+            </select>
+            <span class="text-[9px] text-slate-500 mt-1" id="strategy-desc">LeastAllocated spreads pods to avoid hotspots.</span>
+          </div>
+          <div class="glass-panel p-4 rounded-xl flex flex-col justify-between">
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">2. Node Cluster Registry</span>
+            <span class="text-md font-bold mt-1.5 text-emerald-400 glowing-text-emerald" id="nodes-running-badge">5 / 5 NODES READY</span>
+            <span class="text-[9px] text-slate-500">Nodes tracking CPU/Mem allocations.</span>
+          </div>
+          <div class="glass-panel p-4 rounded-xl flex flex-col justify-between">
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">3. Workload Registry</span>
+            <span class="text-md font-bold mt-1.5 text-indigo-400" id="pods-running-badge">0 Active Pods</span>
+            <span class="text-[9px] text-slate-500">Pods successfully running.</span>
+          </div>
+        </div>
+
+        <!-- Node Topology Map -->
+        <div class="glass-panel p-5 rounded-2xl">
+          <div class="flex flex-col md:flex-row justify-between md:items-center gap-2 mb-4">
+            <div>
+              <h2 class="text-md font-bold text-white flex items-center gap-2">
+                <i data-lucide="network" class="h-5 w-5 text-indigo-400"></i> Cluster Node Placement Topology
+              </h2>
+              <p class="text-xs text-slate-400">Nodes sorted across 3 availability zones. Click any node card to fail it or inject taints.</p>
+            </div>
+            <span class="self-start md:self-auto text-xs bg-indigo-950 text-indigo-300 border border-indigo-900/60 px-2 py-0.5 rounded font-mono">
+              Region: us-east-1
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="nodes-grid">
+            <!-- Zone cols will be rendered here dynamically -->
+          </div>
+        </div>
+
+        <!-- Live Scheduler Scorecard -->
+        <div class="glass-panel p-5 rounded-2xl hidden border border-indigo-500/20" id="scorecard-panel">
+          <div class="flex justify-between items-center mb-1">
+            <h2 class="text-md font-bold text-white flex items-center gap-2">
+              <i data-lucide="award" class="h-5 w-5 text-indigo-400"></i> Live Decision Scorecard
+            </h2>
+            <span class="text-xs bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300 font-mono" id="scorecard-pod-name">pod-name</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mb-3">Live filtering predicates and scoring priority weights calculated for the current pod.</p>
+          
+          <div class="overflow-x-auto scrollbar">
+            <table class="w-full text-left border-collapse text-xs text-slate-300">
+              <thead>
+                <tr class="border-b border-slate-800 font-semibold text-slate-400">
+                  <th class="py-2 pr-2">Node Name</th>
+                  <th class="py-2 pr-2">Filtering Predicates</th>
+                  <th class="py-2 pr-2">Scoring Points breakdown</th>
+                  <th class="py-2 text-right">Decision</th>
+                </tr>
+              </thead>
+              <tbody id="scorecard-body">
+                <!-- Score rows appear here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Real-Time Log Console -->
+        <div class="glass-panel rounded-2xl flex flex-col overflow-hidden h-[300px] border border-slate-800">
+          <div class="bg-slate-900 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+              <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+              <span class="text-xs font-semibold text-slate-300 font-mono">kube-scheduler-control-plane.log</span>
+            </div>
+            <button onclick="clearConsole()" class="text-[10px] text-slate-400 hover:text-slate-200 bg-slate-800 px-2 py-0.5 rounded">Clear Logs</button>
+          </div>
+          
+          <div class="flex-1 p-4 monospace text-xs text-slate-300 overflow-y-auto scrollbar flex flex-col gap-1.5" id="console-logs">
+            <!-- Logs appear here -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Node Modal Configurator overlay -->
+  <div id="node-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm flex flex-col gap-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-md font-bold text-white" id="modal-node-title">Node Actions</h3>
+        <button onclick="closeNodeModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <p class="text-xs text-slate-400" id="modal-node-desc">Toggle states, taints, and labels on this node to test scheduler reactions.</p>
+      
+      <div class="flex flex-col gap-3">
+        <button onclick="toggleNodeFail()" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2.5 rounded-lg text-xs font-semibold transition flex justify-between items-center" id="btn-node-fail">
+          <div class="flex flex-col">
+            <span>Toggle Active State</span>
+            <span class="text-[9px] text-slate-500 font-normal">Offline nodes are immediately marked Unschedulable.</span>
+          </div>
+          <span id="modal-active-status" class="h-2.5 w-2.5 rounded-full bg-green-500"></span>
+        </button>
+        <button onclick="togglePCICompliance()" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2.5 rounded-lg text-xs font-semibold transition flex justify-between items-center">
+          <div class="flex flex-col">
+            <span>PCI DSS Label</span>
+            <span class="text-[9px] text-slate-500 font-normal">Toggles key node selector label.</span>
+          </div>
+          <span id="modal-pci-status" class="text-[10px] text-slate-400 font-mono">security-zone=pci</span>
+        </button>
+        <button onclick="toggleGPUTaint()" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2.5 rounded-lg text-xs font-semibold transition flex justify-between items-center" id="btn-gpu-taint">
+          <div class="flex flex-col">
+            <span>GPU Taint</span>
+            <span class="text-[9px] text-slate-500 font-normal">Adds key/effect hardware=gpu:NoSchedule.</span>
+          </div>
+          <span id="modal-gpu-status" class="text-[10px] text-slate-400">Injected</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simulator State
+    let queue = [];
+    let scheduledPods = [];
+    let schedulerStrategy = "spread"; // spread or binpack
+
+    let nodes = [
+      { id: 1, name: 'worker-01', zone: 'us-east-1a', cpuCap: 4, memCap: 8, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'security-zone': 'pci-compliant', 'disk-type': 'ssd' }, taints: [] },
+      { id: 2, name: 'worker-02', zone: 'us-east-1a', cpuCap: 4, memCap: 8, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'disk-type': 'ssd' }, taints: [] },
+      { id: 3, name: 'worker-gpu-01', zone: 'us-east-1b', cpuCap: 8, memCap: 16, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'hardware': 'gpu' }, taints: [{ key: 'hardware', value: 'gpu', effect: 'NoSchedule' }] },
+      { id: 4, name: 'worker-03', zone: 'us-east-1b', cpuCap: 4, memCap: 8, cpuAlloc: 0, memAlloc: 0, active: true, labels: {}, taints: [] },
+      { id: 5, name: 'worker-04', zone: 'us-east-1c', cpuCap: 8, memCap: 16, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'security-zone': 'pci-compliant' }, taints: [] }
+    ];
+
+    let selectedNodeId = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      logToConsole("INFO", "Kubernetes scheduling control plane bootstrap initialized.");
+      logToConsole("INFO", "Watching ActiveQ heap. Default algorithm configured: LeastAllocated spreading.");
+      renderTopology();
+      updateBadges();
+    });
+
+    function logToConsole(level, message) {
+      const consoleBox = document.getElementById("console-logs");
+      const timeStr = new Date().toLocaleTimeString();
+      let colorClass = "text-slate-400";
+      
+      if (level === "ERROR") colorClass = "text-rose-400 font-semibold";
+      else if (level === "WARN") colorClass = "text-amber-400";
+      else if (level === "INFO") colorClass = "text-slate-300";
+      else if (level === "SUCCESS") colorClass = "text-emerald-400 font-medium";
+
+      const line = document.createElement("div");
+      line.className = `${colorClass} leading-relaxed`;
+      line.innerHTML = `<span class="text-slate-500 font-mono">[${timeStr}]</span> <span class="text-indigo-400 font-semibold">[${level}]</span> ${message}`;
+      consoleBox.appendChild(line);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById("console-logs").innerHTML = "";
+    }
+
+    function renderTopology() {
+      const zones = { 'us-east-1a': [], 'us-east-1b': [], 'us-east-1c': [] };
+      nodes.forEach(node => {
+        zones[node.zone].push(node);
+      });
+
+      const container = document.getElementById("nodes-grid");
+      container.innerHTML = "";
+
+      for (const [zoneName, zoneNodes] of Object.entries(zones)) {
+        const col = document.createElement("div");
+        col.className = "border border-slate-800 bg-slate-950/20 rounded-xl p-3 flex flex-col gap-3";
+        
+        col.innerHTML = `
+          <div class="flex justify-between items-center border-b border-slate-800/80 pb-1.5 mb-1">
+            <span class="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5">
+              <span class="h-2 w-2 rounded-full bg-emerald-500"></span> ${zoneName}
+            </span>
+          </div>
+        `;
+
+        zoneNodes.forEach(node => {
+          const cpuPct = Math.round((node.cpuAlloc / node.cpuCap) * 100);
+          const memPct = Math.round((node.memAlloc / node.memCap) * 100);
+          const activeClass = node.active ? "border-slate-800 hover:border-indigo-500/50 bg-slate-900/60" : "border-rose-900 bg-rose-950/10 opacity-60";
+          
+          let labelsHtml = "";
+          Object.entries(node.labels).forEach(([k, v]) => {
+            labelsHtml += `<span class="bg-indigo-950/80 text-indigo-300 border border-indigo-900/40 text-[9px] px-1 py-0.2 rounded font-mono">${k}=${v}</span> `;
+          });
+
+          let taintsHtml = "";
+          node.taints.forEach(t => {
+            taintsHtml += `<span class="bg-rose-950/80 text-rose-300 border border-rose-900/40 text-[9px] px-1 py-0.2 rounded font-mono">${t.key}=${t.value}:${t.effect}</span> `;
+          });
+
+          let podsHtml = "";
+          const nodePods = scheduledPods.filter(p => p.nodeId === node.id);
+          nodePods.forEach(p => {
+            podsHtml += `
+              <div class="bg-slate-950 border border-slate-800 rounded p-1.5 flex items-center justify-between text-[10px] font-mono mt-1 text-slate-300">
+                <span class="flex items-center gap-1"><i data-lucide="box" class="h-3 w-3 text-indigo-400"></i> ${p.name}</span>
+                <span class="text-slate-500 text-[8px]">${p.cpu}c/${p.mem}G</span>
+              </div>
+            `;
+          });
+
+          const nodeEl = document.createElement("div");
+          nodeEl.className = `border p-3.5 rounded-lg flex flex-col gap-2 cursor-pointer transition ${activeClass}`;
+          nodeEl.onclick = () => openNodeModal(node.id);
+          nodeEl.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold ${node.active ? 'text-slate-200' : 'text-rose-400'}">${node.name}</span>
+              <span class="text-[9px] px-1.5 py-0.2 rounded ${node.active ? 'bg-slate-800 text-slate-300' : 'bg-rose-900 text-rose-200'}">${node.active ? 'READY' : 'OFFLINE'}</span>
+            </div>
+            
+            <div class="flex flex-col gap-1 mt-1 text-[10px]">
+              <div class="flex justify-between">
+                <span class="text-slate-400">CPU Allocation:</span>
+                <span class="font-bold font-mono">${node.cpuAlloc} / ${node.cpuCap} (${cpuPct}%)</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-1">
+                <div class="bg-indigo-500 h-1 rounded-full" style="width: ${cpuPct}%"></div>
+              </div>
+
+              <div class="flex justify-between mt-1">
+                <span class="text-slate-400">Memory Allocation:</span>
+                <span class="font-bold font-mono">${node.memAlloc}G / ${node.memCap}G (${memPct}%)</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-1">
+                <div class="bg-indigo-500 h-1 rounded-full" style="width: ${memPct}%"></div>
+              </div>
+            </div>
+
+            ${labelsHtml ? `<div class="flex flex-wrap gap-1 mt-1">${labelsHtml}</div>` : ''}
+            ${taintsHtml ? `<div class="flex flex-wrap gap-1 mt-1">${taintsHtml}</div>` : ''}
+
+            ${podsHtml ? `<div class="mt-2 border-t border-slate-800/80 pt-2"><div class="text-[9px] font-semibold text-slate-500 mb-1 uppercase">Running Pods</div>${podsHtml}</div>` : ''}
+          `;
+
+          col.appendChild(nodeEl);
+        });
+
+        container.appendChild(col);
+      }
+      lucide.createIcons();
+    }
+
+    function openNodeModal(nodeId) {
+      selectedNodeId = nodeId;
+      const node = nodes.find(n => n.id === nodeId);
+      document.getElementById("modal-node-title").innerText = `Configure ${node.name}`;
+      
+      const activeIndicator = document.getElementById("modal-active-status");
+      activeIndicator.className = node.active ? "h-2.5 w-2.5 rounded-full bg-green-500" : "h-2.5 w-2.5 rounded-full bg-red-500";
+      
+      const hasPCI = node.labels['security-zone'] === 'pci-compliant';
+      document.getElementById("modal-pci-status").innerText = hasPCI ? "security-zone=pci-compliant" : "None";
+      document.getElementById("modal-pci-status").className = hasPCI ? "text-[9px] bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded font-mono" : "text-xs text-slate-500";
+      
+      const hasGPU = node.taints.some(t => t.key === 'hardware' && t.value === 'gpu');
+      document.getElementById("modal-gpu-status").innerText = hasGPU ? "Injected (NoSchedule)" : "None";
+      document.getElementById("modal-gpu-status").className = hasGPU ? "text-[9px] bg-rose-950 text-rose-300 px-1.5 py-0.5 rounded font-mono" : "text-xs text-slate-500";
+
+      document.getElementById("node-modal").classList.remove("hidden");
+    }
+
+    function closeNodeModal() {
+      document.getElementById("node-modal").classList.add("hidden");
+      selectedNodeId = null;
+    }
+
+    function toggleNodeFail() {
+      if (selectedNodeId) {
+        const node = nodes.find(n => n.id === selectedNodeId);
+        node.active = !node.active;
+        if (!node.active) {
+          logToConsole("WARN", `Node ${node.name} marked OFFLINE. Evicting ${scheduledPods.filter(p => p.nodeId === node.id).length} pods.`);
+          // Evict pods running on this node
+          const evicted = scheduledPods.filter(p => p.nodeId === node.id);
+          scheduledPods = scheduledPods.filter(p => p.nodeId !== node.id);
+          node.cpuAlloc = 0;
+          node.memAlloc = 0;
+          
+          evicted.forEach(p => {
+            logToConsole("INFO", `Re-queueing pod ${p.name} from failed node.`);
+            queue.push({
+              name: p.name,
+              cpu: p.cpu,
+              mem: p.mem,
+              priority: p.priority,
+              nodeAffinity: p.nodeAffinity,
+              hostAntiAffinity: p.hostAntiAffinity,
+              podAffinity: p.podAffinity,
+              toleration: p.toleration
+            });
+          });
+        } else {
+          logToConsole("SUCCESS", `Node ${node.name} recovered. Re-entering scheduling ready cache.`);
+        }
+        renderTopology();
+        renderQueue();
+        updateBadges();
+        closeNodeModal();
+      }
+    }
+
+    function togglePCICompliance() {
+      if (selectedNodeId) {
+        const node = nodes.find(n => n.id === selectedNodeId);
+        if (node.labels['security-zone'] === 'pci-compliant') {
+          delete node.labels['security-zone'];
+          logToConsole("INFO", `Removed 'security-zone=pci-compliant' label from ${node.name}.`);
+        } else {
+          node.labels['security-zone'] = 'pci-compliant';
+          logToConsole("INFO", `Added 'security-zone=pci-compliant' label to ${node.name}.`);
+        }
+        renderTopology();
+        closeNodeModal();
+      }
+    }
+
+    function toggleGPUTaint() {
+      if (selectedNodeId) {
+        const node = nodes.find(n => n.id === selectedNodeId);
+        const idx = node.taints.findIndex(t => t.key === 'hardware' && t.value === 'gpu');
+        if (idx >= 0) {
+          node.taints.splice(idx, 1);
+          logToConsole("INFO", `Removed hardware=gpu:NoSchedule taint from ${node.name}.`);
+        } else {
+          node.taints.push({ key: 'hardware', value: 'gpu', effect: 'NoSchedule' });
+          logToConsole("WARN", `Injected hardware=gpu:NoSchedule taint onto ${node.name}.`);
+        }
+        renderTopology();
+        closeNodeModal();
+      }
+    }
+
+    function loadTemplate(type) {
+      if (type === 'api') {
+        document.getElementById("pod-name-input").value = "payment-api";
+        document.getElementById("pod-cpu-input").value = 1;
+        document.getElementById("pod-mem-input").value = 2;
+        document.getElementById("chk-node-aff").checked = true;
+        document.getElementById("chk-host-anti").checked = false;
+        document.getElementById("chk-pod-aff").checked = false;
+        document.getElementById("chk-toleration").checked = false;
+      } else if (type === 'web') {
+        document.getElementById("pod-name-input").value = "web-frontend";
+        document.getElementById("pod-cpu-input").value = 1;
+        document.getElementById("pod-mem-input").value = 1;
+        document.getElementById("chk-node-aff").checked = false;
+        document.getElementById("chk-host-anti").checked = true;
+        document.getElementById("chk-pod-aff").checked = false;
+        document.getElementById("chk-toleration").checked = false;
+      } else if (type === 'gpu') {
+        document.getElementById("pod-name-input").value = "gpu-trainer";
+        document.getElementById("pod-cpu-input").value = 2;
+        document.getElementById("pod-mem-input").value = 4;
+        document.getElementById("chk-node-aff").checked = false;
+        document.getElementById("chk-host-anti").checked = false;
+        document.getElementById("chk-pod-aff").checked = false;
+        document.getElementById("chk-toleration").checked = true;
+      } else if (type === 'cache') {
+        document.getElementById("pod-name-input").value = "cache-redis";
+        document.getElementById("pod-cpu-input").value = 1;
+        document.getElementById("pod-mem-input").value = 1;
+        document.getElementById("chk-node-aff").checked = false;
+        document.getElementById("chk-host-anti").checked = false;
+        document.getElementById("chk-pod-aff").checked = true;
+        document.getElementById("chk-toleration").checked = false;
+      }
+    }
+
+    function loadScenario(num) {
+      resetSimulator();
+      if (num === 1) {
+        logToConsole("INFO", "Scenario 1 Initialized: Loading GPU ML Trainer workload.");
+        loadTemplate('gpu');
+        submitPod();
+      } else if (num === 2) {
+        logToConsole("INFO", "Scenario 2 Initialized: Submitting 4 Web Frontends with Host Anti-Affinity constraints.");
+        loadTemplate('web');
+        submitPod();
+        submitPod();
+        submitPod();
+        submitPod();
+      } else if (num === 3) {
+        logToConsole("INFO", "Scenario 3 Initialized: Switch to Bin Pack scoring. Submitting default pods.");
+        document.getElementById("strategy-select").value = "binpack";
+        changeStrategy();
+        document.getElementById("pod-name-input").value = "general-worker";
+        document.getElementById("pod-cpu-input").value = 1;
+        document.getElementById("pod-mem-input").value = 1;
+        document.getElementById("chk-node-aff").checked = false;
+        document.getElementById("chk-host-anti").checked = false;
+        document.getElementById("chk-pod-aff").checked = false;
+        document.getElementById("chk-toleration").checked = false;
+        submitPod();
+        submitPod();
+        submitPod();
+      }
+    }
+
+    function submitPod() {
+      const name = document.getElementById("pod-name-input").value.trim();
+      const cpu = parseInt(document.getElementById("pod-cpu-input").value);
+      const mem = parseInt(document.getElementById("pod-mem-input").value);
+      const priority = parseInt(document.getElementById("pod-priority-input").value);
+
+      const nodeAffinity = document.getElementById("chk-node-aff").checked;
+      const hostAntiAffinity = document.getElementById("chk-host-anti").checked;
+      const podAffinity = document.getElementById("chk-pod-aff").checked;
+      const toleration = document.getElementById("chk-toleration").checked;
+
+      if (!name) return;
+
+      const newPod = {
+        name: `${name}-${Math.round(Math.random() * 1000)}`,
+        cpu,
+        mem,
+        priority,
+        nodeAffinity,
+        hostAntiAffinity,
+        podAffinity,
+        toleration
+      };
+
+      queue.push(newPod);
+      queue.sort((a, b) => b.priority - a.priority);
+
+      logToConsole("INFO", `Pod ${newPod.name} (Priority: ${priority}) submitted to Scheduling Queue.`);
+      renderQueue();
+      updateBadges();
+    }
+
+    function renderQueue() {
+      const container = document.getElementById("queue-container");
+      const emptyMsg = document.getElementById("empty-queue-msg");
+
+      if (queue.length === 0) {
+        container.innerHTML = "";
+        container.appendChild(emptyMsg);
+        emptyMsg.classList.remove("hidden");
+        return;
+      }
+
+      emptyMsg.classList.add("hidden");
+      container.innerHTML = "";
+
+      queue.forEach((pod, idx) => {
+        const item = document.createElement("div");
+        item.className = "bg-slate-900 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between text-xs transition duration-300";
+        
+        let details = [];
+        if (pod.nodeAffinity) details.push("NodeAff");
+        if (pod.hostAntiAffinity) details.push("AntiAff");
+        if (pod.podAffinity) details.push("PodAff");
+        if (pod.toleration) details.push("Tol(gpu)");
+
+        item.innerHTML = `
+          <div class="flex flex-col">
+            <span class="font-bold text-slate-200 font-mono">${pod.name}</span>
+            <span class="text-[10px] text-slate-400">CPU: ${pod.cpu}c | Mem: ${pod.mem}G | Priority: ${pod.priority}</span>
+            ${details.length ? `<span class="text-[9px] font-mono text-indigo-400 mt-1">${details.join(', ')}</span>` : ''}
+          </div>
+          <button onclick="removeQueuedPod(${idx})" class="text-slate-500 hover:text-rose-400 transition"><i data-lucide="trash" class="h-3.5 w-3.5"></i></button>
+        `;
+        container.appendChild(item);
+      });
+      lucide.createIcons();
+    }
+
+    function removeQueuedPod(index) {
+      const removed = queue.splice(index, 1);
+      logToConsole("INFO", `Pod ${removed[0].name} removed from queue.`);
+      renderQueue();
+      updateBadges();
+    }
+
+    function clearQueue() {
+      queue = [];
+      logToConsole("INFO", "ActiveQ cleared.");
+      renderQueue();
+      updateBadges();
+    }
+
+    function changeStrategy() {
+      schedulerStrategy = document.getElementById("strategy-select").value;
+      const desc = document.getElementById("strategy-desc");
+      if (schedulerStrategy === 'spread') {
+        desc.innerText = "LeastAllocated spreads pods to avoid hotspots.";
+      } else {
+        desc.innerText = "MostAllocated bin-packs pods to maximize node usage.";
+      }
+      logToConsole("INFO", `Scheduler strategy changed to ${schedulerStrategy === 'spread' ? 'LeastAllocated Spreading' : 'MostAllocated Bin Packing'}.`);
+    }
+
+    function updateBadges() {
+      document.getElementById("queue-size").innerText = `${queue.length} Pods`;
+      document.getElementById("nodes-running-badge").innerText = `${nodes.filter(n => n.active).length} / 5 NODES READY`;
+      document.getElementById("pods-running-badge").innerText = `${scheduledPods.length} Active Pods`;
+    }
+
+    // SCHEDULER LOGIC CORE
+    function stepSchedule() {
+      if (queue.length === 0) {
+        logToConsole("WARN", "Scheduling request bypassed: Queue is empty.");
+        return;
+      }
+
+      // Pop pod
+      const pod = queue[0];
+      logToConsole("INFO", `Pop pod ${pod.name} from ActiveQ. Initiating scheduling cycle.`);
+
+      // 1. FILTERING (PREDICATES)
+      let scorecard = [];
+      let feasibleNodes = [];
+
+      nodes.forEach(node => {
+        let reasons = [];
+        let details = [];
+        let passed = true;
+
+        if (!node.active) {
+          passed = false;
+          reasons.push("NodeOffline");
+          details.push("Node is offline (simulated node outage)");
+        }
+
+        // CPU Check
+        const freeCPU = node.cpuCap - node.cpuAlloc;
+        if (node.active && (freeCPU < pod.cpu)) {
+          passed = false;
+          reasons.push("InsufficientCPU");
+          details.push(`Insufficient CPU (Has: ${freeCPU}c, Requests: ${pod.cpu}c)`);
+        }
+
+        // Memory Check
+        const freeMem = node.memCap - node.memAlloc;
+        if (node.active && (freeMem < pod.mem)) {
+          passed = false;
+          reasons.push("InsufficientMemory");
+          details.push(`Insufficient memory (Has: ${freeMem}G, Requests: ${pod.mem}G)`);
+        }
+
+        // Node Taints & Tolerations Check
+        if (node.active) {
+          node.taints.forEach(taint => {
+            if (taint.effect === 'NoSchedule') {
+              if (!pod.toleration || taint.key !== 'hardware' || taint.value !== 'gpu') {
+                passed = false;
+                reasons.push("UntoleratedTaint");
+                details.push(`Untolerated Taint: ${taint.key}=${taint.value}:${taint.effect}`);
+              }
+            }
+          });
+        }
+
+        // Node Affinity Check
+        if (node.active && pod.nodeAffinity) {
+          if (node.labels['security-zone'] !== 'pci-compliant') {
+            passed = false;
+            reasons.push("NodeAffinityMismatch");
+            details.push("Node security-zone is not pci-compliant");
+          }
+        }
+
+        // Pod Anti-Affinity Check
+        if (node.active && pod.hostAntiAffinity) {
+          const matchingPods = scheduledPods.filter(p => p.nodeId === node.id && p.name.includes("web-frontend"));
+          if (matchingPods.length > 0) {
+            passed = false;
+            reasons.push("PodAntiAffinityConflict");
+            details.push(`Node already running a web-frontend replica (anti-affinity rule)`);
+          }
+        }
+
+        // Pod Affinity Check
+        if (node.active && pod.podAffinity) {
+          const matchingPods = scheduledPods.filter(p => p.nodeId === node.id && p.name.includes("web-frontend"));
+          if (matchingPods.length === 0) {
+            passed = false;
+            reasons.push("PodAffinityUnsatisfied");
+            details.push(`No active web-frontend pods running on this host (co-location required)`);
+          }
+        }
+
+        scorecard.push({
+          nodeId: node.id,
+          name: node.name,
+          passed: passed,
+          reasons: reasons,
+          details: details,
+          scores: {}
+        });
+
+        if (passed) {
+          feasibleNodes.push(node);
+          logToConsole("INFO", `[PREDICATE PASS] Node ${node.name} is feasible for ${pod.name}.`);
+        } else {
+          logToConsole("WARN", `[PREDICATE REJECT] Node ${node.name} rejected. Reasons: ${details.join(', ')}.`);
+        }
+      });
+
+      // Show scorecard panel
+      document.getElementById("scorecard-panel").classList.remove("hidden");
+      document.getElementById("scorecard-pod-name").innerText = pod.name;
+
+      if (feasibleNodes.length === 0) {
+        logToConsole("ERROR", `FailedScheduling: Pod ${pod.name} is unschedulable. 0/${nodes.length} nodes feasible.`);
+        renderScorecard(scorecard);
+        // Move to bottom of queue
+        queue.push(queue.shift());
+        renderQueue();
+        return;
+      }
+
+      // 2. SCORING (PRIORITIES)
+      feasibleNodes.forEach(node => {
+        let scores = {
+          resourceUsage: 0,
+          affinityScore: 0,
+          localityScore: 0
+        };
+
+        const cpuAllocPct = node.cpuAlloc / node.cpuCap;
+        const memAllocPct = node.memAlloc / node.memCap;
+
+        // Spread vs BinPacking resources math
+        if (schedulerStrategy === "spread") {
+          scores.resourceUsage = Math.round(((1 - cpuAllocPct) + (1 - memAllocPct)) * 50);
+          logToConsole("INFO", `[SCORING] Node ${node.name} scored +${scores.resourceUsage} resource usage (LeastAllocated strategy).`);
+        } else {
+          scores.resourceUsage = Math.round((cpuAllocPct + memAllocPct) * 50);
+          logToConsole("INFO", `[SCORING] Node ${node.name} scored +${scores.resourceUsage} resource usage (MostAllocated bin-packing strategy).`);
+        }
+
+        // Image locality / SSD mock check
+        if (node.labels['disk-type'] === 'ssd') {
+          scores.localityScore = 30;
+          logToConsole("INFO", `[SCORING] Node ${node.name} scored +30 points due to SSD storage locality matching.`);
+        }
+
+        // PCI selection preference
+        if (pod.nodeAffinity && node.labels['security-zone'] === 'pci-compliant') {
+          scores.affinityScore = 20;
+          logToConsole("INFO", `[SCORING] Node ${node.name} scored +20 points for satisfying NodeAffinity selectors.`);
+        }
+
+        const totalScore = scores.resourceUsage + scores.localityScore + scores.affinityScore;
+        
+        const scoreRow = scorecard.find(s => s.nodeId === node.id);
+        scoreRow.scores = scores;
+        scoreRow.totalScore = totalScore;
+      });
+
+      renderScorecard(scorecard);
+
+      // Select highest score node
+      let targetNode = null;
+      let highestScore = -1;
+
+      feasibleNodes.forEach(node => {
+        const row = scorecard.find(s => s.nodeId === node.id);
+        if (row.totalScore > highestScore) {
+          highestScore = row.totalScore;
+          targetNode = node;
+        }
+      });
+
+      // 3. BINDING AND RESERVING
+      if (targetNode) {
+        // Reserve resource in cache
+        targetNode.cpuAlloc += pod.cpu;
+        targetNode.memAlloc += pod.mem;
+        
+        // Bind pod metadata
+        pod.nodeId = targetNode.id;
+        scheduledPods.push(pod);
+        
+        // Remove from queue
+        queue.shift();
+
+        logToConsole("SUCCESS", `[BIND COMPLETE] Assigned ${pod.name} to Node ${targetNode.name} (Evaluated total score: ${highestScore} points).`);
+        renderTopology();
+        renderQueue();
+        updateBadges();
+      }
+    }
+
+    function renderScorecard(scorecard) {
+      const tbody = document.getElementById("scorecard-body");
+      tbody.innerHTML = "";
+
+      scorecard.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800/80 hover:bg-slate-900/40";
+        
+        let filterHtml = "";
+        if (row.passed) {
+          filterHtml = `<span class="text-emerald-400 font-semibold flex items-center gap-1"><i data-lucide="check" class="h-3.5 w-3.5"></i> Passed predicates</span>`;
+        } else {
+          filterHtml = `
+            <div class="flex flex-col">
+              <span class="text-rose-400 font-semibold flex items-center gap-1"><i data-lucide="x" class="h-3.5 w-3.5"></i> Rejected Filter</span>
+              <span class="text-[9px] text-rose-300 font-mono mt-0.5">${row.details.join(', ')}</span>
+            </div>
+          `;
+        }
+
+        let scoreHtml = "";
+        if (row.passed) {
+          scoreHtml = `
+            <div class="flex flex-col text-[10px] text-slate-400 font-mono">
+              <span>Resource Fit: +${row.scores.resourceUsage}</span>
+              <span>Affinity: +${row.scores.affinityScore}</span>
+              <span>SSD disk: +${row.scores.localityScore}</span>
+              <span class="font-bold text-slate-200 mt-1">Total: ${row.totalScore} pts</span>
+            </div>
+          `;
+        } else {
+          scoreHtml = `<span class="text-slate-500 font-mono">Excluded from scoring</span>`;
+        }
+
+        let resultHtml = "";
+        if (row.passed) {
+          resultHtml = `<span class="text-emerald-400 font-mono text-right font-bold text-md">${row.totalScore} pts</span>`;
+        } else {
+          resultHtml = `<span class="text-rose-500 font-mono text-right font-bold uppercase text-[10px]">FAILED FILTER</span>`;
+        }
+
+        tr.innerHTML = `
+          <td class="py-3 pr-2 font-semibold text-slate-200">${row.name}</td>
+          <td class="py-3 pr-2">${filterHtml}</td>
+          <td class="py-3 pr-2">${scoreHtml}</td>
+          <td class="py-3 text-right">${resultHtml}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    function resetSimulator() {
+      queue = [];
+      scheduledPods = [];
+      
+      nodes = [
+        { id: 1, name: 'worker-01', zone: 'us-east-1a', cpuCap: 4, memCap: 8, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'security-zone': 'pci-compliant', 'disk-type': 'ssd' }, taints: [] },
+        { id: 2, name: 'worker-02', zone: 'us-east-1a', cpuCap: 4, memCap: 8, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'disk-type': 'ssd' }, taints: [] },
+        { id: 3, name: 'worker-gpu-01', zone: 'us-east-1b', cpuCap: 8, memCap: 16, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'hardware': 'gpu' }, taints: [{ key: 'hardware', value: 'gpu', effect: 'NoSchedule' }] },
+        { id: 4, name: 'worker-03', zone: 'us-east-1b', cpuCap: 4, memCap: 8, cpuAlloc: 0, memAlloc: 0, active: true, labels: {}, taints: [] },
+        { id: 5, name: 'worker-04', zone: 'us-east-1c', cpuCap: 8, memCap: 16, cpuAlloc: 0, memAlloc: 0, active: true, labels: { 'security-zone': 'pci-compliant' }, taints: [] }
+      ];
+
+      clearConsole();
+      document.getElementById("scorecard-panel").classList.add("hidden");
+      logToConsole("SUCCESS", "Workspace reset. Cache invalidated and nodes set to nominal bootstrap state.");
+      renderTopology();
+      renderQueue();
+      updateBadges();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+apiVersion:batch/v1
+kind: Job
+metadata:
+  name: gpu-training-job
+  namespace: default
+  labels:
+    app: gpu-trainer
+spec:
+  template:
+    metadata:
+      labels:
+        app: gpu-trainer
+    spec:
+      containers:
+      - name: training-container
+        image: pytorch/pytorch:2.2.1-cuda12.1-cudnn8-runtime
+        command: ["python", "-c", "import torch; print('CUDA available:', torch.cuda.is_available())"]
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+            memory: "4Gi"
+            cpu: "2"
+          requests:
+            nvidia.com/gpu: "1"
+            memory: "2Gi"
+            cpu: "1"
+      # Toleration allows the Pod to schedule on a node with the GPU taint
+      tolerations:
+      - key: "hardware"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+      
+      # Node Affinity forces the Pod to schedule ONLY on the GPU nodes
+      # Without this affinity, the Pod could schedule on an untainted general worker node
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: hardware
+                operator: In
+                values:
+                - gpu
+      restartPolicy: OnFailure

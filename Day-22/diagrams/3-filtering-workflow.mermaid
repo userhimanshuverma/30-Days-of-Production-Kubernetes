@@ -1,0 +1,37 @@
+flowchart TD
+    Start[Unscheduled Pod] --> Queue[Pop Pod from Queue]
+    Queue --> LoopNodes[Iterate over all nodes in cluster]
+    
+    subgraph Predicate Filtering
+        direction TB
+        Taint[Node Taints & Tolerations matched?]
+        Fit[NodeResourcesFit: CPU/Mem/Storage available?]
+        Ports[NodePorts: Port conflicts?]
+        Affinity[NodeAffinity / selector matches?]
+        Volume[VolumeZone / Topology limits?]
+    end
+    
+    LoopNodes --> Taint
+    Taint -->|Yes| Fit
+    Taint -->|No| RejectNode[Reject Node & record fail reason]
+    
+    Fit -->|Yes| Ports
+    Fit -->|No| RejectNode
+    
+    Ports -->|Yes| Affinity
+    Ports -->|No| RejectNode
+    
+    Affinity -->|Yes| Volume
+    Affinity -->|No| RejectNode
+    
+    Volume -->|Yes| AcceptNode[Keep Node in feasible list]
+    Volume -->|No| RejectNode
+
+    RejectNode --> CheckNext{All nodes evaluated?}
+    AcceptNode --> CheckNext
+    
+    CheckNext -->|No| LoopNodes
+    CheckNext -->|Yes| Final[Output Feasible Nodes List]
+
+    style RejectNode fill:#f43f5e,stroke:#be123c,color:#fff
+    style AcceptNode fill:#10b981,stroke:#047857,color:#fff

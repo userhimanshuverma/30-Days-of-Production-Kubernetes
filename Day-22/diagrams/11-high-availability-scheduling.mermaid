@@ -1,0 +1,34 @@
+flowchart TD
+    subgraph Region: us-west-2
+        subgraph Zone: us-west-2a
+            NodeA[worker-01]
+            Pod1[Replica 1]
+        end
+        subgraph Zone: us-west-2b
+            NodeB[worker-02]
+            Pod2[Replica 2]
+        end
+        subgraph Zone: us-west-2c
+            NodeC[worker-03]
+            Pod3[Replica 3]
+        end
+    end
+
+    subgraph HA Constraints
+        PDB[Pod Disruption Budget<br/>minAvailable: 2]
+        AntiAffinity[PodAntiAffinity<br/>topologyKey: topology.kubernetes.io/zone]
+    end
+
+    Pod1 -.-> AntiAffinity
+    Pod2 -.-> AntiAffinity
+    Pod3 -.-> AntiAffinity
+    
+    subgraph Drain Event
+        KubectlDrain[kubectl drain worker-01] --> EvictRequest[API Eviction Request]
+        EvictRequest --> CheckPDB{Check PDB: Are 2 replicas active?}
+        CheckPDB -->|Yes: Pod2 & Pod3 are Active| AllowDrain[Evict Pod1 & drain NodeA]
+        CheckPDB -->|No: Only 1 other active| RejectDrain[Block drain event]
+    end
+
+    style AllowDrain fill:#10b981,stroke:#047857,color:#fff
+    style RejectDrain fill:#f43f5e,stroke:#be123c,color:#fff

@@ -1,0 +1,48 @@
+graph TD
+    subgraph API Server & Storage
+        APIServer[kube-apiserver] <--> ETCD[(etcd database)]
+    end
+
+    subgraph Kube-Scheduler Control Loop
+        direction TB
+        subgraph Queueing
+            ActiveQueue[Active Queue]
+            UnschedQ[Unschedulable Pods Pool]
+            BackoffQ[Pod Backoff Queue]
+        end
+
+        subgraph Scheduling Cycle
+            direction TB
+            FilterPhase[Filtering Predicates]
+            ScorePhase[Scoring Priorities]
+            ReservePhase[Reserve Node Resources]
+        end
+
+        subgraph Binding Cycle
+            direction TB
+            PermitPhase[Permit / Delay]
+            PreBind[Pre-bind Tasks]
+            BindPhase[Bind Pod to Node]
+            PostBind[Post-bind Tasks]
+        end
+    end
+
+    subgraph Cluster Nodes
+        Node1[worker-node-01]
+        Node2[worker-node-02]
+    end
+
+    %% Pod Flow
+    NewPod[Unscheduled Pod] -->|Create / Update| APIServer
+    APIServer -->|Watch Event| ActiveQueue
+    ActiveQueue -->|Next Pod| FilterPhase
+    UnschedQ -.->|Requeue Event| ActiveQueue
+    BackoffQ -.->|Backoff Duration Expired| ActiveQueue
+
+    FilterPhase -->|Filtered Node List| ScorePhase
+    ScorePhase -->|Selected Node: Highest Score| ReservePhase
+    ReservePhase -->|Optimistic cache write| PermitPhase
+    PermitPhase -->|Approved| PreBind
+    PreBind -->|Write Binding Request| APIServer
+    BindPhase -->|Asynchronously Bind Pod object| APIServer
+    APIServer -->|State Persistent Update| Node1

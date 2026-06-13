@@ -1,0 +1,33 @@
+flowchart TD
+    subgraph Cluster Topology
+        subgraph Zone A
+            NodeA1[Node worker-01]
+            NodeA2[Node worker-02]
+        end
+        subgraph Zone B
+            NodeB1[Node worker-03]
+            NodeB2[Node worker-04]
+        end
+    end
+
+    Pod1[Web Pod 1] -->|Scheduled| NodeA1
+    
+    subgraph New Pod Placement Decision
+        Pod2[Web Pod 2] -->|Anti-Affinity Rule: Match app=web, topologyKey: hostname| NodeA1
+    end
+    
+    NodeA1 -->|Has Pod 1 with label app=web| RejectA1[Reject Node worker-01]
+    Pod2 -->|Evaluates worker-02| NodeA2
+    NodeA2 -->|No app=web pod running| AcceptA2[Place Pod 2 here]
+
+    subgraph High Availability Zone Spread
+        Pod3[Web Pod 3] -->|Anti-Affinity Rule: Match app=web, topologyKey: zone| ZoneA[Zone A Nodes]
+        ZoneA -->|Contains app=web pods| RejectZoneA[Reject Zone A]
+        Pod3 -->|Evaluates Zone B Nodes| ZoneB[Zone B Nodes]
+        ZoneB -->|No app=web pods running| AcceptZoneB[Place Pod 3 in Zone B]
+    end
+    
+    style RejectA1 fill:#f43f5e,stroke:#be123c,color:#fff
+    style RejectZoneA fill:#f43f5e,stroke:#be123c,color:#fff
+    style AcceptA2 fill:#10b981,stroke:#047857,color:#fff
+    style AcceptZoneB fill:#10b981,stroke:#047857,color:#fff

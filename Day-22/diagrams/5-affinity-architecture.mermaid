@@ -1,0 +1,29 @@
+graph TD
+    subgraph Scheduling Request: PodSpec
+        AffinityRule[Affinity Config]
+    end
+
+    subgraph Node Affinity
+        direction TB
+        NodeRequired[RequiredDuringSchedulingIgnoredDuringExecution<br/>Hard Constraint - Must Match]
+        NodePreferred[PreferredDuringSchedulingIgnoredDuringExecution<br/>Soft Constraint - Weight 1-100]
+    end
+
+    subgraph Pod Affinity
+        direction TB
+        PodRequired[RequiredDuringSchedulingIgnoredDuringExecution<br/>Must co-locate with matching Pod]
+        TopologyKey[TopologyKey: topology.kubernetes.io/zone<br/>or kubernetes.io/hostname]
+    end
+
+    AffinityRule -->|Match Node labels| NodeAffinity
+    AffinityRule -->|Match existing Pod labels| PodAffinity
+    
+    NodeAffinity --> NodeRequired
+    NodeAffinity --> NodePreferred
+    
+    PodAffinity --> PodRequired
+    PodRequired --> TopologyKey
+    
+    NodeRequired -->|No Match| FilterFailed[Filter Out Node]
+    NodeRequired -->|Match| FilterPassed[Keep Node]
+    NodePreferred -->|Calculate Weight| AddToScore[Add Weight to Node Score]

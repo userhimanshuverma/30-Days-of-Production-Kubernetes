@@ -1,0 +1,22 @@
+flowchart TD
+    PodRequest[Pod Requests: CPU 2, Mem 4Gi] --> Evaluation{Resource Placement Strategy}
+    
+    subgraph Bin Packing Strategy
+        direction TB
+        MostAllocated[NodeResourcesFit Plugin<br/>MostAllocated Strategy]
+        PackedNode[Fill nodes to maximum before opening new ones]
+        Saver[Saves cloud costs by grouping workloads]
+    end
+
+    subgraph Spreading Strategy
+        direction TB
+        LeastAllocated[NodeResourcesFit Plugin<br/>LeastAllocated Strategy]
+        SpreadNode[Distribute resources evenly across all nodes]
+        Perf[Prevents CPU starvation & hotspots]
+    end
+
+    Evaluation -->|Cost / Autoscaling Optimized| BinPacking[Bin Packing Setup]
+    Evaluation -->|Performance / High Availability| Spreading[Spreading Setup]
+
+    BinPacking --> MostAllocated --> PackedNode --> Saver
+    Spreading --> LeastAllocated --> SpreadNode --> Perf

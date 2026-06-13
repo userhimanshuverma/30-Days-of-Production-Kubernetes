@@ -1,0 +1,23 @@
+flowchart TD
+    Pod[Incoming Pod] --> EvaluateNode{Evaluate Node}
+    EvaluateNode --> HasTaints{Node has Taints?}
+    
+    HasTaints -->|No| SchedNode[Node is Schedulable]
+    HasTaints -->|Yes| MatchToleration{Pod has matching Toleration?}
+    
+    MatchToleration -->|Yes| SchedNode
+    MatchToleration -->|No| CheckEffect{Taint Effect?}
+    
+    CheckEffect -->|NoSchedule| FailSched[Filter phase: Reject node outright]
+    CheckEffect -->|PreferNoSchedule| ScoreSoft[Scoring phase: Deduct score weight]
+    CheckEffect -->|NoExecute| EvictPod[Running Pod is Evicted from Node]
+
+    subgraph Eviction Window
+        NoExecuteEvict[Evicted after tolerationSeconds]
+    end
+    
+    CheckEffect -.->|NoExecute + Toleration with seconds| NoExecuteEvict
+
+    style FailSched fill:#f43f5e,stroke:#be123c,color:#fff
+    style EvictPod fill:#ef4444,stroke:#991b1b,color:#fff
+    style SchedNode fill:#10b981,stroke:#047857,color:#fff
