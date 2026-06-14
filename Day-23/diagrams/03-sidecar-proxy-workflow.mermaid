@@ -1,0 +1,19 @@
+sequenceDiagram
+    autonumber
+    participant External as External Network
+    participant iptables as iptables (Pod Kernel)
+    participant Proxy as Sidecar Proxy (Envoy)
+    participant App as App Container (Localhost)
+
+    Note over iptables, Proxy: INCOMING TRAFFIC FLOW
+    External->>iptables: Packet sent to Pod IP:Port (e.g. 80)
+    iptables->>Proxy: PREROUTING rule redirects to Proxy Port 15006
+    Proxy->>Proxy: Validates mTLS & Auth Policies
+    Proxy->>App: Forwards decrypted packet to localhost:80
+    App-->>Proxy: Sends response headers/data
+
+    Note over iptables, Proxy: OUTGOING TRAFFIC FLOW
+    App->>iptables: App sends outbound request to External IP
+    iptables->>Proxy: OUTPUT rule redirects to Proxy Port 15001
+    Proxy->>Proxy: Resolves target endpoint & creates mTLS session
+    Proxy->>External: Forwards encrypted request to destination

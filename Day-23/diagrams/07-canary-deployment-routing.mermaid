@@ -1,0 +1,16 @@
+flowchart LR
+    Ingress[Client Request] --> GW[Istio Gateway]
+    GW --> VS[VirtualService: /api/v1/checkout]
+    
+    VS -->|"Subsets Match"| DR[DestinationRule: checkout-service]
+    
+    subgraph K8sServices ["Kubernetes Workloads"]
+        DR -->|"Label: version=v1 (90%)"| PodV1[Checkout Pod v1]
+        DR -->|"Label: version=v2 (10%)"| PodV2[Checkout Pod v2]
+    end
+
+    classDef istio fill:#0284c7,stroke:#0369a1,color:#fff;
+    classDef pods fill:#f1f5f9,stroke:#cbd5e1,color:#0f172a;
+
+    class GW,VS,DR istio;
+    class PodV1,PodV2 pods;

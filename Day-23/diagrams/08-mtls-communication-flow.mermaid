@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    participant ClientEnvoy as Client Sidecar (Envoy)
+    participant ServerEnvoy as Server Sidecar (Envoy)
+
+    ClientEnvoy->>ServerEnvoy: ClientHello (Initiates TLS session)
+    ServerEnvoy-->>ClientEnvoy: ServerHello + Server Certificate (X.509 containing SPIFFE ID)
+    ServerEnvoy->>ClientEnvoy: CertificateRequest (Demands client identity)
+    ClientEnvoy-->>ServerEnvoy: Client Certificate (X.509 containing client SPIFFE ID)
+    ClientEnvoy->>ServerEnvoy: ClientKeyExchange & Finished
+    ServerEnvoy->>ServerEnvoy: Validates Client Cert against Mesh Trust Bundle
+    ServerEnvoy->>ServerEnvoy: Checks SAN (spiffe://cluster.local/ns/default/sa/client-sa)
+    ServerEnvoy-->>ClientEnvoy: Finished (Handshake Complete)
+    Note over ClientEnvoy, ServerEnvoy: Symmetric Session Keys Established. Traffic is now encrypted.
+    ClientEnvoy->>ServerEnvoy: Encrypted HTTP/2 Request
+    ServerEnvoy->>ClientEnvoy: Encrypted Response

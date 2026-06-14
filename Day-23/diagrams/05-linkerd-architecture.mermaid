@@ -1,0 +1,30 @@
+flowchart TB
+    subgraph ControlPlane ["Linkerd Control Plane"]
+        Destination[destination: Service Discovery / Endpoints]
+        Identity[identity: CA / mTLS Certificates]
+        ProxyInjector[proxy-injector: Mutating Webhook]
+    end
+
+    subgraph DataPlane ["Linkerd Data Plane"]
+        subgraph Pod ["App Pod"]
+            Proxy[linkerd2-proxy: Rust-written sidecar]
+            App[Application Container]
+        end
+    end
+
+    %% Webhook interaction
+    ProxyInjector -.->|"Injects sidecar container on pod creation"| Pod
+
+    %% Internal service connection
+    Destination -.->|"Service discovery updates"| Proxy
+    Identity -.->|"Short-lived TLS Certs via TLS"| Proxy
+
+    %% Traffic loop
+    App -->|"localhost"| Proxy
+    Proxy -->|"Outbound to other linkerd-proxy"| Network[Network]
+
+    classDef cp fill:#10b981,stroke:#047857,color:#fff;
+    classDef dp fill:#f1f5f9,stroke:#cbd5e1,color:#0f172a;
+    
+    class Destination,Identity,ProxyInjector cp;
+    class Proxy,App dp;

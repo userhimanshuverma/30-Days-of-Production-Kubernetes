@@ -1,0 +1,22 @@
+flowchart TD
+    Conn[Incoming Connection] --> AuthN{1. Connection AuthN}
+    
+    AuthN -->|Plaintext / Permissive| DenyOrAllow{Is Strict mTLS enforced?}
+    DenyOrAllow -->|Yes| Drop[Drop Connection (mTLS Required)]
+    DenyOrAllow -->|No| ReqAuth{2. Request AuthN}
+
+    AuthN -->|mTLS Confirmed| ReqAuth
+    
+    ReqAuth -->|Extract JWT Claims| AuthZ{3. AuthZ Policy}
+    ReqAuth -->|No JWT / Optional| AuthZ
+    
+    AuthZ -->|Matches Rules: Source/Path/Action| Allow[Allow Request to App Container]
+    AuthZ -->|No Match / Denied| Reject[Reject Request: 403 Forbidden]
+
+    style Conn fill:#f8fafc,stroke:#cbd5e1,color:#0f172a
+    style AuthN fill:#e2e8f0,stroke:#94a3b8,color:#0f172a
+    style ReqAuth fill:#e2e8f0,stroke:#94a3b8,color:#0f172a
+    style AuthZ fill:#e2e8f0,stroke:#94a3b8,color:#0f172a
+    style Drop fill:#ef4444,stroke:#dc2626,color:#fff
+    style Reject fill:#ef4444,stroke:#dc2626,color:#fff
+    style Allow fill:#10b981,stroke:#047857,color:#fff

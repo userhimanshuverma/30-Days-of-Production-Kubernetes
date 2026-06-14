@@ -1,0 +1,32 @@
+flowchart TB
+    subgraph ControlPlane ["Control Plane (Management Layer)"]
+        CP[Control Plane Controller]
+    end
+
+    subgraph DataPlane ["Data Plane (Traffic Layer)"]
+        subgraph PodA ["Pod A"]
+            AppA[Application A]
+            ProxyA[Sidecar Proxy A]
+        end
+
+        subgraph PodB ["Pod B"]
+            AppB[Application B]
+            ProxyB[Sidecar Proxy B]
+        end
+    end
+
+    %% Control Plane configs
+    CP -.->|"xDS / Policy Config"| ProxyA
+    CP -.->|"xDS / Policy Config"| ProxyB
+
+    %% Data Plane traffic
+    AppA -->|"localhost (in-pod)"| ProxyA
+    ProxyA ===>|"mTLS Traffic (Network)"| ProxyB
+    ProxyB -->|"localhost (in-pod)"| AppB
+
+    classDef cp fill:#6366f1,stroke:#4f46e5,color:#fff;
+    classDef dp fill:#f8fafc,stroke:#cbd5e1,color:#0f172a;
+    classDef pod fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;
+    
+    class CP cp;
+    class DataPlane,PodA,PodB pod;

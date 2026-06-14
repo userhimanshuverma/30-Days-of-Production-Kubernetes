@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    actor Client as End User
+    participant GW as Ingress Gateway
+    participant Web as Web Pod (v1/Stable)
+    participant API as API Pod (Canary/v2)
+    participant AuthZ as AuthZ Check
+    participant Egress as Egress Gateway
+    participant Provider as External Gateway
+    participant Prom as Prometheus
+
+    Client->>GW: GET /checkout (HTTPS)
+    GW->>GW: Evaluates VirtualService Rules
+    GW->>Web: Route 90% (mTLS handshake, SPIFFE validation)
+    Web->>Web: Processes request
+    
+    %% Gateway route to Canary
+    Note over GW, API: Alternative Canary Route (10%)
+    GW->>API: Route 10% (mTLS handshake)
+    
+    %% Authorization Policy
+    API->>AuthZ: Evaluates AuthorizationPolicy rules
+    alt Authorization Success
+        AuthZ-->>API: Allowed
+    else Authorization Denied
+        AuthZ-->>API: HTTP 403 Forbidden (Halt)
+    end
+    
+    %% Egress gateway call
+    API->>Egress: Outbound request to api.stripe.com
+    Egress->>Provider: Forwards request with SNI verification
+    Provider-->>Egress: HTTP 200 OK
+    Egress-->>API: Delivers checkout session token
+    
+    API-->>GW: Returns checkout success response
+    GW-->>Client: Returns JSON response
+    
+    %% Telemetry async
+    Note over Web, Prom: Telemetry collection
+    Web-->>Prom: Envoy scrapes metrics (latency, HTTP codes)
+    API-->>Prom: Envoy scrapes metrics (latency, HTTP codes)

@@ -1,0 +1,31 @@
+flowchart TB
+    Client([Internet Client]) --> Ingress[Istio Ingress Gateway]
+    
+    subgraph MeshCluster ["Service Mesh (Cluster Boundary)"]
+        direction TB
+        Ingress -->|"mTLS (Port 15008)"| Web[Web Service Pods]
+        Web -->|"mTLS"| API[API Service Pods]
+        API -->|"mTLS"| Auth[Auth Service Pods]
+        
+        API -->|"Outbound External Request"| Egress[Istio Egress Gateway]
+        
+        subgraph Telemetry ["Observability Stack"]
+            Prometheus[(Prometheus)]
+            Jaeger[Jaeger tracing]
+        end
+        
+        %% Telemetry connections
+        Web -.->|"Sends Spans & Metrics"| Telemetry
+        API -.->|"Sends Spans & Metrics"| Telemetry
+        Auth -.->|"Sends Spans & Metrics"| Telemetry
+    end
+
+    Egress --> ExternalAPI([External Payment API])
+
+    classDef gateways fill:#475569,stroke:#334155,color:#fff;
+    classDef workloads fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;
+    classDef obs fill:#ea580c,stroke:#c2410c,color:#fff;
+
+    class Ingress,Egress gateways;
+    class Web,API,Auth workloads;
+    class Prometheus,Jaeger obs;

@@ -1,0 +1,40 @@
+flowchart LR
+    subgraph ControlPlane ["Control Plane (Brain)"]
+        direction TB
+        SD[Service Discovery]
+        CA[Certificate Authority]
+        PM[Policy Manager]
+    end
+
+    subgraph DataPlane ["Data Plane (Brawn)"]
+        direction TB
+        subgraph Proxy1 ["Proxy (Envoy)"]
+            T1[Traffic Routing]
+            E1[Encryption/Decryption]
+            M1[Metrics & Logs]
+        end
+        subgraph Proxy2 ["Proxy (Envoy)"]
+            T2[Traffic Routing]
+            E2[Encryption/Decryption]
+            M2[Metrics & Logs]
+        end
+    end
+
+    %% Configuration pushes
+    SD -.->|"Service IP Endpoints"| Proxy1
+    CA -.->|"mTLS Certificates"| Proxy1
+    PM -.->|"Routing & Auth Rules"| Proxy1
+
+    SD -.->|"Service IP Endpoints"| Proxy2
+    CA -.->|"mTLS Certificates"| Proxy2
+    PM -.->|"Routing & Auth Rules"| Proxy2
+
+    %% Traffic flow
+    Proxy1 ===|"Data Path (mTLS)"| Proxy2
+
+    classDef cp fill:#6366f1,stroke:#4f46e5,color:#fff;
+    classDef dp fill:#f8fafc,stroke:#cbd5e1,color:#0f172a;
+    classDef comp fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;
+
+    class SD,CA,PM cp;
+    class Proxy1,Proxy2 comp;

@@ -1,0 +1,20 @@
+flowchart TD
+    Req[Incoming Client Request] --> Gateway[Ingress Gateway]
+    Gateway --> VS{VirtualService Rule Evaluation}
+    
+    VS -->|"Header Match: test-user=true"| Canary[Route 100% to v2 / Canary]
+    VS -->|"No Headers: Default Weights"| Weight{Weight Split Evaluation}
+    
+    Weight -->|"90% Weight"| V1[Route to Subset v1 / Stable]
+    Weight -->|"10% Weight"| V2[Route to Subset v2 / Canary]
+    
+    V1 --> PodV1[Backend Pod v1]
+    V2 --> PodV2[Backend Pod v2]
+    Canary --> PodV2
+
+    style Req fill:#f8fafc,stroke:#cbd5e1,color:#0f172a
+    style Gateway fill:#64748b,stroke:#475569,color:#fff
+    style VS fill:#e2e8f0,stroke:#94a3b8,color:#0f172a
+    style Weight fill:#e2e8f0,stroke:#94a3b8,color:#0f172a
+    style PodV1 fill:#10b981,stroke:#047857,color:#fff
+    style PodV2 fill:#f59e0b,stroke:#d97706,color:#fff

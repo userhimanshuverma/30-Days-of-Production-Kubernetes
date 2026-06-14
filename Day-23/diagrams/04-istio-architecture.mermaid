@@ -1,0 +1,46 @@
+flowchart TB
+    subgraph ControlPlane ["Control Plane (istiod)"]
+        direction TB
+        Pilot[Pilot: Service Discovery & Config xDS]
+        Citadel[Citadel: CA / Certificate Management]
+        Galley[Galley: Manifest Validation & Processing]
+    end
+
+    subgraph ClusterAPI ["K8s Control Plane"]
+        API[kube-apiserver]
+    end
+
+    subgraph DataPlane ["Data Plane (Envoy Sidecars)"]
+        direction LR
+        subgraph Pod1 ["Pod A"]
+            Envoy1[Envoy Proxy]
+            App1[App Container]
+        end
+        subgraph Pod2 ["Pod B"]
+            Envoy2[Envoy Proxy]
+            App2[App Container]
+        end
+    end
+
+    %% K8s API reads
+    API -.->|"Reads CRDs (VirtualService, etc)"| Galley
+    
+    %% Config generation
+    Galley -.-> Pilot
+    Citadel -.->|"Pushes Certs via SDS"| Envoy1
+    Citadel -.->|"Pushes Certs via SDS"| Envoy2
+    Pilot -.->|"xDS Configuration APIs"| Envoy1
+    Pilot -.->|"xDS Configuration APIs"| Envoy2
+
+    %% Real-time traffic
+    App1 --> Envoy1
+    Envoy1 ===|"mTLS Session"| Envoy2
+    Envoy2 --> App2
+
+    classDef cp fill:#0284c7,stroke:#0369a1,color:#fff;
+    classDef k8s fill:#64748b,stroke:#475569,color:#fff;
+    classDef proxy fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;
+
+    class Pilot,Citadel,Galley cp;
+    class API k8s;
+    class Envoy1,Envoy2,App1,App2 proxy;

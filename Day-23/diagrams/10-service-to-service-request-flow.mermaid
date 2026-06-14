@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    box #e0e7ff "Pod A (Frontend)"
+    participant AppA as Application Container
+    participant KernelA as iptables (Kernel)
+    participant EnvoyA as Envoy Sidecar
+    end
+    
+    box #f1f5f9 "Pod B (Backend)"
+    participant EnvoyB as Envoy Sidecar
+    participant KernelB as iptables (Kernel)
+    participant AppB as Application Container
+    end
+
+    AppA->>KernelA: HTTP request to backend-svc:80
+    KernelA->>EnvoyA: Redirect to local loopback port 15001
+    EnvoyA->>EnvoyA: xDS lookup; selects Pod B IP & encapsulates in mTLS
+    EnvoyA->>EnvoyB: TCP connection on port 15008 (mTLS tunnel)
+    EnvoyB->>EnvoyB: TLS decrypt; checks AuthorizationPolicy
+    EnvoyB->>KernelB: Forwards HTTP request to localhost:80
+    KernelB->>AppB: Redirects socket to App socket listener
+    AppB-->>KernelB: Response 200 OK
+    KernelB-->>EnvoyB: localhost loopback
+    EnvoyB-->>EnvoyA: Encrypted response tunnel
+    EnvoyA-->>KernelA: Decrypts & returns response
+    KernelA-->>AppA: Delivers response data

@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Mesh Control Center - Day 23</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-main: #060913;
+      --bg-card: #0d1222;
+      --bg-panel: #12182c;
+      --bg-input: #1a223f;
+      --border-color: #242f56;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --color-primary: #8b5cf6; /* purple */
+      --color-secondary: #06b6d4; /* cyan */
+      --color-success: #10b981; /* emerald */
+      --color-warning: #f59e0b; /* amber */
+      --color-danger: #f43f5e; /* rose */
+      --color-info: #3b82f6; /* blue */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 2rem;
+      height: 2rem;
+      background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 1.1rem;
+    }
+
+    .logo-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .logo-title span {
+      background: linear-gradient(to right, var(--color-secondary), var(--color-primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-phase {
+      background-color: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #c084fc;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .main-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 1rem;
+      padding: 1rem;
+      height: calc(100vh - 65px);
+      min-height: 500px;
+    }
+
+    @media(max-width: 1200px) {
+      .main-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow-y: auto;
+      }
+    }
+
+    /* Left Sidebar: Controls */
+    .panel-controls {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      overflow-y: auto;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .control-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, var(--color-primary), #6d28d9);
+      color: white;
+      border: none;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-action:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--border-color);
+    }
+
+    .toggle-switch {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: var(--bg-input);
+      padding: 0.6rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+    }
+
+    .toggle-dot {
+      width: 32px;
+      height: 18px;
+      background-color: #4b5563;
+      border-radius: 20px;
+      position: relative;
+      transition: background-color 0.2s;
+    }
+
+    .toggle-dot::before {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background-color: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s;
+    }
+
+    .toggle-switch.active .toggle-dot {
+      background-color: var(--color-success);
+    }
+
+    .toggle-switch.active .toggle-dot::before {
+      transform: translateX(14px);
+    }
+
+    .slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 5px;
+      outline: none;
+      border: 1px solid var(--border-color);
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--color-secondary);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--color-secondary);
+    }
+
+    .select-dropdown {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.6rem;
+      border-radius: 6px;
+      outline: none;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    /* Center Pane: Mesh Diagram & Guided Overlay */
+    .panel-center {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* Guided Scenarios Card */
+    .guided-scenarios-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .scenario-stepper {
+      display: flex;
+      gap: 0.25rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .step-btn {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.4rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .step-btn:hover {
+      border-color: var(--color-secondary);
+      color: var(--text-main);
+    }
+
+    .step-btn.active {
+      background-color: rgba(6, 182, 212, 0.15);
+      border-color: var(--color-secondary);
+      color: #67e8f9;
+    }
+
+    .scenario-desc-box {
+      background-color: rgba(36, 47, 86, 0.25);
+      border: 1px dashed var(--border-color);
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .canvas-container {
+      flex: 1;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      min-height: 340px;
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    }
+
+    .grid-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(36, 47, 86, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(36, 47, 86, 0.15) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }
+
+    /* Interactive Topology Elements */
+    .service-node {
+      position: absolute;
+      background-color: var(--bg-panel);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      width: 150px;
+      z-index: 10;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .service-node:hover {
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+      border-color: var(--color-secondary);
+    }
+
+    .service-node.injected {
+      border-color: var(--color-primary);
+    }
+
+    .node-header {
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .proxy-badge {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background-color: #374151;
+      color: #9ca3af;
+      font-weight: 600;
+    }
+
+    .service-node.injected .proxy-badge {
+      background-color: rgba(139, 92, 246, 0.2);
+      color: #c084fc;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+    }
+
+    .node-status {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--color-success);
+    }
+
+    .node-status.failing .status-dot {
+      background-color: var(--color-danger);
+      box-shadow: 0 0 8px var(--color-danger);
+    }
+
+    /* SVG connections mapping */
+    .topology-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .link-path {
+      fill: none;
+      stroke: var(--border-color);
+      stroke-width: 2;
+      transition: stroke 0.3s;
+    }
+
+    .link-path.active {
+      stroke: var(--color-secondary);
+    }
+
+    .link-path.encrypted {
+      stroke: var(--color-success);
+      stroke-dasharray: 6, 6;
+      animation: dash 1s linear infinite;
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -12;
+      }
+    }
+
+    /* Terminal Console */
+    .panel-terminal {
+      background-color: #030712;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem;
+      height: 180px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      overflow-y: auto;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
+    }
+
+    .term-title {
+      font-size: 0.75rem;
+      color: #4b5563;
+      margin-bottom: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #1f2937;
+      padding-bottom: 0.25rem;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 0.5rem;
+      line-height: 1.3;
+    }
+
+    .log-time { color: #6b7280; }
+    .log-info { color: var(--color-info); }
+    .log-success { color: var(--color-success); }
+    .log-warning { color: var(--color-warning); }
+    .log-danger { color: var(--color-danger); }
+    .log-text { color: #d1d5db; }
+
+    /* Right Sidebar: Telemetry */
+    .panel-telemetry {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      overflow-y: auto;
+    }
+
+    .telemetry-card {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .telemetry-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--color-secondary);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .telemetry-val.danger {
+      color: var(--color-danger);
+    }
+
+    .telemetry-val.success {
+      color: var(--color-success);
+    }
+
+    .bar-container {
+      width: 100%;
+      height: 8px;
+      background-color: var(--bg-input);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-secondary), var(--color-primary));
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* Key Visualizations (mTLS Handshake status) */
+    .mtls-shield-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background-color: rgba(16, 185, 129, 0.05);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      padding: 0.75rem;
+      border-radius: 8px;
+    }
+
+    .mtls-shield-container.disabled {
+      background-color: rgba(244, 63, 94, 0.05);
+      border: 1px solid rgba(244, 63, 94, 0.2);
+    }
+
+    .shield-icon {
+      font-size: 1.75rem;
+      color: var(--color-success);
+      animation: heartbeat 2s infinite ease-in-out;
+    }
+
+    .mtls-shield-container.disabled .shield-icon {
+      color: var(--color-danger);
+      animation: none;
+    }
+
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px var(--color-success)); }
+      50% { transform: scale(1.1); filter: drop-shadow(0 0 8px var(--color-success)); }
+    }
+
+    .shield-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .shield-status {
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .shield-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Floating Packet Animation */
+    .packet {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--color-secondary);
+      box-shadow: 0 0 10px var(--color-secondary);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .packet.encrypted {
+      background-color: var(--color-success);
+      box-shadow: 0 0 10px var(--color-success);
+    }
+
+    .packet.blocked {
+      background-color: var(--color-danger);
+      box-shadow: 0 0 10px var(--color-danger);
+    }
+
+    .policy-tag {
+      background-color: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #67e8f9;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 0.25rem;
+      display: inline-block;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">M</div>
+      <div>
+        <h1 class="logo-title">Service Mesh <span>Control Center</span></h1>
+        <p style="font-size: 0.75rem; color: var(--text-muted)">Interactive Sidecar & Traffic Architecture Simulator</p>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 1rem">
+      <span class="badge-phase">Day 23: Service Mesh</span>
+    </div>
+  </header>
+
+  <div class="main-container">
+    
+    <!-- LEFT PANEL: CONTROLS -->
+    <div class="panel-controls">
+      <h2 class="panel-title">
+        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+        Mesh Controls
+      </h2>
+
+      <!-- Injection -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Sidecar Proxy Injection</span>
+        </div>
+        <div class="toggle-switch active" id="inject-btn" onclick="toggleSidecarInjection()">
+          <span id="inject-status-text">Sidecars Injected</span>
+          <div class="toggle-dot"></div>
+        </div>
+      </div>
+
+      <!-- mTLS Encryption Mode -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>mTLS Encryption Mode</span>
+        </div>
+        <select class="select-dropdown" id="mtls-select" onchange="updateMtlsMode()">
+          <option value="strict">STRICT (mTLS Required)</option>
+          <option value="permissive" selected>PERMISSIVE (Plain/mTLS)</option>
+          <option value="disable">DISABLE (Plaintext Only)</option>
+        </select>
+      </div>
+
+      <!-- Zero-Trust AuthZ -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Zero-Trust Authorization</span>
+        </div>
+        <div class="toggle-switch" id="authz-btn" onclick="toggleAuthorizationPolicy()">
+          <span id="authz-status-text">Authorization policy: Inactive</span>
+          <div class="toggle-dot"></div>
+        </div>
+      </div>
+
+      <!-- Traffic Shaping -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>Canary Routing Split</span>
+          <span id="split-percent-val" style="font-family: 'Fira Code', monospace; color: var(--color-secondary)">10% Canary</span>
+        </div>
+        <input type="range" min="0" max="100" value="10" class="slider" id="split-slider" oninput="updateSplit(this.value)">
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted)">
+          <span>v1 (Stable): <span id="v1-split-lbl">90%</span></span>
+          <span>v2 (Canary): <span id="v2-split-lbl">10%</span></span>
+        </div>
+      </div>
+
+      <!-- Outages Simulation -->
+      <div class="control-group">
+        <h3 class="panel-title" style="font-size: 0.95rem; border: none; padding: 0; margin-top: 0.5rem">
+          Fault Injection
+        </h3>
+        <div class="toggle-switch" id="fail-v1-btn" onclick="toggleFailure('v1')">
+          <span style="color: var(--color-danger)">Inject 503s on V1</span>
+          <div class="toggle-dot"></div>
+        </div>
+        <div class="toggle-switch" id="fail-v2-btn" onclick="toggleFailure('v2')">
+          <span style="color: var(--color-danger)">Inject 503s on V2</span>
+          <div class="toggle-dot"></div>
+        </div>
+        
+        <div class="control-label" style="margin-top: 0.5rem">
+          <span>Network Latency Delay</span>
+          <span id="latency-val" style="font-family: 'Fira Code', monospace;">0ms</span>
+        </div>
+        <input type="range" min="0" max="1000" value="0" step="50" class="slider" id="latency-slider" oninput="updateLatency(this.value)">
+      </div>
+
+      <!-- Trigger buttons -->
+      <div style="display: flex; gap: 0.5rem; margin-top: auto">
+        <button class="btn-action" style="flex: 1" onclick="sendSingleRequest()">
+          Send Request
+        </button>
+        <button class="btn-action btn-secondary" style="flex: 1" id="prod-mode-btn" onclick="toggleProductionMode()">
+          Start Load
+        </button>
+      </div>
+    </div>
+
+    <!-- CENTER PANEL: MESH ANIMATION & GUIDED SCENARIOS -->
+    <div class="panel-center">
+      
+      <!-- NEW: Guided Scenarios Stepper Panel -->
+      <div class="guided-scenarios-card">
+        <div style="font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem">
+          <svg style="width: 16px; height: 16px; color: var(--color-secondary)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+          Guided Learning Stepper
+        </div>
+        <div class="scenario-stepper">
+          <button class="step-btn active" id="step-0" onclick="activateScenario(0)">1. Plaintext Baseline</button>
+          <button class="step-btn" id="step-1" onclick="activateScenario(1)">2. Inject Sidecars</button>
+          <button class="step-btn" id="step-2" onclick="activateScenario(2)">3. Strict mTLS</button>
+          <button class="step-btn" id="step-3" onclick="activateScenario(3)">4. Canary Shifting</button>
+          <button class="step-btn" id="step-4" onclick="activateScenario(4)">5. Zero-Trust Block</button>
+          <button class="step-btn" id="step-5" onclick="activateScenario(5)">6. Latency & Errors</button>
+        </div>
+        <div class="scenario-desc-box" id="scenario-desc">
+          <strong>Setup</strong>: Click "Sidecar Proxy Injection" to <strong>Sidecars Disabled</strong> and update mTLS mode to <strong>DISABLE</strong>.<br>
+          <strong>Observe</strong>: Click "Send Request" to trigger requests. Notice the packet lines are standard cyan (unencrypted) and bypass sidecar check validations. Latency is minimal (~1.2ms). This is how communication works in plain Kubernetes.
+        </div>
+      </div>
+
+      <!-- Network Canvas -->
+      <div class="canvas-container" id="canvas-container">
+        <div class="grid-overlay"></div>
+        
+        <!-- SVG Connections -->
+        <svg class="topology-svg">
+          <path id="path-client-ingress" class="link-path" d="M 30,190 Q 75,190 120,190" />
+          <path id="path-ingress-frontend" class="link-path" d="M 200,190 Q 235,190 270,190" />
+          <path id="path-frontend-v1" class="link-path" d="M 390,190 Q 425,120 480,110" />
+          <path id="path-frontend-v2" class="link-path" d="M 390,190 Q 425,260 480,270" />
+        </svg>
+
+        <!-- Nodes -->
+        <!-- Client Node -->
+        <div class="service-node" style="left: 10px; top: 155px; width: 65px; text-align: center;">
+          <div class="node-header" style="justify-content: center">
+            <span style="color: var(--text-main)">Client</span>
+          </div>
+        </div>
+
+        <!-- Ingress Gateway -->
+        <div class="service-node" id="node-ingress" style="left: 110px; top: 140px;">
+          <div class="node-header">
+            <span>ingress-gateway</span>
+          </div>
+          <span class="policy-tag" style="font-size: 0.65rem">Istio Gateway</span>
+        </div>
+
+        <!-- Frontend App -->
+        <div class="service-node injected" id="node-frontend" style="left: 260px; top: 140px;">
+          <div class="node-header">
+            <span>frontend-app</span>
+            <span class="proxy-badge">Envoy</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot"></div>
+            <span>Running</span>
+          </div>
+          <span class="policy-tag" id="frontend-sa-lbl" style="font-size: 0.6rem">sa: frontend-sa</span>
+        </div>
+
+        <!-- Backend v1 (Stable) -->
+        <div class="service-node injected" id="node-v1" style="left: 470px; top: 60px;">
+          <div class="node-header">
+            <span>backend-v1</span>
+            <span class="proxy-badge">Envoy</span>
+          </div>
+          <div class="node-status" id="v1-status">
+            <div class="status-dot"></div>
+            <span>Stable (v1)</span>
+          </div>
+        </div>
+
+        <!-- Backend v2 (Canary) -->
+        <div class="service-node injected" id="node-v2" style="left: 470px; top: 220px;">
+          <div class="node-header">
+            <span>backend-v2</span>
+            <span class="proxy-badge">Envoy</span>
+          </div>
+          <div class="node-status" id="v2-status">
+            <div class="status-dot"></div>
+            <span style="color: var(--color-secondary)">Canary (v2)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Terminal Console -->
+      <div class="panel-terminal" id="terminal">
+        <div class="term-title">
+          <span>ENVOY DATA PLANE PROXY LOGS (xDS ROUTER PIPELINE)</span>
+          <span style="cursor: pointer; color: var(--color-secondary)" onclick="clearLogs()">Clear</span>
+        </div>
+        <div id="logs-container">
+          <div class="log-line">
+            <span class="log-time">[18:38:00]</span>
+            <span class="log-info">[info]</span>
+            <span class="log-text">Envoy sidecar initialization complete. Connected to Pilot (istiod-7b968bc7f-8rwx9).</span>
+          </div>
+          <div class="log-line">
+            <span class="log-time">[18:38:01]</span>
+            <span class="log-success">[success]</span>
+            <span class="log-text">mTLS credentials synced. Cert lifetime: 24h. Trust Domain: cluster.local</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: TELEMETRY & METRICS -->
+    <div class="panel-telemetry">
+      <h2 class="panel-title">
+        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        Real-Time Observability
+      </h2>
+
+      <!-- mTLS status shield -->
+      <div class="mtls-shield-container" id="mtls-shield">
+        <div class="shield-icon">🛡️</div>
+        <div class="shield-info">
+          <span class="shield-status" id="shield-status-text">Permissive mTLS Mode</span>
+          <span class="shield-desc" id="shield-desc-text">Accepts encrypted or plain text</span>
+        </div>
+      </div>
+
+      <!-- Traffic volume -->
+      <div class="telemetry-card">
+        <div class="control-label">Total Requests</div>
+        <div class="telemetry-val" id="telemetry-total-req">0</div>
+      </div>
+
+      <!-- Success rate -->
+      <div class="telemetry-card">
+        <div class="control-label">HTTP Success Rate</div>
+        <div class="telemetry-val success" id="telemetry-success-rate">100.0%</div>
+        <div class="bar-container">
+          <div class="bar-fill" id="success-rate-bar" style="width: 100%; background: var(--color-success)"></div>
+        </div>
+      </div>
+
+      <!-- Latency P99 -->
+      <div class="telemetry-card">
+        <div class="control-label">P99 Latency (ms)</div>
+        <div class="telemetry-val" id="telemetry-latency">2.2 ms</div>
+        <div class="bar-container">
+          <div class="bar-fill" id="latency-bar" style="width: 15%"></div>
+        </div>
+      </div>
+
+      <!-- Distribution metrics -->
+      <div class="telemetry-card">
+        <div class="control-label">Backend Traffic Split</div>
+        <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; margin-top: 0.25rem">
+          <div style="display: flex; justify-content: space-between">
+            <span>v1 (Stable)</span>
+            <span id="v1-stat-hits" style="font-family: 'Fira Code', monospace">0 (0%)</span>
+          </div>
+          <div class="bar-container" style="height: 6px">
+            <div class="bar-fill" id="v1-stat-bar" style="width: 0%; background: var(--color-success)"></div>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; margin-top: 0.2rem">
+            <span>v2 (Canary)</span>
+            <span id="v2-stat-hits" style="font-family: 'Fira Code', monospace">0 (0%)</span>
+          </div>
+          <div class="bar-container" style="height: 6px">
+            <div class="bar-fill" id="v2-stat-bar" style="width: 0%; background: var(--color-secondary)"></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-action btn-secondary" onclick="resetTelemetry()" style="margin-top: auto">
+        Reset Statistics
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // Stepper Scenarios text data
+    const scenarios = [
+      {
+        desc: `<strong>Scenario 1: Plaintext Baseline</strong><br>
+               <strong>Required Setup</strong>: Toggle "Sidecar Proxy Injection" to <strong>Disabled</strong> and mTLS mode to <strong>DISABLE</strong>.<br>
+               <strong>What to look for</strong>: Click "Send Request" to send a request. Note the packets are standard blue (unencrypted) and target pods directly. Latency is ~1ms. This is standard K8s behavior before a mesh is added.`
+      },
+      {
+        desc: `<strong>Scenario 2: Automatic Sidecar Injection</strong><br>
+               <strong>Required Setup</strong>: Toggle "Sidecar Proxy Injection" to <strong>Sidecars Injected</strong>.<br>
+               <strong>What to look for</strong>: You will see the purple sidecar labels (<code>Envoy</code>) appear on your pods. The mutating admission webhook automatically patches deployment pods during scheduling, mounting the local proxy container and setting up network namespaces.`
+      },
+      {
+        desc: `<strong>Scenario 3: Enabling Transport Security (Strict mTLS)</strong><br>
+               <strong>Required Setup</strong>: Ensure Sidecars are <strong>Injected</strong> and set mTLS to <strong>STRICT</strong>.<br>
+               <strong>What to look for</strong>: The network routing links will convert into glowing, flashing lines. Envoy automatically negotiates mTLS handshakes, exchanges SPIFFE SAN certificates, and encrypts transit payloads. Check the terminal logs to see the handshake logs.`
+      },
+      {
+        desc: `<strong>Scenario 4: Weighted Canary Shifting</strong><br>
+               <strong>Required Setup</strong>: Set the "Canary Routing Split" slider to <strong>30%</strong> and click <strong>Start Load</strong>.<br>
+               <strong>What to look for</strong>: Observe the "Real-Time Observability" graphs on the right side. You will see traffic split dynamically, with ~70% hits on the stable (v1) instance and ~30% hits on the canary (v2) instances, managed at L7.`
+      },
+      {
+        desc: `<strong>Scenario 5: Enforcing Zero-Trust (RBAC Deny)</strong><br>
+               <strong>Required Setup</strong>: Toggle "Zero-Trust Authorization" to <strong>STRICT</strong>, and update mTLS mode to <strong>DISABLE</strong> (unauthenticated).<br>
+               <strong>What to look for</strong>: Send requests. The traffic is dropped by the backend proxy with an HTTP <code>403 Forbidden</code> and logs outputting "AuthorizationPolicy check failed" because the caller fails validation of a valid SPIFFE certificate identity.`
+      },
+      {
+        desc: `<strong>Scenario 6: Fault Injection & Telemetry Diagnostics</strong><br>
+               <strong>Required Setup</strong>: Toggle "Inject 503s on V2" and push "Network Latency Delay" to <strong>500ms</strong>.<br>
+               <strong>What to look for</strong>: Load traffic. You will instantly see the HTTP Success Rate drop on the telemetry card and the P99 latency bar turn amber/red as latency spikes, showing how real SRE dashboards behave during an incident.`
+      }
+    ];
+
+    function activateScenario(index) {
+      document.querySelectorAll('.step-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`step-${index}`).classList.add('active');
+      document.getElementById('scenario-desc').innerHTML = scenarios[index].desc;
+      
+      // Auto adjust simulator configurations based on selection to help the user setup
+      if (index === 0) {
+        if (isSidecarInjected) toggleSidecarInjection();
+        document.getElementById('mtls-select').value = 'disable';
+        updateMtlsMode();
+        if (isAuthzEnabled) toggleAuthorizationPolicy();
+      } else if (index === 1) {
+        if (!isSidecarInjected) toggleSidecarInjection();
+        document.getElementById('mtls-select').value = 'disable';
+        updateMtlsMode();
+      } else if (index === 2) {
+        if (!isSidecarInjected) toggleSidecarInjection();
+        document.getElementById('mtls-select').value = 'strict';
+        updateMtlsMode();
+      } else if (index === 3) {
+        if (!isSidecarInjected) toggleSidecarInjection();
+        document.getElementById('mtls-select').value = 'strict';
+        updateMtlsMode();
+        updateSplit(30);
+        document.getElementById('split-slider').value = 30;
+      } else if (index === 4) {
+        if (!isSidecarInjected) toggleSidecarInjection();
+        document.getElementById('mtls-select').value = 'disable';
+        updateMtlsMode();
+        if (!isAuthzEnabled) toggleAuthorizationPolicy();
+      } else if (index === 5) {
+        if (!isSidecarInjected) toggleSidecarInjection();
+        document.getElementById('mtls-select').value = 'strict';
+        updateMtlsMode();
+        if (isAuthzEnabled) toggleAuthorizationPolicy();
+        if (!failV2) toggleFailure('v2');
+        updateLatency(500);
+        document.getElementById('latency-slider').value = 500;
+      }
+    }
+
+    // Simulator State variables
+    let isSidecarInjected = true;
+    let mtlsMode = 'permissive'; // 'strict', 'permissive', 'disable'
+    let isAuthzEnabled = false;
+    let canarySplit = 10;
+    let failV1 = false;
+    let failV2 = false;
+    let addedLatency = 0;
+    let loadModeInterval = null;
+
+    // Telemetry Statistics variables
+    let totalRequestsCount = 0;
+    let successCount = 0;
+    let failCount = 0;
+    let totalLatencySum = 0;
+    let v1HitsCount = 0;
+    let v2HitsCount = 0;
+
+    // Node coordinate map
+    const nodeCoords = {
+      client: { x: 30, y: 190 },
+      ingress: { x: 160, y: 190 },
+      frontend: { x: 310, y: 190 },
+      v1: { x: 520, y: 100 },
+      v2: { x: 520, y: 260 }
+    };
+
+    // Toggle injection status
+    function toggleSidecarInjection() {
+      isSidecarInjected = !isSidecarInjected;
+      const btn = document.getElementById('inject-btn');
+      const text = document.getElementById('inject-status-text');
+      const frontend = document.getElementById('node-frontend');
+      const v1 = document.getElementById('node-v1');
+      const v2 = document.getElementById('node-v2');
+
+      if (isSidecarInjected) {
+        btn.classList.add('active');
+        text.innerText = "Sidecars Injected";
+        frontend.classList.add('injected');
+        v1.classList.add('injected');
+        v2.classList.add('injected');
+        document.querySelectorAll('.proxy-badge').forEach(el => el.style.display = 'block');
+        logMessage('info', 'Sidecars automatically injected into pods using mutating webhook.');
+      } else {
+        btn.classList.remove('active');
+        text.innerText = "Sidecars Disabled";
+        frontend.classList.remove('injected');
+        v1.classList.remove('injected');
+        v2.classList.remove('injected');
+        document.querySelectorAll('.proxy-badge').forEach(el => el.style.display = 'none');
+        logMessage('warning', 'Sidecar injection disabled. Pods rolled back to plain container runtime.');
+      }
+      updateSecurityVisuals();
+    }
+
+    // Update mTLS Selection dropdown
+    function updateMtlsMode() {
+      mtlsMode = document.getElementById('mtls-select').value;
+      updateSecurityVisuals();
+      logMessage('info', `mTLS PeerAuthentication configured to mode: ${mtlsMode.toUpperCase()}`);
+    }
+
+    // Toggle authorization policies
+    function toggleAuthorizationPolicy() {
+      isAuthzEnabled = !isAuthzEnabled;
+      const btn = document.getElementById('authz-btn');
+      const text = document.getElementById('authz-status-text');
+
+      if (isAuthzEnabled) {
+        btn.classList.add('active');
+        text.innerText = "Authorization policy: STRICT";
+        logMessage('success', 'AuthorizationPolicy applied. Only requests containing frontend-sa principal are allowed.');
+      } else {
+        btn.classList.remove('active');
+        text.innerText = "Authorization policy: Inactive";
+        logMessage('warning', 'AuthorizationPolicy deleted. Access restriction removed.');
+      }
+    }
+
+    // Update split logic
+    function updateSplit(val) {
+      canarySplit = parseInt(val);
+      document.getElementById('split-percent-val').innerText = `${canarySplit}% Canary`;
+      document.getElementById('v1-split-lbl').innerText = `${100 - canarySplit}%`;
+      document.getElementById('v2-split-lbl').innerText = `${canarySplit}%`;
+    }
+
+    // Toggle failures
+    function toggleFailure(subset) {
+      const v1Node = document.getElementById('node-v1');
+      const v2Node = document.getElementById('node-v2');
+      const v1Status = document.getElementById('v1-status');
+      const v2Status = document.getElementById('v2-status');
+
+      if (subset === 'v1') {
+        failV1 = !failV1;
+        const btn = document.getElementById('fail-v1-btn');
+        if (failV1) {
+          btn.classList.add('active');
+          v1Node.classList.add('failing');
+          v1Status.classList.add('failing');
+          v1Status.innerHTML = '<div class="status-dot"></div><span style="color: var(--color-danger)">Degraded (503s)</span>';
+          logMessage('danger', 'Fault injection active: 503 Service Unavailable errors on V1 subset.');
+        } else {
+          btn.classList.remove('active');
+          v1Node.classList.remove('failing');
+          v1Status.classList.remove('failing');
+          v1Status.innerHTML = '<div class="status-dot"></div><span>Stable (v1)</span>';
+          logMessage('info', 'Fault injection deactivated on V1 subset.');
+        }
+      } else if (subset === 'v2') {
+        failV2 = !failV2;
+        const btn = document.getElementById('fail-v2-btn');
+        if (failV2) {
+          btn.classList.add('active');
+          v2Node.classList.add('failing');
+          v2Status.classList.add('failing');
+          v2Status.innerHTML = '<div class="status-dot"></div><span style="color: var(--color-danger)">Degraded (503s)</span>';
+          logMessage('danger', 'Fault injection active: 503 Service Unavailable errors on V2 subset.');
+        } else {
+          btn.classList.remove('active');
+          v2Node.classList.remove('failing');
+          v2Status.classList.remove('failing');
+          v2Status.innerHTML = '<div class="status-dot"></div><span style="color: var(--color-secondary)">Canary (v2)</span>';
+          logMessage('info', 'Fault injection deactivated on V2 subset.');
+        }
+      }
+    }
+
+    // Update latency
+    function updateLatency(val) {
+      addedLatency = parseInt(val);
+      document.getElementById('latency-val').innerText = `${addedLatency}ms`;
+    }
+
+    // Toggle continuous mock load mode
+    function toggleProductionMode() {
+      const btn = document.getElementById('prod-mode-btn');
+      if (loadModeInterval) {
+        clearInterval(loadModeInterval);
+        loadModeInterval = null;
+        btn.innerText = "Start Load";
+        btn.classList.add('btn-secondary');
+        logMessage('info', 'Production load simulation stopped.');
+      } else {
+        btn.innerText = "Stop Load";
+        btn.classList.remove('btn-secondary');
+        logMessage('success', 'Production load simulation active. Generating continuous requests...');
+        loadModeInterval = setInterval(() => {
+          sendSingleRequest();
+        }, 800);
+      }
+    }
+
+    // Update security visual paths and shields
+    function updateSecurityVisuals() {
+      const pathIngressFrontend = document.getElementById('path-ingress-frontend');
+      const pathFrontendV1 = document.getElementById('path-frontend-v1');
+      const pathFrontendV2 = document.getElementById('path-frontend-v2');
+      const shield = document.getElementById('mtls-shield');
+      const shieldStatus = document.getElementById('shield-status-text');
+      const shieldDesc = document.getElementById('shield-desc-text');
+
+      if (!isSidecarInjected) {
+        // Plaintext
+        pathIngressFrontend.className.baseVal = "link-path";
+        pathFrontendV1.className.baseVal = "link-path";
+        pathFrontendV2.className.baseVal = "link-path";
+        shield.className = "mtls-shield-container disabled";
+        shieldStatus.innerText = "Plaintext Mode";
+        shieldDesc.innerText = "Sidecars disabled. No encryption active.";
+        return;
+      }
+
+      if (mtlsMode === 'strict') {
+        pathIngressFrontend.className.baseVal = "link-path encrypted";
+        pathFrontendV1.className.baseVal = "link-path encrypted";
+        pathFrontendV2.className.baseVal = "link-path encrypted";
+        shield.className = "mtls-shield-container";
+        shieldStatus.innerText = "Strict mTLS Mode";
+        shieldDesc.innerText = "All mesh connections cryptographically secure.";
+      } else if (mtlsMode === 'permissive') {
+        pathIngressFrontend.className.baseVal = "link-path encrypted";
+        pathFrontendV1.className.baseVal = "link-path encrypted";
+        pathFrontendV2.className.baseVal = "link-path encrypted";
+        shield.className = "mtls-shield-container";
+        shieldStatus.innerText = "Permissive mTLS Mode";
+        shieldDesc.innerText = "Accepts both plain and mTLS connections.";
+      } else {
+        pathIngressFrontend.className.baseVal = "link-path active";
+        pathFrontendV1.className.baseVal = "link-path active";
+        pathFrontendV2.className.baseVal = "link-path active";
+        shield.className = "mtls-shield-container disabled";
+        shieldStatus.innerText = "mTLS Disabled";
+        shieldDesc.innerText = "Sidecars bypass handshake checks.";
+      }
+    }
+
+    // Trigger one mock request traversing the system
+    function sendSingleRequest() {
+      const container = document.getElementById('canvas-container');
+      
+      // Determine split logic v1 vs v2
+      const isCanary = Math.random() * 100 < canarySplit;
+      const targetSubset = isCanary ? 'v2' : 'v1';
+      
+      // Simulate validation outcome
+      let status = 200;
+      let latency = 1.2 + (isSidecarInjected ? 2.0 : 0) + addedLatency; // basic simulation latency
+
+      // Zero-Trust AuthZ checks
+      if (isAuthzEnabled) {
+        if (!isSidecarInjected) {
+          // If no sidecars injected, AuthZ policy doesn't trigger, but strict mode blocks it at TCP level if strict.
+          // In plaintext mode, the call might succeed but let's say it bypasses policy
+        } else if (mtlsMode === 'disable') {
+          // No client cryptographic identity passed -> RBAC denied.
+          status = 403;
+        }
+      }
+
+      // Failures checks
+      if (status === 200) {
+        if (targetSubset === 'v1' && failV1) {
+          status = 503;
+        } else if (targetSubset === 'v2' && failV2) {
+          status = 503;
+        }
+      }
+
+      // 1. Packet client -> Ingress Gateway
+      animatePacket(nodeCoords.client, nodeCoords.ingress, 'normal', () => {
+        
+        // Ingress logs L7 matching
+        if (isSidecarInjected) {
+          logMessage('info', `Ingress gateway matched host "app.example.com". Forwarding to frontend-app.`);
+        }
+
+        // 2. Packet Ingress -> Frontend App
+        let classType = (isSidecarInjected && mtlsMode !== 'disable') ? 'encrypted' : 'normal';
+        animatePacket(nodeCoords.ingress, nodeCoords.frontend, classType, () => {
+
+          // Frontend sidecar logic
+          if (isSidecarInjected) {
+            logMessage('info', `Frontend sidecar routing outbound request. Target: backend-service. Split selection: subset=${targetSubset.toUpperCase()}`);
+          }
+
+          // 3. Packet Frontend -> Target Backend (V1 or V2)
+          let backendCoord = nodeCoords[targetSubset];
+          let packetType = (status === 403 || status === 503) ? 'blocked' : classType;
+          
+          animatePacket(nodeCoords.frontend, backendCoord, packetType, () => {
+            
+            // Backend endpoint processing
+            if (status === 403) {
+              logMessage('danger', `Backend sidecar rejected request. Cause: AuthorizationPolicy check failed. Code: 403 Forbidden.`);
+              animateFlashNode(targetSubset, 'blocked');
+            } else if (status === 503) {
+              logMessage('danger', `Backend service returned error. Target: ${targetSubset.toUpperCase()}. Code: 503 Service Unavailable.`);
+              animateFlashNode(targetSubset, 'blocked');
+            } else {
+              logMessage('success', `Successful request processed by ${targetSubset.toUpperCase()}. Code: 200 OK. RTT: ${latency.toFixed(1)}ms`);
+              animateFlashNode(targetSubset, 'success');
+            }
+
+            // Update Statistics
+            recordStatistics(status, latency, targetSubset);
+          });
+        });
+      });
+    }
+
+    // Packet flight animation
+    function animatePacket(from, to, type, callback) {
+      const container = document.getElementById('canvas-container');
+      const pkt = document.createElement('div');
+      pkt.className = 'packet';
+      if (type === 'encrypted') pkt.classList.add('encrypted');
+      if (type === 'blocked') pkt.classList.add('blocked');
+
+      pkt.style.left = `${from.x}px`;
+      pkt.style.top = `${from.y}px`;
+      container.appendChild(pkt);
+
+      const duration = 400; // ms
+      const startTime = performance.now();
+
+      function step(timestamp) {
+        const progress = Math.min((timestamp - startTime) / duration, 1);
+        
+        // Linear path interpolation
+        const currentX = from.x + (to.x - from.x) * progress;
+        const currentY = from.y + (to.y - from.y) * progress;
+        
+        pkt.style.left = `${currentX}px`;
+        pkt.style.top = `${currentY}px`;
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          container.removeChild(pkt);
+          if (callback) callback();
+        }
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    // Visual nodes feedback flashes
+    function animateFlashNode(nodeId, type) {
+      const el = document.getElementById(`node-${nodeId}`);
+      if (!el) return;
+      
+      const glowColor = type === 'success' ? 'rgba(16, 185, 129, 0.6)' : 'rgba(244, 63, 94, 0.6)';
+      el.style.boxShadow = `0 0 25px ${glowColor}`;
+      setTimeout(() => {
+        el.style.boxShadow = 'none';
+      }, 300);
+    }
+
+    // Record data metrics
+    function recordStatistics(status, latency, subset) {
+      totalRequestsCount++;
+      if (status === 200) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+
+      totalLatencySum += latency;
+
+      if (subset === 'v1') v1HitsCount++;
+      else v2HitsCount++;
+
+      // Update HTML dashboard metrics
+      document.getElementById('telemetry-total-req').innerText = totalRequestsCount;
+      
+      const successRate = (successCount / totalRequestsCount) * 100;
+      const rateEl = document.getElementById('telemetry-success-rate');
+      rateEl.innerText = `${successRate.toFixed(1)}%`;
+      const bar = document.getElementById('success-rate-bar');
+      bar.style.width = `${successRate}%`;
+
+      if (successRate < 90) {
+        rateEl.className = "telemetry-val danger";
+        bar.style.background = 'var(--color-danger)';
+      } else {
+        rateEl.className = "telemetry-val success";
+        bar.style.background = 'var(--color-success)';
+      }
+
+      // Latency metric
+      const avgLatency = totalLatencySum / totalRequestsCount;
+      document.getElementById('telemetry-latency').innerText = `${avgLatency.toFixed(1)} ms`;
+      const latencyPct = Math.min((avgLatency / 200) * 100, 100);
+      document.getElementById('latency-bar').style.width = `${latencyPct}%`;
+
+      // Split distribution metrics
+      const v1Pct = (v1HitsCount / totalRequestsCount) * 100;
+      const v2Pct = (v2HitsCount / totalRequestsCount) * 100;
+
+      document.getElementById('v1-stat-hits').innerText = `${v1HitsCount} (${v1Pct.toFixed(0)}%)`;
+      document.getElementById('v2-stat-hits').innerText = `${v2HitsCount} (${v2Pct.toFixed(0)}%)`;
+      document.getElementById('v1-stat-bar').style.width = `${v1Pct}%`;
+      document.getElementById('v2-stat-bar').style.width = `${v2Pct}%`;
+    }
+
+    // Reset stats
+    function resetTelemetry() {
+      totalRequestsCount = 0;
+      successCount = 0;
+      failCount = 0;
+      totalLatencySum = 0;
+      v1HitsCount = 0;
+      v2HitsCount = 0;
+
+      document.getElementById('telemetry-total-req').innerText = "0";
+      document.getElementById('telemetry-success-rate').innerText = "100.0%";
+      document.getElementById('telemetry-success-rate').className = "telemetry-val success";
+      document.getElementById('success-rate-bar').style.width = "100%";
+      document.getElementById('success-rate-bar').style.background = "var(--color-success)";
+      document.getElementById('telemetry-latency').innerText = "2.2 ms";
+      document.getElementById('latency-bar').style.width = "15%";
+      document.getElementById('v1-stat-hits').innerText = "0 (0%)";
+      document.getElementById('v2-stat-hits').innerText = "0 (0%)";
+      document.getElementById('v1-stat-bar').style.width = "0%";
+      document.getElementById('v2-stat-bar').style.width = "0%";
+
+      logMessage('info', 'Telemetry database counters flushed.');
+    }
+
+    // Append logs to terminal
+    function logMessage(level, text) {
+      const term = document.getElementById('logs-container');
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      
+      let levelClass = 'log-info';
+      if (level === 'success') levelClass = 'log-success';
+      if (level === 'warning') levelClass = 'log-warning';
+      if (level === 'danger') levelClass = 'log-danger';
+
+      line.innerHTML = `
+        <span class="log-time">[${timeStr}]</span>
+        <span class="${levelClass}">[${level}]</span>
+        <span class="log-text">${text}</span>
+      `;
+      term.appendChild(line);
+
+      // Auto scroll to bottom
+      const termPanel = document.getElementById('terminal');
+      termPanel.scrollTop = termPanel.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('logs-container').innerHTML = '';
+      logMessage('info', 'Log terminal cleared.');
+    }
+
+    // Init script
+    updateSecurityVisuals();
+    // Start with plaintext baseline description on load
+    activateScenario(0);
+  </script>
+</body>
+</html>
