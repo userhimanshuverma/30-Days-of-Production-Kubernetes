@@ -1,0 +1,18 @@
+apiVersion: database.production.k8s/v1alpha1
+kind: PostgresCluster
+metadata:
+  name: prod-db-cluster
+  namespace: default
+spec:
+  replicas: 3
+  version: "15.2"
+  storage:
+    size: "50Gi"
+    class: "premium-rwo"
+  backup:
+    enabled: true
+    interval: "0 2 * * *" # Backup every night at 2:00 AM UTC
+    s3Bucket: "production-k8s-database-backups"
+  config:
+    maxConnections: 250
+    sharedBuffers: "16GB"

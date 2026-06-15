@@ -1,0 +1,39 @@
+sequenceDiagram
+    autonumber
+    actor PlatformEngineer as Platform Engineer
+    participant APIServer as Kube API Server
+    participant Webhook as Validating Webhook
+    participant Operator as Operator Pod
+    participant LiveCluster as Cluster Runtime
+    participant Prometheus as Prometheus Server
+
+    PlatformEngineer->>APIServer: kubectl apply -f db-spec.yaml
+    APIServer->>Webhook: Validate Custom Resource spec (valid replicas, storage, schema)
+    Webhook-->>APIServer: Admission Allowed
+    APIServer->>APIServer: Persist PostgresCluster object in etcd
+    APIServer-->>PlatformEngineer: postgrescluster.database.production.k8s/prod-db created
+
+    Note over APIServer,Operator: Informer detects new object via HTTP Watch connection
+    APIServer->>Operator: Watch Event: ADD postgresclusters/prod-db
+    Operator->>Operator: Enqueue key 'default/prod-db' in Workqueue
+    Operator->>Operator: Worker thread pops key, starts Reconcile()
+    
+    Operator->>LiveCluster: Read current pods with selector app=prod-db
+    LiveCluster-->>Operator: Found: 0 Pods
+    
+    Note over Operator,LiveCluster: Reconcile Action: Actual (0) != Desired (3) Replicas
+    Operator->>LiveCluster: Create Primary StatefulSet pod (prod-db-0) and PVC
+    LiveCluster-->>Operator: Pod & PVC Created
+    
+    Operator->>LiveCluster: Create Read/Write Service & Read-Only Service
+    LiveCluster-->>Operator: Services Created
+
+    Operator->>APIServer: Update Status subresource: Phase=Initializing, Replicas=1
+    
+    Note over Operator,LiveCluster: Wait for Primary to become Ready
+    Operator->>LiveCluster: Create streaming replica pods (prod-db-1, prod-db-2)
+    LiveCluster-->>Operator: Replicas Created
+
+    Note over Operator,APIServer: Reconciliation completes with no error
+    Operator->>APIServer: Update Status: Phase=Ready, Replicas=3
+    Operator->>Prometheus: Export metric: postgres_operator_reconcile_success_total{name="prod-db"}

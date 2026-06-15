@@ -1,0 +1,141 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: postgresclusters.database.production.k8s
+spec:
+  group: database.production.k8s
+  names:
+    kind: PostgresCluster
+    listKind: PostgresClusterList
+    plural: postgresclusters
+    singular: postgrescluster
+    shortNames:
+    - pgdb
+    - pgcluster
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+      scale:
+        specReplicasPath: .spec.replicas
+        statusReplicasPath: .status.replicas
+        labelSelectorPath: .status.selector
+    additionalPrinterColumns:
+    - name: Replicas
+      type: integer
+      description: The number of desired replicas
+      jsonPath: .spec.replicas
+    - name: Ready Replicas
+      type: integer
+      description: The number of running ready replicas
+      jsonPath: .status.readyReplicas
+    - name: Version
+      type: string
+      description: PostgreSQL Engine Version
+      jsonPath: .spec.version
+    - name: Phase
+      type: string
+      description: Current phase of the database cluster
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - replicas
+            - version
+            - storage
+            properties:
+              replicas:
+                type: integer
+                minimum: 1
+                maximum: 9
+                default: 3
+              version:
+                type: string
+                pattern: '^[0-9]+(\.[0-9]+)?$'
+              storage:
+                type: object
+                required:
+                - size
+                - class
+                properties:
+                  size:
+                    type: string
+                    pattern: '^[0-9]+(Gi|Mi|Ti)$'
+                  class:
+                    type: string
+                    default: "standard"
+              backup:
+                type: object
+                required:
+                - enabled
+                properties:
+                  enabled:
+                    type: boolean
+                    default: false
+                  interval:
+                    type: string
+                    pattern: '^(\*|([0-5]?[0-9])) (\*|([0-1]?[0-9]|2[0-3])) (\*|(0?[1-9]|[1-2][0-9]|3[0-1])) (\*|(0?[1-9]|1[0-2])) (\*|[0-7])$'
+                    default: "0 2 * * *"
+                  s3Bucket:
+                    type: string
+              config:
+                type: object
+                properties:
+                  maxConnections:
+                    type: integer
+                    minimum: 10
+                    maximum: 1000
+                    default: 100
+                  sharedBuffers:
+                    type: string
+                    pattern: '^[0-9]+(MB|GB|KB)$'
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                description: Current operational phase (e.g., Pending, Initializing, Ready, Upgrading, Failed)
+              replicas:
+                type: integer
+                description: Number of actual running database pods managed by the operator
+              readyReplicas:
+                type: integer
+                description: Number of ready database pods matching desired spec
+              selector:
+                type: string
+                description: Label selector for mapping database pods to the custom resource
+              conditions:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - type
+                  - status
+                  - lastTransitionTime
+                  - reason
+                  - message
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                      enum: ["True", "False", "Unknown"]
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                    message:
+                      type: string

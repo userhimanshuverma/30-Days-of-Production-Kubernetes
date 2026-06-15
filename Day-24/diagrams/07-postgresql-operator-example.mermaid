@@ -1,0 +1,58 @@
+flowchart TB
+    subgraph CustomSpec ["PostgresCluster CR spec"]
+        CR[PostgresCluster: 'prod-db']
+        Replicas[replicas: 3]
+        BackupConf[backup: s3-bucket]
+    end
+
+    subgraph OperatorLogic ["PostgreSQL Operator Controller"]
+        Operator[PGO Controller]
+        MonitorLoop[Monitor Node Health & Lag]
+        BackupJob[CronBackup Reconciler]
+        Operator --> MonitorLoop
+        Operator --> BackupJob
+    end
+
+    subgraph ManagedDB ["Provisioned DB Cluster (Stateful)"]
+        ServiceRW[Service: prod-db-primary (Read/Write)]
+        ServiceRO[Service: prod-db-replicas (Read-Only)]
+        
+        Pod1[(Pod: prod-db-0\nPrimary / Leader)]
+        Pod2[(Pod: prod-db-1\nReplica / Streaming)]
+        Pod3[(Pod: prod-db-2\nReplica / Streaming)]
+        
+        PVC1[PVC: data-prod-db-0] <---> Pod1
+        PVC2[PVC: data-prod-db-1] <---> Pod2
+        PVC3[PVC: data-prod-db-2] <---> Pod3
+    end
+
+    subgraph Backups ["AWS S3 / MinIO"]
+        S3Bucket[(prod-db-backups Bucket)]
+    end
+
+    CR -->|Read Spec| Operator
+    Operator -->|Creates / Manages| ServiceRW
+    Operator -->|Creates / Manages| ServiceRO
+    Operator -->|Creates / Manages| Pod1
+    Operator -->|Creates / Manages| Pod2
+    Operator -->|Creates / Manages| Pod3
+    
+    ServiceRW -->|Routes to| Pod1
+    ServiceRO -->|Load Balances to| Pod2
+    ServiceRO -->|Load Balances to| Pod3
+
+    Pod2 -.->|Streaming Replication| Pod1
+    Pod3 -.->|Streaming Replication| Pod1
+
+    BackupJob -.->|Spawn Backup Pod| BackJob[pgBackRest / pg_dump Pod]
+    BackJob -->|Write WAL/Tarballs| S3Bucket
+
+    classDef spec fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef op fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef db fill:#064e3b,stroke:#34d399,color:#fff;
+    classDef s3 fill:#7c2d12,stroke:#f97316,color:#fff;
+
+    class CR,Replicas,BackupConf spec;
+    class Operator,MonitorLoop,BackupJob,BackJob op;
+    class Pod1,Pod2,Pod3,ServiceRW,ServiceRO,PVC1,PVC2,PVC3 db;
+    class S3Bucket s3;

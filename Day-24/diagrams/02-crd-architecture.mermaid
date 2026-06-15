@@ -1,0 +1,34 @@
+flowchart TD
+    subgraph Spec ["1. CRD Registration (Cluster-scoped)"]
+        CRD[CustomResourceDefinition: databases.production.k8s]
+        Schema[OpenAPI v3 Schema Spec]
+        CRD --> Schema
+    end
+
+    subgraph ControlPlane ["2. Control Plane Registration"]
+        Schema -->|Applied via kubectl| APIServer[kube-apiserver]
+        APIServer -->|Dynamic API Registration| Discovery[Discovery API Updated]
+        Discovery -->|Kubectl updates autocomplete/types| ClientCache[Client-go/Kubectl Discovery Cache]
+    end
+
+    subgraph Instance ["3. Custom Resource Instance (Namespaced)"]
+        CR[Custom Resource: PostgresCluster 'prod-db']
+        SpecConfig[Spec: replicas: 3, version: 15]
+        CR --> SpecConfig
+    end
+
+    subgraph EtcdStore ["4. Data Storage Path"]
+        CR -->|HTTPS POST| APIServer
+        APIServer -->|Validation & Admission| StorePath[Write to /apis/production.k8s/v1alpha1/namespaces/default/postgresclusters/prod-db]
+        StorePath --> Etcd[(etcd Store)]
+    end
+
+    classDef spec fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef control fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef instance fill:#581c87,stroke:#c084fc,color:#fff;
+    classDef storage fill:#064e3b,stroke:#34d399,color:#fff;
+
+    class CRD,Schema spec;
+    class APIServer,Discovery,ClientCache control;
+    class CR,SpecConfig instance;
+    class StorePath,Etcd storage;

@@ -1,0 +1,20 @@
+flowchart LR
+    DesiredState[Desired State\nCR Spec: Replicas=3] ---> Controller[Controller Reconciler]
+    
+    subgraph FeedbackLoop ["Feedback Control System"]
+        Controller -->|Control Action\nCreate/Scale Pod| Cluster[Kubernetes Cluster System]
+        Cluster -->|Process Output\nLive Pod Count| Sensors[Informers / Lister cache]
+        Sensors -->|Feedback Signal\nActual Replicas=2| Comparator[State Comparator\nCompute Diff]
+        DesiredState ---> Comparator
+        Comparator -->|Error Signal\nDiff: Replicas +1| Controller
+    end
+
+    classDef spec fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef controller fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef sys fill:#064e3b,stroke:#34d399,color:#fff;
+    classDef feedback fill:#7c2d12,stroke:#f97316,color:#fff;
+
+    class DesiredState spec;
+    class Controller controller;
+    class Cluster sys;
+    class Sensors,Comparator feedback;

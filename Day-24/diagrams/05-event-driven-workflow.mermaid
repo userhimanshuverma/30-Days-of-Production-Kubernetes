@@ -1,0 +1,33 @@
+flowchart TB
+    subgraph ResourceEvents ["Resource Event Sources"]
+        UserAction[User apply YAML] -->|CREATE/UPDATE| APIServer[kube-apiserver]
+        ExternalShift[System Pod Crash / Drift] -->|DELETE/UPDATE| APIServer
+    end
+
+    subgraph InformerSubsystem ["Informer & Cache System"]
+        APIServer -->|Watch Stream HTTP chunked| Reflector[Reflector / Watch Connection]
+        Reflector -->|Send Delta FIFO| DeltaFIFO[Delta FIFO Queue]
+        DeltaFIFO -->|Pop Event| Indexer[Indexer / Local Cache Store]
+        DeltaFIFO -->|Trigger Handler| ResourceEventHandler[Resource Event Handler]
+    end
+
+    subgraph ProcessingQueue ["Workqueue Engine"]
+        ResourceEventHandler -->|Enqueue Key namespace/name| WorkQueue[RateLimiting WorkQueue]
+    end
+
+    subgraph ExecutionThreads ["Worker Threads"]
+        WorkQueue -->|Get Key| Worker1[Worker Thread 1]
+        WorkQueue -->|Get Key| Worker2[Worker Thread 2]
+        Worker1 -->|Invoke| ReconcileLoop[Reconcile Loop]
+        Worker2 -->|Invoke| ReconcileLoop
+    end
+
+    classDef source fill:#581c87,stroke:#c084fc,color:#fff;
+    classDef informer fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef queue fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef threads fill:#064e3b,stroke:#34d399,color:#fff;
+
+    class UserAction,ExternalShift,APIServer source;
+    class Reflector,DeltaFIFO,Indexer,ResourceEventHandler informer;
+    class WorkQueue queue;
+    class Worker1,Worker2,ReconcileLoop threads;

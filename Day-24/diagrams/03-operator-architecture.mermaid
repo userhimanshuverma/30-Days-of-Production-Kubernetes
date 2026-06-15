@@ -1,0 +1,31 @@
+flowchart LR
+    subgraph K8sAPI ["Kubernetes Control Plane"]
+        APIServer[kube-apiserver]
+        Etcd[(etcd)] <--> APIServer
+    end
+
+    subgraph OperatorPod ["Custom Operator Pod Container"]
+        Informer[Shared Informer]
+        Lister[Lister / Cache Store]
+        Queue[Workqueue / Rate Limiting Queue]
+        Reconciler[Custom Reconciler / Reconcile Loop]
+        
+        APIServer -->|Watch Events: ADD/UPD/DEL| Informer
+        Informer -->|1. Populates Cache| Lister
+        Informer -->|2. Enqueues Object Key| Queue
+        Queue -->|3. Dequeue Key| Reconciler
+        Reconciler -->|4. Read Actual State| Lister
+        Reconciler -->|5. Update Status / Subresources| APIServer
+    end
+
+    subgraph ManagedResources ["Managed Infrastucture"]
+        Reconciler -->|6. Take Corrective Action: Create/Update/Delete| TargetPods[Database Pods / Services / StatefulSets]
+    end
+
+    classDef api fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef op fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef infra fill:#581c87,stroke:#c084fc,color:#fff;
+
+    class APIServer,Etcd api;
+    class Informer,Lister,Queue,Reconciler op;
+    class TargetPods infra;

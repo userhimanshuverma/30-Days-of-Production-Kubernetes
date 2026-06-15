@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Operator Control Center - Day 24</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-main: #040711;
+      --bg-card: #090f20;
+      --bg-panel: #0f1832;
+      --bg-input: #152144;
+      --border-color: #1f305e;
+      --text-main: #f8fafc;
+      --text-muted: #64748b;
+      
+      --color-primary: #38bdf8; /* sky blue */
+      --color-secondary: #a855f7; /* operator purple */
+      --color-success: #10b981; /* active green */
+      --color-warning: #f59e0b; /* amber */
+      --color-danger: #ef4444; /* rose red */
+      --color-info: #06b6d4; /* cyan */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.8rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 2.2rem;
+      height: 2.2rem;
+      background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      font-size: 1.2rem;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+    }
+
+    .logo-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .logo-title span {
+      background: linear-gradient(to right, var(--color-primary), var(--color-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-phase {
+      background-color: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #d8b4fe;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .main-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 340px 1fr 340px;
+      gap: 1rem;
+      padding: 1rem;
+      height: calc(100vh - 65px);
+      min-height: 600px;
+    }
+
+    @media(max-width: 1300px) {
+      .main-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow-y: auto;
+      }
+    }
+
+    /* Left Sidebar: Controls & Steps */
+    .panel-controls {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      overflow-y: auto;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: var(--text-main);
+    }
+
+    .panel-title svg {
+      color: var(--color-primary);
+    }
+
+    .step-box {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      transition: all 0.3s ease;
+    }
+
+    .step-box.active {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .step-number {
+      font-size: 0.75rem;
+      background-color: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--color-primary);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .step-box.completed .step-number {
+      background-color: rgba(16, 185, 201, 0.15);
+      border-color: var(--color-success);
+      color: var(--color-success);
+    }
+
+    .step-description {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, var(--color-primary), #0284c7);
+      color: white;
+      border: none;
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .btn-action:hover:not(:disabled) {
+      filter: brightness(1.1);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-action:disabled {
+      background: var(--bg-input);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background-color: var(--border-color);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--color-danger), #b91c1c);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    /* Range Slider */
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      background-color: var(--bg-panel);
+      padding: 0.8rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 5px;
+      outline: none;
+      border: 1px solid var(--border-color);
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--color-primary);
+      transition: all 0.2s;
+    }
+
+    /* Center Pane: Topology Canvas & Console */
+    .panel-center {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .canvas-container {
+      flex: 1;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      min-height: 380px;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+    }
+
+    .grid-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(31, 48, 94, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(31, 48, 94, 0.15) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }
+
+    /* Simulation Elements */
+    .sim-node {
+      position: absolute;
+      background-color: var(--bg-panel);
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      width: 160px;
+      z-index: 10;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .sim-node.active-leader {
+      border-color: var(--color-success);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+    }
+
+    .sim-node.failed {
+      border-color: var(--color-danger) !important;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3) !important;
+      animation: shake 0.5s infinite alternate;
+    }
+
+    @keyframes shake {
+      0% { transform: translate(1px, 1px) rotate(0deg); }
+      10% { transform: translate(-1px, -2px) rotate(-1deg); }
+      20% { transform: translate(-3px, 0px) rotate(1deg); }
+      30% { transform: translate(0px, 2px) rotate(0deg); }
+      40% { transform: translate(1px, -1px) rotate(1deg); }
+      50% { transform: translate(-1px, 2px) rotate(-1deg); }
+      60% { transform: translate(-3px, 1px) rotate(0deg); }
+      70% { transform: translate(2px, 1px) rotate(-1deg); }
+      80% { transform: translate(-1px, -1px) rotate(1deg); }
+      90% { transform: translate(2px, 2px) rotate(0deg); }
+      100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }
+
+    .sim-node.operator-node {
+      border-color: var(--color-secondary);
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
+    }
+
+    .node-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .node-badge {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-weight: 600;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+    }
+
+    .node-badge.leader {
+      background-color: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #a7f3d0;
+    }
+
+    .node-badge.replica {
+      background-color: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #bae6fd;
+    }
+
+    .node-status {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--text-muted);
+    }
+
+    .status-dot.active {
+      background-color: var(--color-success);
+      box-shadow: 0 0 8px var(--color-success);
+    }
+
+    .status-dot.danger {
+      background-color: var(--color-danger);
+      box-shadow: 0 0 8px var(--color-danger);
+    }
+
+    .status-dot.warning {
+      background-color: var(--color-warning);
+      box-shadow: 0 0 8px var(--color-warning);
+    }
+
+    .gear-icon {
+      animation: rotate 3s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* SVG connections mapping */
+    .topology-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .link-path {
+      fill: none;
+      stroke: var(--border-color);
+      stroke-width: 2;
+      transition: stroke 0.3s, stroke-dasharray 0.3s;
+    }
+
+    .link-path.active {
+      stroke: var(--color-primary);
+    }
+
+    .link-path.syncing {
+      stroke: var(--color-success);
+      stroke-dasharray: 6, 6;
+      animation: dash 1.2s linear infinite;
+    }
+
+    .link-path.operator-link {
+      stroke: var(--color-secondary);
+      stroke-dasharray: 4, 4;
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -20;
+      }
+    }
+
+    /* Terminal Console */
+    .panel-terminal {
+      background-color: #02040a;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem;
+      height: 200px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      overflow-y: auto;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.9);
+    }
+
+    .term-header {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #14203e;
+      padding-bottom: 0.25rem;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 0.5rem;
+      line-height: 1.4;
+    }
+
+    .log-time { color: #4b5563; }
+    .log-info { color: var(--color-primary); }
+    .log-success { color: var(--color-success); }
+    .log-warning { color: var(--color-warning); }
+    .log-danger { color: var(--color-danger); }
+    .log-operator { color: var(--color-secondary); }
+    .log-text { color: #e2e8f0; }
+
+    /* Right Sidebar: State & Metrics */
+    .panel-telemetry {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      overflow-y: auto;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+    }
+
+    .metric-card {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      padding: 0.8rem;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .metric-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .metric-val {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--color-info);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Loop Visualizer */
+    .loop-visualizer {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+
+    .loop-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.25rem;
+      text-align: center;
+    }
+
+    .loop-step {
+      font-size: 0.65rem;
+      padding: 0.4rem 0.2rem;
+      border-radius: 4px;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .loop-step.active {
+      background-color: rgba(168, 85, 247, 0.15);
+      border-color: var(--color-secondary);
+      color: #e9d5ff;
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+    }
+
+    /* Desired vs Actual Compare Card */
+    .compare-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.8rem;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .compare-pane {
+      background-color: var(--bg-input);
+      padding: 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .compare-pane-title {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+    }
+
+    .compare-pane-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .diff-badge {
+      text-align: center;
+      padding: 0.3rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border-radius: 4px;
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--color-success);
+    }
+
+    .diff-badge.drifted {
+      background-color: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: var(--color-warning);
+    }
+
+    /* Cloud Archiving Visualizer */
+    .archive-container {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background-color: rgba(56, 189, 248, 0.03);
+      border: 1px solid var(--border-color);
+      padding: 0.8rem;
+      border-radius: 8px;
+    }
+
+    .cloud-icon {
+      font-size: 1.8rem;
+      color: var(--color-primary);
+    }
+
+    /* Progress bar styling */
+    .bar-container {
+      width: 100%;
+      height: 6px;
+      background-color: var(--bg-input);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      margin-top: 0.2rem;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .floating-packet {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--color-success);
+      box-shadow: 0 0 8px var(--color-success);
+      pointer-events: none;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">K</div>
+      <div>
+        <h1 class="logo-title">Kubernetes Operator <span>Control Center</span></h1>
+        <p style="font-size: 0.72rem; color: var(--text-muted)">Stateful Reconciliation & Extensibility Sandbox</p>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 1rem">
+      <span class="badge-phase">Day 24: Operators</span>
+    </div>
+  </header>
+
+  <div class="main-container">
+    
+    <!-- LEFT SIDEBAR: GUIDED ACTIONS & STEPS -->
+    <div class="panel-controls">
+      <h2 class="panel-title">
+        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+        Guided Stepper
+      </h2>
+
+      <!-- Step 1: Register CRD -->
+      <div class="step-box active" id="step1-box">
+        <div class="step-header">
+          <span>1. Register CRD API Schema</span>
+          <span class="step-number" id="step1-num">1</span>
+        </div>
+        <p class="step-description">
+          Define the schema structure for <strong>PostgresCluster</strong> using OpenAPI v3 specs, extending the native K8s API server logic.
+        </p>
+        <button class="btn-action" id="btn-register-crd" onclick="registerCRD()">
+          Register CRD Schema
+        </button>
+      </div>
+
+      <!-- Step 2: Deploy Operator -->
+      <div class="step-box" id="step2-box">
+        <div class="step-header">
+          <span>2. Deploy Custom Controller</span>
+          <span class="step-number" id="step2-num">2</span>
+        </div>
+        <p class="step-description">
+          Start the controller logic pod. The operator initializes a Shared Informer watch loop on the PostgresCluster API.
+        </p>
+        <button class="btn-action" id="btn-deploy-operator" onclick="deployOperator()" disabled>
+          Deploy Operator Pod
+        </button>
+      </div>
+
+      <!-- Step 3: Deploy CR -->
+      <div class="step-box" id="step3-box">
+        <div class="step-header">
+          <span>3. Submit Custom Resource (CR)</span>
+          <span class="step-number" id="step3-num">3</span>
+        </div>
+        <p class="step-description">
+          Submit the <strong>prod-db</strong> spec request to etcd: desired replicas=3, version=15.2, storage=50Gi.
+        </p>
+        <button class="btn-action" id="btn-apply-cr" onclick="applyCR()" disabled>
+          Apply Custom Resource
+        </button>
+      </div>
+
+      <!-- Interactive Workload Operations -->
+      <h2 class="panel-title" style="margin-top: 0.5rem">
+        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+        Failures & Scalings
+      </h2>
+
+      <!-- Slider for Scaling -->
+      <div class="slider-container">
+        <div class="slider-label">
+          <span>Scale Replicas</span>
+          <span id="slider-val" style="font-family: 'Fira Code', monospace; color: var(--color-primary)">3</span>
+        </div>
+        <input type="range" min="1" max="5" value="3" class="slider" id="replica-slider" oninput="changeReplicas(this.value)" disabled>
+        <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted)">
+          <span>Min: 1</span>
+          <span>Max: 5</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; flex-direction: column; gap: 0.5rem">
+        <button class="btn-action btn-danger" id="btn-crash-node" onclick="injectFailure()" disabled>
+          Inject Pod Failure
+        </button>
+        <button class="btn-action btn-secondary" id="btn-upgrade-version" onclick="triggerUpgrade()" disabled>
+          Upgrade Postgres (15.2 ➔ 16.0)
+        </button>
+        <button class="btn-action btn-secondary" id="btn-backup" onclick="triggerBackup()" disabled>
+          Trigger On-Demand S3 Backup
+        </button>
+      </div>
+    </div>
+
+    <!-- CENTER PANE: VISUAL CANVAS GRAPH & TERMINAL -->
+    <div class="panel-center">
+      
+      <!-- Canvas Sandbox -->
+      <div class="canvas-container" id="canvas-container">
+        <div class="grid-overlay"></div>
+        
+        <!-- SVG Connecting Paths -->
+        <svg class="topology-svg" id="topology-svg">
+          <!-- API Server connections -->
+          <path id="path-crd-api" class="link-path" d="M 90,60 L 90,60" />
+          <path id="path-operator-api" class="link-path operator-link" d="M 90,60 Q 250,60 250,110" style="display: none;" />
+          
+          <!-- Master-Replica sync channels -->
+          <path id="path-master-replica1" class="link-path" d="M 250,225 Q 150,280 100,320" style="display: none;" />
+          <path id="path-master-replica2" class="link-path" d="M 250,225 L 250,320" style="display: none;" />
+          <path id="path-master-replica3" class="link-path" d="M 250,225 Q 350,280 400,320" style="display: none;" />
+          <path id="path-master-replica4" class="link-path" d="M 250,225 L 360,210" style="display: none;" />
+        </svg>
+
+        <!-- Kube API Server node -->
+        <div class="sim-node" id="node-apiserver" style="left: 10px; top: 15px; width: 140px; border-color: var(--color-primary)">
+          <div class="node-title">
+            <span>kube-apiserver</span>
+            <span class="node-badge" style="background: rgba(56, 189, 248, 0.1)">API</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active"></div>
+            <span id="apiserver-status-lbl">Initialized</span>
+          </div>
+        </div>
+
+        <!-- Custom Operator Pod -->
+        <div class="sim-node operator-node" id="node-operator" style="left: 230px; top: 15px; width: 180px; display: none;">
+          <div class="node-title">
+            <span>postgres-operator</span>
+            <span class="node-badge" style="color: #e9d5ff">Pod</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active"></div>
+            <span>Watching Custom APIs</span>
+          </div>
+          <span style="font-size: 0.65rem; color: var(--color-secondary); font-family: 'Fira Code', monospace; display: flex; align-items: center; gap: 0.2rem">
+            <span class="gear-icon">⚙️</span> informer-thread-active
+          </span>
+        </div>
+
+        <!-- Database Primary Pod (Index 0) -->
+        <div class="sim-node" id="db-pod-0" style="left: 170px; top: 180px; display: none;">
+          <div class="node-title">
+            <span id="db-pod-0-title">postgres-0</span>
+            <span class="node-badge leader" id="db-pod-0-role">Primary</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active" id="db-pod-0-dot"></div>
+            <span id="db-pod-0-status">Running (v15.2)</span>
+          </div>
+          <div class="bar-container" id="db-pod-0-bar-container" style="display: none;">
+            <div class="bar-fill" id="db-pod-0-bar"></div>
+          </div>
+        </div>
+
+        <!-- Database Replica 1 (Index 1) -->
+        <div class="sim-node" id="db-pod-1" style="left: 10px; top: 290px; display: none;">
+          <div class="node-title">
+            <span id="db-pod-1-title">postgres-1</span>
+            <span class="node-badge replica" id="db-pod-1-role">Replica</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active" id="db-pod-1-dot"></div>
+            <span id="db-pod-1-status">Running (v15.2)</span>
+          </div>
+          <div class="bar-container" id="db-pod-1-bar-container" style="display: none;">
+            <div class="bar-fill" id="db-pod-1-bar"></div>
+          </div>
+        </div>
+
+        <!-- Database Replica 2 (Index 2) -->
+        <div class="sim-node" id="db-pod-2" style="left: 185px; top: 290px; display: none;">
+          <div class="node-title">
+            <span id="db-pod-2-title">postgres-2</span>
+            <span class="node-badge replica" id="db-pod-2-role">Replica</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active" id="db-pod-2-dot"></div>
+            <span id="db-pod-2-status">Running (v15.2)</span>
+          </div>
+          <div class="bar-container" id="db-pod-2-bar-container" style="display: none;">
+            <div class="bar-fill" id="db-pod-2-bar"></div>
+          </div>
+        </div>
+
+        <!-- Database Replica 3 (Index 3) -->
+        <div class="sim-node" id="db-pod-3" style="left: 360px; top: 290px; display: none;">
+          <div class="node-title">
+            <span id="db-pod-3-title">postgres-3</span>
+            <span class="node-badge replica">Replica</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active" id="db-pod-3-dot"></div>
+            <span id="db-pod-3-status">Running (v15.2)</span>
+          </div>
+          <div class="bar-container" id="db-pod-3-bar-container" style="display: none;">
+            <div class="bar-fill" id="db-pod-3-bar"></div>
+          </div>
+        </div>
+
+        <!-- Database Replica 4 (Index 4) -->
+        <div class="sim-node" id="db-pod-4" style="left: 360px; top: 180px; display: none;">
+          <div class="node-title">
+            <span id="db-pod-4-title">postgres-4</span>
+            <span class="node-badge replica">Replica</span>
+          </div>
+          <div class="node-status">
+            <div class="status-dot active" id="db-pod-4-dot"></div>
+            <span id="db-pod-4-status">Running (v15.2)</span>
+          </div>
+          <div class="bar-container" id="db-pod-4-bar-container" style="display: none;">
+            <div class="bar-fill" id="db-pod-4-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Terminal -->
+      <div class="panel-terminal" id="terminal-console">
+        <div class="term-header">
+          <span>OPERATOR CONTROLLER STREAMS LOGS</span>
+          <span style="cursor: pointer;" onclick="clearLogs()">CLEAR CONSOLE</span>
+        </div>
+        <div class="log-line">
+          <span class="log-time">[19:49:19]</span>
+          <span class="log-info">[INFO]</span>
+          <span class="log-text">Kube API Server online. Awaiting extensibility registrations...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR: STATE DETECTOR & METRICS -->
+    <div class="panel-telemetry">
+      <h2 class="panel-title">
+        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        Reconciliation State
+      </h2>
+
+      <!-- Loop Visualizer -->
+      <div class="loop-visualizer">
+        <div class="metric-title">Loop Activity Phase</div>
+        <div class="loop-steps">
+          <div class="loop-step" id="loop-watch">WATCH</div>
+          <div class="loop-step" id="loop-analyze">DIFF</div>
+          <div class="loop-step" id="loop-act">ACT</div>
+          <div class="loop-step" id="loop-status">STATUS</div>
+        </div>
+      </div>
+
+      <!-- Spec Compare Pane -->
+      <div class="compare-container">
+        <div class="metric-title">State Compare Engine</div>
+        <div class="compare-grid">
+          <div class="compare-pane">
+            <div class="compare-pane-title">Desired Spec</div>
+            <div class="compare-pane-val" id="spec-desired-val">-</div>
+          </div>
+          <div class="compare-pane">
+            <div class="compare-pane-title">Actual Running</div>
+            <div class="compare-pane-val" id="spec-actual-val">-</div>
+          </div>
+        </div>
+        <div class="diff-badge" id="diff-badge">Awaiting Custom Resource</div>
+      </div>
+
+      <!-- Workload Details -->
+      <div class="metric-card">
+        <div class="metric-title">Custom Resource API Status</div>
+        <div style="display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.3rem; font-size: 0.8rem">
+          <div style="display: flex; justify-content: space-between">
+            <span style="color: var(--text-muted)">Resource Group:</span>
+            <span style="font-family: 'Fira Code', monospace">database.production.k8s</span>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span style="color: var(--text-muted)">Kind Spec:</span>
+            <span style="font-family: 'Fira Code', monospace" id="meta-kind-lbl">None</span>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span style="color: var(--text-muted)">Current Phase:</span>
+            <span id="meta-phase-lbl" style="font-weight: 700;">N/A</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backup Details -->
+      <div class="archive-container">
+        <div class="cloud-icon" id="backup-icon">☁️</div>
+        <div style="display: flex; flex-direction: column; flex: 1">
+          <span class="metric-title">S3 Backup Archive</span>
+          <span style="font-size: 0.8rem; font-weight: 600" id="backup-status-lbl">No snapshot configured</span>
+          <div class="bar-container" id="backup-bar-container" style="display: none;">
+            <div class="bar-fill" id="backup-bar" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telemetry Counts -->
+      <div class="metric-card">
+        <div class="metric-title">Operator Sync Latency</div>
+        <div class="metric-val" id="metrics-latency">0ms</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Total Reconciliations</div>
+        <div class="metric-val" id="metrics-reconciles">0</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State Variables
+    let isCrdRegistered = false;
+    let isOperatorDeployed = false;
+    let isCRApplied = false;
+    let desiredReplicas = 3;
+    let actualReplicas = 0;
+    let dbVersion = "15.2";
+    let isFailing = false;
+    let isUpgrading = false;
+    let isReconciling = false;
+    let reconcileCount = 0;
+    let activePods = [];
+    let scaleTransitionTimer = null;
+
+    // References to SVG items
+    const svg = document.getElementById('topology-svg');
+    const logsConsole = document.getElementById('terminal-console');
+
+    // Helper: Add Console Log
+    function addLog(message, type = 'info') {
+      const now = new Date();
+      const timeStr = `[${now.toTimeString().split(' ')[0]}]`;
+      
+      let typeClass = 'log-info';
+      let typePrefix = '[INFO]';
+      if (type === 'success') { typeClass = 'log-success'; typePrefix = '[SUCCESS]'; }
+      if (type === 'warning') { typeClass = 'log-warning'; typePrefix = '[WARN]'; }
+      if (type === 'danger') { typeClass = 'log-danger'; typePrefix = '[ERROR]'; }
+      if (type === 'operator') { typeClass = 'log-operator'; typePrefix = '[RECONCILER]'; }
+
+      const logNode = document.createElement('div');
+      logNode.className = 'log-line';
+      logNode.innerHTML = `
+        <span class="log-time">${timeStr}</span>
+        <span class="${typeClass}">${typePrefix}</span>
+        <span class="log-text">${message}</span>
+      `;
+      logsConsole.appendChild(logNode);
+      logsConsole.scrollTop = logsConsole.scrollHeight;
+    }
+
+    function clearLogs() {
+      logsConsole.innerHTML = `
+        <div class="term-header">
+          <span>OPERATOR CONTROLLER STREAMS LOGS</span>
+          <span style="cursor: pointer;" onclick="clearLogs()">CLEAR CONSOLE</span>
+        </div>
+      `;
+    }
+
+    // Step 1: Register CRD Schema
+    function registerCRD() {
+      if (isCrdRegistered) return;
+      isCrdRegistered = true;
+      
+      addLog("Registering CustomResourceDefinition: postgresclusters.database.production.k8s", 'info');
+      addLog("Validating OpenAPI v3 schema spec definitions...", 'info');
+      
+      setTimeout(() => {
+        addLog("API group 'database.production.k8s' added to API Discovery endpoint.", 'success');
+        addLog("CRD established. Resource 'postgresclusters' (shortnames: 'pgdb', 'pgcluster') is ready for submissions.", 'success');
+        
+        document.getElementById('step1-box').className = "step-box completed";
+        document.getElementById('step1-num').innerText = "✓";
+        document.getElementById('step2-box').className = "step-box active";
+        document.getElementById('btn-deploy-operator').disabled = false;
+        document.getElementById('meta-kind-lbl').innerText = "PostgresCluster";
+        document.getElementById('apiserver-status-lbl').innerText = "CRD Registered";
+      }, 1000);
+    }
+
+    // Step 2: Deploy Operator Pod
+    function deployOperator() {
+      if (!isCrdRegistered || isOperatorDeployed) return;
+      isOperatorDeployed = true;
+
+      addLog("Deploying serviceaccount 'postgres-operator-sa'", 'info');
+      addLog("Binding clusterrole 'postgres-operator-role' to sa", 'info');
+      addLog("Provisioning manager controller pod deployment...", 'info');
+
+      setTimeout(() => {
+        document.getElementById('node-operator').style.display = "block";
+        document.getElementById('path-operator-api').style.display = "block";
+        addLog("Operator manager container successfully loaded.", 'success');
+        addLog("Operator acquired lease lock 'postgres-operator-lock' (Leader Election initialized).", 'success');
+        addLog("Shared Informer cache started watching postgresclusters.database.production.k8s/v1alpha1", 'operator');
+
+        document.getElementById('step2-box').className = "step-box completed";
+        document.getElementById('step2-num').innerText = "✓";
+        document.getElementById('step3-box').className = "step-box active";
+        document.getElementById('btn-apply-cr').disabled = false;
+      }, 1200);
+    }
+
+    // Step 3: Apply Custom Resource (CR)
+    function applyCR() {
+      if (!isOperatorDeployed || isCRApplied) return;
+      isCRApplied = true;
+
+      addLog("Submitting PostgresCluster Custom Resource spec: 'prod-db' to kube-apiserver", 'info');
+      addLog("API validation schema parsed successfully: status set to 'Pending'", 'success');
+
+      document.getElementById('step3-box').className = "step-box completed";
+      document.getElementById('step3-num').innerText = "✓";
+      
+      // Unlock Operations Panels
+      document.getElementById('replica-slider').disabled = false;
+      document.getElementById('btn-crash-node').disabled = false;
+      document.getElementById('btn-upgrade-version').disabled = false;
+      document.getElementById('btn-backup').disabled = false;
+
+      document.getElementById('spec-desired-val').innerText = desiredReplicas;
+      document.getElementById('meta-phase-lbl').innerText = "Pending";
+      document.getElementById('meta-phase-lbl').style.color = "var(--color-warning)";
+
+      // Trigger first reconciliation
+      triggerReconcile();
+    }
+
+    // Main Operator Reconciliation Loop Simulation
+    function triggerReconcile() {
+      if (isReconciling || !isCRApplied) return;
+      isReconciling = true;
+      reconcileCount++;
+      document.getElementById('metrics-reconciles').innerText = reconcileCount;
+
+      // Start highlighting Loop Steps
+      let duration = 300;
+      highlightLoopStep('loop-watch');
+
+      setTimeout(() => {
+        highlightLoopStep('loop-analyze');
+        document.getElementById('spec-desired-val').innerText = desiredReplicas;
+        document.getElementById('spec-actual-val').innerText = actualReplicas;
+
+        if (actualReplicas !== desiredReplicas || isFailing || isUpgrading) {
+          document.getElementById('diff-badge').className = "diff-badge drifted";
+          document.getElementById('diff-badge').innerText = "State Drift Detected";
+        } else {
+          document.getElementById('diff-badge').className = "diff-badge";
+          document.getElementById('diff-badge').innerText = "In Sync";
+        }
+      }, duration);
+
+      setTimeout(() => {
+        highlightLoopStep('loop-act');
+        executeReconcileAction();
+      }, duration * 2);
+
+      setTimeout(() => {
+        highlightLoopStep('loop-status');
+        updateResourceStatus();
+        isReconciling = false;
+      }, duration * 3);
+    }
+
+    function highlightLoopStep(id) {
+      document.querySelectorAll('.loop-step').forEach(el => el.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // Logic: Execute corrective actions
+    function executeReconcileAction() {
+      if (isFailing) {
+        addLog("State check: Failed Pod [postgres-0] detected. Initiating Failover.", 'operator');
+        // Failover: Promote postgres-1 to Primary
+        promoteBackupReplica();
+        return;
+      }
+
+      if (isUpgrading) {
+        runUpgradeRolloutStep();
+        return;
+      }
+
+      // Handle Scaling Logic
+      if (actualReplicas < desiredReplicas) {
+        addLog(`State check: Actual Replicas (${actualReplicas}) < Desired Replicas (${desiredReplicas}). Initializing Pod postgres-${actualReplicas}`, 'operator');
+        const podIndex = actualReplicas;
+        spawnPod(podIndex);
+      } else if (actualReplicas > desiredReplicas) {
+        addLog(`State check: Actual Replicas (${actualReplicas}) > Desired Replicas (${desiredReplicas}). Terminating Pod postgres-${actualReplicas - 1}`, 'operator');
+        const podIndex = actualReplicas - 1;
+        terminatePod(podIndex);
+      } else {
+        // Equal and healthy
+        addLog("State check: Spec matches Cluster Workloads. Standard keep-alive checks.", 'operator');
+      }
+    }
+
+    // Update Phase Labels
+    function updateResourceStatus() {
+      document.getElementById('spec-actual-val').innerText = actualReplicas;
+      
+      const phaseLbl = document.getElementById('meta-phase-lbl');
+      if (isFailing) {
+        phaseLbl.innerText = "Recovering";
+        phaseLbl.style.color = "var(--color-danger)";
+      } else if (isUpgrading) {
+        phaseLbl.innerText = "Upgrading";
+        phaseLbl.style.color = "var(--color-warning)";
+      } else if (actualReplicas === desiredReplicas) {
+        phaseLbl.innerText = "Ready";
+        phaseLbl.style.color = "var(--color-success)";
+      } else {
+        phaseLbl.innerText = "Reconciling";
+        phaseLbl.style.color = "var(--color-info)";
+      }
+      
+      // Update latency randomizer
+      document.getElementById('metrics-latency').innerText = (Math.floor(Math.random() * 8) + 3) + "ms";
+    }
+
+    // Spawn Pod Animation
+    function spawnPod(index) {
+      const podNode = document.getElementById(`db-pod-${index}`);
+      const barContainer = document.getElementById(`db-pod-${index}-bar-container`);
+      const barFill = document.getElementById(`db-pod-${index}-bar`);
+      
+      podNode.style.display = "block";
+      podNode.className = "sim-node";
+      barContainer.style.display = "block";
+      barFill.style.width = "0%";
+      
+      addLog(`Creating PVC for postgres-${index} storage bind.`, 'info');
+      addLog(`Scheduling Pod postgres-${index} onto worker node...`, 'info');
+
+      let pct = 0;
+      const progressTimer = setInterval(() => {
+        pct += 25;
+        barFill.style.width = `${pct}%`;
+        if (pct >= 100) {
+          clearInterval(progressTimer);
+          barContainer.style.display = "none";
+          addLog(`Pod postgres-${index} sandbox container is Running.`, 'success');
+          
+          actualReplicas++;
+          triggerSyncLine(index);
+          
+          // Continue reconciling until desired matches actual
+          isReconciling = false;
+          triggerReconcile();
+        }
+      }, 500);
+    }
+
+    // Terminate Pod Animation
+    function terminatePod(index) {
+      const podNode = document.getElementById(`db-pod-${index}`);
+      addLog(`Sending SIGTERM delete signal to pod postgres-${index}`, 'warning');
+      
+      podNode.className = "sim-node failed"; // visual indicator of shutdown
+      setTimeout(() => {
+        podNode.style.display = "none";
+        hideSyncLine(index);
+        addLog(`Pod postgres-${index} storage unmounted. metadata deleted.`, 'success');
+        actualReplicas--;
+        
+        isReconciling = false;
+        triggerReconcile();
+      }, 1000);
+    }
+
+    // Establish dynamic SVG syncing connection streams
+    function triggerSyncLine(index) {
+      if (index === 0) {
+        // Primary pod is up, no replication sync source needed, but user/client sync starts
+        document.getElementById('db-pod-0-role').className = "node-badge leader";
+        document.getElementById('db-pod-0-role').innerText = "Primary";
+        addLog("Primary database initialized. Listening for transactional connections.", 'success');
+      } else {
+        // Replicas connect to Primary (postgres-0)
+        const path = document.getElementById(`path-master-replica${index}`);
+        if (path) {
+          path.style.display = "block";
+          path.className = "link-path syncing";
+        }
+        addLog(`Replica postgres-${index} initiated streaming replication from postgres-0`, 'info');
+      }
+    }
+
+    function hideSyncLine(index) {
+      const path = document.getElementById(`path-master-replica${index}`);
+      if (path) {
+        path.style.display = "none";
+      }
+    }
+
+    // Change Replicas via slider
+    function changeReplicas(val) {
+      desiredReplicas = parseInt(val);
+      document.getElementById('slider-val').innerText = desiredReplicas;
+      addLog(`Spec replica modification requested: scale ➔ ${desiredReplicas}`, 'info');
+      
+      if (!isReconciling) {
+        triggerReconcile();
+      }
+    }
+
+    // Failover Demonstration
+    function injectFailure() {
+      if (isFailing || !isCRApplied) return;
+      isFailing = true;
+      
+      addLog("ALERT: Simulating unexpected node crash on postgres-0!", 'danger');
+      const primaryPod = document.getElementById('db-pod-0');
+      primaryPod.className = "sim-node failed";
+      document.getElementById('db-pod-0-status').innerText = "Error (Failed)";
+      document.getElementById('db-pod-0-dot').className = "status-dot danger";
+
+      // Break replication sync lines
+      document.getElementById('path-master-replica1').className = "link-path";
+      document.getElementById('path-master-replica2').className = "link-path";
+      document.getElementById('path-master-replica3').className = "link-path";
+
+      setTimeout(() => {
+        triggerReconcile();
+      }, 1000);
+    }
+
+    function promoteBackupReplica() {
+      addLog("Operator Lease Monitor: Primary heartbeat lost. Declaring primary failover.", 'operator');
+      addLog("Promoting postgres-1 from [Replica] to [Primary] leader cluster state...", 'operator');
+      
+      setTimeout(() => {
+        // Visually promote postgres-1
+        const pod1Role = document.getElementById('db-pod-1-role');
+        pod1Role.className = "node-badge leader";
+        pod1Role.innerText = "Primary";
+        document.getElementById('db-pod-1').className = "sim-node active-leader";
+
+        addLog("Pod postgres-1 promoted to Primary. Write-access traffic re-routed.", 'success');
+        
+        // Point replication lines from other replicas to postgres-1
+        document.getElementById('path-master-replica2').setAttribute("d", "M 90,320 L 250,320");
+        document.getElementById('path-master-replica2').className = "link-path syncing";
+        
+        addLog("Re-pointing replication channels to postgres-1", 'info');
+        
+        // Remove dead postgres-0
+        addLog("Evicting dead postgres-0 container to trigger self-healing recreation.", 'operator');
+        document.getElementById('db-pod-0').style.display = "none";
+        
+        // Recreate it as a replica
+        setTimeout(() => {
+          addLog("Self-healing: Provisioning new replica postgres-0 to restore quota count.", 'operator');
+          
+          const pod0 = document.getElementById('db-pod-0');
+          pod0.className = "sim-node";
+          document.getElementById('db-pod-0-role').className = "node-badge replica";
+          document.getElementById('db-pod-0-role').innerText = "Replica";
+          document.getElementById('db-pod-0-status').innerText = `Running (v${dbVersion})`;
+          document.getElementById('db-pod-0-dot').className = "status-dot active";
+          pod0.style.display = "block";
+
+          // Connect replication sync line from postgres-0 to postgres-1
+          document.getElementById('path-master-replica1').setAttribute("d", "M 90,320 Q 150,250 250,225");
+          document.getElementById('path-master-replica1').className = "link-path syncing";
+
+          isFailing = false;
+          addLog("Database Cluster recovery sequence completed. Topology healthy.", 'success');
+          
+          triggerReconcile();
+        }, 1500);
+
+      }, 1500);
+    }
+
+    // Rolling Upgrades (Postgres 15.2 -> 16.0)
+    let upgradeIndex = 4;
+    function triggerUpgrade() {
+      if (isUpgrading || isFailing || !isCRApplied) return;
+      isUpgrading = true;
+      dbVersion = "16.0";
+      
+      addLog("Orchestrating rolling database software upgrade to v16.0...", 'info');
+      addLog("Operator Lock: Halting write transactions during node update blocks.", 'operator');
+      
+      upgradeIndex = desiredReplicas - 1; // start upgrade from highest index replica down to primary
+      triggerReconcile();
+    }
+
+    function runUpgradeRolloutStep() {
+      if (upgradeIndex >= 0) {
+        addLog(`Rolling Upgrade: Terminating postgres-${upgradeIndex} to apply v16.0 image.`, 'operator');
+        const podNode = document.getElementById(`db-pod-${upgradeIndex}`);
+        podNode.className = "sim-node failed";
+        
+        setTimeout(() => {
+          // Recreate with updated version
+          podNode.className = "sim-node";
+          document.getElementById(`db-pod-${upgradeIndex}-status`).innerText = `Running (v16.0)`;
+          addLog(`Pod postgres-${upgradeIndex} upgraded to v16.0 successfully.`, 'success');
+          
+          upgradeIndex--;
+          
+          // Reconcile next node
+          isReconciling = false;
+          triggerReconcile();
+        }, 1200);
+      } else {
+        isUpgrading = false;
+        addLog("PostgresCluster database rolling upgrade rollout finished.", 'success');
+        isReconciling = false;
+        triggerReconcile();
+      }
+    }
+
+    // Trigger Backup
+    function triggerBackup() {
+      if (!isCRApplied) return;
+      
+      addLog("Triggering manual database backup task...", 'info');
+      addLog("Spawning backup job runner pod: 'postgres-backup-cronjob-xxx'", 'info');
+      
+      const backupIcon = document.getElementById('backup-icon');
+      const backupBarContainer = document.getElementById('backup-bar-container');
+      const backupBar = document.getElementById('backup-bar');
+      const backupStatus = document.getElementById('backup-status-lbl');
+      
+      backupIcon.innerText = "⏳";
+      backupStatus.innerText = "Uploading dump to S3 bucket...";
+      backupBarContainer.style.display = "block";
+      backupBar.style.width = "0%";
+
+      let pct = 0;
+      const backupTimer = setInterval(() => {
+        pct += 20;
+        backupBar.style.width = `${pct}%`;
+        if (pct >= 100) {
+          clearInterval(backupTimer);
+          
+          backupIcon.innerText = "✅";
+          backupStatus.innerText = `Snapshot stored: s3://prod-db-backups/pg_dump_v16_2026.sql`;
+          backupBarContainer.style.display = "none";
+          
+          addLog("Database binary tarball uploaded to AWS S3 storage target.", 'success');
+          addLog("Backup transaction sequence completed.", 'success');
+        }
+      }, 400);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+stateDiagram-v2
+    [*] --> Initialize : Load config (kubeconfig / InClusterConfig)
+    Initialize --> RegisterWatch : Create client-go clientset & informer
+    RegisterWatch --> StartInformer : Run Informer factories
+    StartInformer --> WaitForCacheSync : Blocks until Informer cache matches etcd state
+    
+    WaitForCacheSync --> StartWorkers : Cache synced successfully
+    
+    state StartWorkers {
+        [*] --> WorkerLoop : Spin up N worker threads
+        WorkerLoop --> ProcessNextItem : Dequeue item key from workqueue
+        ProcessNextItem --> RunReconcile : Invoke Reconcile(Request)
+        
+        state RunReconcile {
+            [*] --> CheckError
+            CheckError --> RequeueWithBackoff : Error returned
+            CheckError --> ForgetQueue : Success (Forget Key)
+        }
+        
+        ForgetQueue --> WorkerLoop
+        RequeueWithBackoff --> WorkerLoop
+    }
+    
+    StartWorkers --> Terminating : Signal received (SIGTERM/SIGINT)
+    Terminating --> ShutDownQueue : Stop enqueuing & drain workqueue
+    ShutDownQueue --> StopWorkers : Stop worker threads
+    StopWorkers --> [*]

@@ -1,0 +1,47 @@
+flowchart TB
+    subgraph DesiredState ["DESIRED STATE (YAML Specification)"]
+        Spec[Custom Resource Spec]
+        ReplicasD[replicas: 3]
+        VersionD[version: 15.2]
+        VolumeD[storage: 50Gi]
+        Spec --> ReplicasD
+        Spec --> VersionD
+        Spec --> VolumeD
+    end
+
+    subgraph DiffEngine ["Operator Reconciliation Engine"]
+        Diff[Compute Diff / State Comparator]
+        DesiredState -->|Read Cache| Diff
+        ActualState -->|Read Live Resources| Diff
+    end
+
+    subgraph ActualState ["ACTUAL STATE (Cluster Live Data)"]
+        LivePods[Running Pods]
+        Pod0[Pod 0: postgres-0\nStatus: Running\nVersion: 15.1]
+        Pod1[Pod 1: postgres-1\nStatus: Running\nVersion: 15.1]
+        
+        LivePVC[PVCs]
+        PVC0[PVC: storage-0\nSize: 50Gi]
+        PVC1[PVC: storage-1\nSize: 50Gi]
+
+        LivePods --> Pod0
+        LivePods --> Pod1
+        LivePVC --> PVC0
+        LivePVC --> PVC1
+    end
+
+    subgraph ReconciliationActions ["Action Plan Generator"]
+        Diff -->|Replicas: Desired 3 != Actual 2| Act1[Action 1: Create Pod postgres-2 & PVC storage-2]
+        Diff -->|Version: Desired 15.2 != Actual 15.1| Act2[Action 2: Execute Stateful rolling upgrade of image]
+        Diff -->|Storage: Desired 50Gi == Actual 50Gi| Act3[Action 3: No volume action required]
+    end
+
+    classDef desired fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef actual fill:#7c2d12,stroke:#f97316,color:#fff;
+    classDef diff fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef plan fill:#064e3b,stroke:#34d399,color:#fff;
+
+    class Spec,ReplicasD,VersionD,VolumeD desired;
+    class LivePods,Pod0,Pod1,LivePVC,PVC0,PVC1 actual;
+    class Diff diff;
+    class Act1,Act2,Act3 plan;

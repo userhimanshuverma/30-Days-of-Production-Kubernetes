@@ -1,0 +1,26 @@
+flowchart TD
+    Start[Trigger: Event Dequeued or Periodic Requeue] --> FetchCR[1. Fetch Custom Resource Instance spec]
+    FetchCR --> ReadActual[2. Query Cluster for Actual Child Resources Pods/Services/PVCs]
+    ReadActual --> CompareStates{3. Does Actual State == Desired State?}
+    
+    CompareStates -->|Yes| NoAction[4a. Do nothing / Maintain State]
+    CompareStates -->|No: Resources Missing| CreateRes[4b. Provision Required Resources]
+    CompareStates -->|No: Config Out of Sync| UpdateRes[4c. Apply Updates / rolling upgrade]
+    CompareStates -->|No: Extra Resources Present| DeleteRes[4d. Clean up / Delete Resources]
+
+    NoAction --> UpdateStatus[5. Write Current Status to Custom Resource Subresource]
+    CreateRes --> UpdateStatus
+    UpdateRes --> UpdateStatus
+    DeleteRes --> UpdateStatus
+    
+    UpdateStatus --> End[End Reconcile Run: Sleep & Wait for next event]
+
+    classDef start fill:#1e293b,stroke:#64748b,color:#fff;
+    classDef step fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef decision fill:#7c2d12,stroke:#f97316,color:#fff;
+    classDef action fill:#064e3b,stroke:#34d399,color:#fff;
+
+    class Start,End start;
+    class FetchCR,ReadActual,UpdateStatus step;
+    class CompareStates decision;
+    class NoAction,CreateRes,UpdateRes,DeleteRes action;

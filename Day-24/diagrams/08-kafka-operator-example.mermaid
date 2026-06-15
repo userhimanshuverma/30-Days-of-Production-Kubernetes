@@ -1,0 +1,50 @@
+flowchart TD
+    subgraph Spec ["Kafka Custom Resource"]
+        CR[Kafka CR: 'production-kafka']
+        ConfigSpec[Spec:\n- version: 3.4.0\n- brokers: 3\n- kraft: true\n- listeners: tls, plain]
+    end
+
+    subgraph Operator ["Strimzi Kafka Operator Engine"]
+        AssemblyController[Kafka Assembly Operator]
+        TopicController[Kafka Topic Operator]
+        UserController[Kafka User Operator]
+    end
+
+    subgraph Cluster ["Kafka Cluster & Controller Nodes"]
+        subgraph KRaft ["Controller Nodes (KRaft)"]
+            Node0[Controller Pod 0]
+            Node1[Controller Pod 1]
+            Node2[Controller Pod 2]
+        end
+
+        subgraph Brokers ["Broker Pods (Data Plane)"]
+            Broker0[Broker Pod 0]
+            Broker1[Broker Pod 1]
+            Broker2[Broker Pod 2]
+        end
+    end
+
+    subgraph Networking ["Network Access Config"]
+        InternalSvc[Service: production-kafka-bootstrap]
+        ExternalRoute[Ingress / NodePort Listeners]
+    end
+
+    CR --> AssemblyController
+    AssemblyController -->|1. Reconcile Controllers| KRaft
+    AssemblyController -->|2. Reconcile Brokers (Rolling upgrade logic)| Brokers
+    AssemblyController -->|3. Wire Listeners| Networking
+
+    Brokers -.->|Metadata & Consensus| KRaft
+    
+    TopicController -.->|Manage Topics via API| Broker0
+    UserController -.->|Manage ACLs & Scram Secrets| Broker0
+
+    classDef spec fill:#1e1b4b,stroke:#818cf8,color:#fff;
+    classDef op fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef cluster fill:#064e3b,stroke:#34d399,color:#fff;
+    classDef net fill:#7c2d12,stroke:#f97316,color:#fff;
+
+    class CR,ConfigSpec spec;
+    class AssemblyController,TopicController,UserController op;
+    class Node0,Node1,Node2,Broker0,Broker1,Broker2 cluster;
+    class InternalSvc,ExternalRoute net;

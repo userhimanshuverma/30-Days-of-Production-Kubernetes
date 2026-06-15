@@ -1,0 +1,30 @@
+flowchart TB
+    Client[kubectl / HTTP Client] -->|HTTPS Request| APIServer[kube-apiserver]
+    
+    subgraph KubeAPIServer ["Kubernetes API Server"]
+        APIServer --> AuthN[1. Authenticate]
+        AuthN --> AuthZ[2. Authorize RBAC]
+        AuthZ --> MutateWeb[3. Mutating Admission Webhooks]
+        MutateWeb --> SchemaVal[4. OpenAPI Schema Validation]
+        SchemaVal --> ValidateWeb[5. Validating Admission Webhooks]
+    end
+
+    subgraph StorageEngine ["Storage Backend"]
+        ValidateWeb --> Etcd[(etcd Key-Value Store)]
+    end
+
+    subgraph Extensibility ["Extensibility Pathways"]
+        SchemaVal -.->|Schema definition via CRD| CRDStore[Custom Resource Definition]
+        ValidateWeb -.->|External Validation| ExtWebhook[Admission Webhook Service]
+        APIServer -.->|API Aggregation| APIService[Custom API Service / Extension API Server]
+    end
+
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef step fill:#1e293b,stroke:#64748b,color:#f1f5f9;
+    classDef ext fill:#1e1b4b,stroke:#818cf8,color:#f1f5f9;
+    classDef storage fill:#064e3b,stroke:#34d399,color:#fff;
+
+    class Client,APIServer core;
+    class AuthN,AuthZ,MutateWeb,SchemaVal,ValidateWeb step;
+    class CRDStore,ExtWebhook,APIService ext;
+    class Etcd storage;

@@ -1,0 +1,41 @@
+flowchart TB
+    User[kubectl / CI-CD Pipeline] -->|1. Submit YAML| APIServer[kube-apiserver]
+
+    subgraph AdmissionWebhooks ["Admission Control Webhooks"]
+        WebhookSvc[Operator Webhook Server]
+        APIServer -->|2. Mutating Request| WebhookSvc
+        WebhookSvc -->|Inject defaults| APIServer
+        APIServer -->|3. Validating Request| WebhookSvc
+        WebhookSvc -->|Reject invalid schema/drift| APIServer
+    end
+
+    subgraph HighAvailability ["Operator Pods (HA Lock)"]
+        PodLeader[Operator Pod A\n(Active Leader)]
+        PodReplica[Operator Pod B\n(Standby)]
+        
+        LeaderElection[Coordination Lease Lock\n'postgres-operator-lock']
+        
+        PodLeader -->|Maintain Lease| LeaderElection
+        PodReplica -.->|Try acquire Lease| LeaderElection
+    end
+
+    subgraph Monitoring ["Metrics & Telemetry"]
+        Prometheus[Prometheus Server]
+        MetricsPort[Operator Metrics Endpoint /metrics]
+        
+        Prometheus -->|Scrape metrics| MetricsPort
+        PodLeader -->|Export stats: reconciliation_latency, resource_count| MetricsPort
+    end
+
+    APIServer -->|4. Watch updates| PodLeader
+    PodLeader -->|5. Reconcile Stateful Sets| StatefulSets[Database StatefulSets]
+
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#fff;
+    classDef webhook fill:#581c87,stroke:#c084fc,color:#fff;
+    classDef ha fill:#064e3b,stroke:#34d399,color:#fff;
+    classDef monitor fill:#7c2d12,stroke:#f97316,color:#fff;
+
+    class User,APIServer,StatefulSets core;
+    class WebhookSvc webhook;
+    class PodLeader,PodReplica,LeaderElection ha;
+    class Prometheus,MetricsPort monitor;
