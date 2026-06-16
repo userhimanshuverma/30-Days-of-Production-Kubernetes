@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dynamic-web-frontend
+  namespace: production
+  labels:
+    app: web-frontend
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: web-frontend
+  template:
+    metadata:
+      labels:
+        app: web-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+        env:
+        - name: REGION_NAME
+          value: "DEFAULT"
+        - name: DATABASE_URL
+          value: "jdbc:postgresql://db-default.internal/prod"
+
+---
+apiVersion: policy.karmada.io/v1alpha1
+kind: PropagationPolicy
+metadata:
+  name: frontend-propagation
+  namespace: production
+spec:
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dynamic-web-frontend
+  placement:
+    clusterAffinity:
+      clusterNames:
+        - kind-east
+        - kind-west
+    replicaScheduling:
+      replicaDivisionPreference: Weighted
+      replicaSchedulingType: Divided
+      weightPreference:
+        staticWeightList:
+          - targetCluster:
+              clusterName: kind-east
+            weight: 6
+          - targetCluster:
+              clusterName: kind-west
+            weight: 4
+
+---
+apiVersion: policy.karmada.io/v1alpha1
+kind: OverridePolicy
+metadata:
+  name: frontend-east-override
+  namespace: production
+spec:
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dynamic-web-frontend
+  targetCluster:
+    clusterNames:
+      - kind-east
+  overriders:
+    plaintext:
+      - path: /spec/template/spec/containers/0/env/0/value
+        operator: replace
+        value: "us-east-1"
+      - path: /spec/template/spec/containers/0/env/1/value
+        operator: replace
+        value: "jdbc:postgresql://db-east.internal.company.com/prod"
+
+---
+apiVersion: policy.karmada.io/v1alpha1
+kind: OverridePolicy
+metadata:
+  name: frontend-west-override
+  namespace: production
+spec:
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dynamic-web-frontend
+  targetCluster:
+    clusterNames:
+      - kind-west
+  overriders:
+    plaintext:
+      - path: /spec/template/spec/containers/0/env/0/value
+        operator: replace
+        value: "us-west-2"
+      - path: /spec/template/spec/containers/0/env/1/value
+        operator: replace
+        value: "jdbc:postgresql://db-west.internal.company.com/prod"

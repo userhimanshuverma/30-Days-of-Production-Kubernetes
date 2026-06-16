@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Kubernetes Control Center - Day 25 Simulation</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: rgba(22, 27, 34, 0.85);
+            --border-color: #30363d;
+            --text-color: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --accent-orange: #d29922;
+            --font-stack: 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-stack);
+            font-size: 14px;
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at 50% 50%, #161b22 0%, #0d1117 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: rgba(22, 27, 34, 0.95);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .logo-area h1 {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-area span {
+            color: var(--accent-blue);
+            font-size: 11px;
+            border: 1px solid var(--accent-blue);
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        .dot-green { background-color: var(--accent-green); color: var(--accent-green); }
+        .dot-red { background-color: var(--accent-red); color: var(--accent-red); }
+        .dot-blue { background-color: var(--accent-blue); color: var(--accent-blue); }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 350px;
+            flex-grow: 1;
+            overflow: hidden;
+            height: calc(100vh - 54px);
+        }
+
+        /* Panels Style */
+        .panel {
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            backdrop-filter: blur(8px);
+        }
+
+        .panel-left {
+            border-right: 1px solid var(--border-color);
+        }
+
+        .panel-right {
+            border-left: 1px solid var(--border-color);
+            border-right: none;
+        }
+
+        .panel-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            color: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(30, 35, 45, 0.4);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .panel-content {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* SVG Map Area (Center) */
+        .map-area {
+            position: relative;
+            background-color: #07090e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .world-map-svg {
+            width: 100%;
+            height: 85%;
+            max-width: 900px;
+        }
+
+        /* Controls styling */
+        .btn {
+            background-color: #21262d;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: var(--font-stack);
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            transition: all 0.2s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background-color: #30363d;
+            border-color: #8b949e;
+        }
+
+        .btn-primary {
+            background-color: #238636;
+            border-color: rgba(240,240,240,0.1);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: #2ea043;
+        }
+
+        .btn-danger {
+            background-color: #da3633;
+            border-color: rgba(240,240,240,0.1);
+            color: #ffffff;
+        }
+
+        .btn-danger:hover {
+            background-color: #f85149;
+        }
+
+        .btn-warning {
+            background-color: #d29922;
+            border-color: rgba(240,240,240,0.1);
+            color: #0d1117;
+        }
+
+        .btn-warning:hover {
+            background-color: #e3b341;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .radio-option input {
+            cursor: pointer;
+        }
+
+        /* Terminal Console */
+        .terminal {
+            background-color: #05070a;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 11px;
+            height: 250px;
+            overflow-y: auto;
+            color: #85e89d;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .terminal-line {
+            line-height: 1.4;
+            word-break: break-all;
+        }
+
+        .terminal-err { color: var(--accent-red); }
+        .terminal-warn { color: var(--accent-orange); }
+        .terminal-info { color: var(--accent-blue); }
+
+        /* Cluster Info Nodes */
+        .cluster-node {
+            background: rgba(30, 35, 45, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color 0.3s;
+        }
+
+        .cluster-node.active {
+            border-left: 4px solid var(--accent-green);
+        }
+
+        .cluster-node.offline {
+            border-left: 4px solid var(--accent-red);
+            opacity: 0.6;
+        }
+
+        .cluster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .cluster-details {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+        }
+
+        /* Interactive Map Overlays */
+        .map-legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(22, 27, 34, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        /* SVG Node Custom Glow */
+        .svg-cluster-circle {
+            transition: all 0.5s ease;
+            cursor: pointer;
+        }
+
+        .svg-cluster-circle:hover {
+            r: 12;
+            stroke-width: 4;
+        }
+
+        /* Animated connection lines */
+        .connection-line {
+            stroke-dasharray: 8, 4;
+            animation: dash 15s linear infinite;
+        }
+
+        .connection-line-active {
+            stroke: var(--accent-blue);
+        }
+
+        .connection-line-inactive {
+            stroke: var(--border-color);
+            stroke-dasharray: none;
+            animation: none;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -100;
+            }
+        }
+
+        /* Metrics Display */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .metric-card {
+            background: rgba(30, 35, 45, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .metric-title {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 4px;
+            color: #ffffff;
+        }
+
+        /* Scenario Section */
+        .scenario-box {
+            background: rgba(210, 153, 34, 0.05);
+            border: 1px solid rgba(210, 153, 34, 0.2);
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .scenario-box h4 {
+            color: var(--accent-orange);
+            font-weight: bold;
+        }
+
+        /* Live User requests simulation */
+        .live-user-dot {
+            fill: var(--accent-green);
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        /* Tab / Panel switches */
+        .dashboard-header-tabs {
+            background-color: #161b22;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+        }
+
+        .header-tab {
+            padding: 10px 16px;
+            border-right: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .header-tab.active {
+            color: #ffffff;
+            background: var(--panel-bg);
+            border-bottom: 2px solid var(--accent-blue);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header bar -->
+    <header>
+        <div class="logo-area">
+            <h1>🌐 GLOBAL KUBERNETES COMMAND CENTER <span>Phase 4 - Day 25</span></h1>
+        </div>
+        <div class="status-indicators">
+            <div class="status-badge">
+                <span class="dot dot-blue"></span>
+                <span>Active Routing: <strong id="current-routing-mode-label">GeoDNS</strong></span>
+            </div>
+            <div class="status-badge">
+                <span class="dot dot-green" id="fleet-health-dot"></span>
+                <span id="fleet-health-status">Fleet Status: HEALTHY</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Section Grid -->
+    <div class="dashboard-container">
+        
+        <!-- Left Panel: Operations & Policies -->
+        <div class="panel panel-left">
+            <div class="panel-header">
+                <span>1. Multi-Cluster Steering</span>
+            </div>
+            <div class="panel-content">
+                <div>
+                    <label style="font-weight: bold; font-size: 12px; display: block; margin-bottom: 6px;">Global Traffic Router</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="traffic-policy" value="geodns" checked onchange="setRoutingMode('geodns')">
+                            <span>GeoDNS (Locality-Aware)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="traffic-policy" value="anycast" onchange="setRoutingMode('anycast')">
+                            <span>Anycast IP (Shortest Path BGP)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="traffic-policy" value="weighted" onchange="setRoutingMode('weighted')">
+                            <span>Weighted Flow (60% US / 40% EU)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="traffic-policy" value="failover" onchange="setRoutingMode('failover')">
+                            <span>Active-Passive (Standby Failover)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-weight: bold; font-size: 12px; display: block; margin-bottom: 6px;">Federation Scheduler (Karmada)</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="fed-policy" value="replicated" checked onchange="setFedPolicy('replicated')">
+                            <span>Duplicate to All (Duplicated)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="fed-policy" value="weighted" onchange="setFedPolicy('weighted')">
+                            <span>Dynamic Split (Weighted Resource)</span>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top: 10px;" onclick="syncFederatedDeployment()">
+                        🔄 Sync Federation Policies
+                    </button>
+                </div>
+
+                <div class="scenario-box">
+                    <h4>🚨 SRE Outage Simulations</h4>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Inject real-world cluster crashes to test automatic network rerouting and resilience:</p>
+                    <button class="btn btn-danger" onclick="triggerOutage('us-east')">Blackout us-east-1</button>
+                    <button class="btn btn-danger" style="margin-top: 6px;" onclick="triggerOutage('eu-west')">Isolate eu-west-1</button>
+                    <button class="btn btn-warning" style="margin-top: 6px;" onclick="simulateDnsBlackout()">Simulate Global DNS Poisoning</button>
+                    <button class="btn" style="margin-top: 10px; border-color: var(--accent-green); color: var(--accent-green);" onclick="restoreAll()">
+                        💚 Restore All Infrastructures
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel: Live Geographic Map Visualization -->
+        <div class="map-area">
+            <h3 style="position: absolute; top: 20px; font-size: 13px; color: #ffffff;">LIVE GLOBAL TRAFFIC & TOPOLOGY MAP</h3>
+            
+            <!-- SVG Map showing regions and mock pathways -->
+            <svg viewBox="0 0 1000 500" class="world-map-svg">
+                <!-- Grid background -->
+                <defs>
+                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1f242c" stroke-width="1"/>
+                    </pattern>
+                </defs>
+                <rect width="1000" height="500" fill="url(#grid)" />
+
+                <!-- Mock continents (Simple SVG polygons representing continents) -->
+                <!-- North America -->
+                <path d="M 100 100 L 250 80 L 320 180 L 280 250 L 220 230 L 180 320 L 150 350 L 120 300 Z" fill="#1b212c" stroke="#2c3545" stroke-width="1.5" />
+                <!-- Europe / Asia -->
+                <path d="M 450 60 L 650 50 L 850 80 L 900 180 L 800 250 L 700 350 L 600 320 L 500 280 L 420 150 Z" fill="#1b212c" stroke="#2c3545" stroke-width="1.5" />
+                <!-- South America -->
+                <path d="M 220 280 L 260 300 L 290 380 L 250 480 L 200 450 L 180 360 Z" fill="#1b212c" stroke="#2c3545" stroke-width="1.5" />
+                <!-- Australia -->
+                <path d="M 750 350 L 850 340 L 880 400 L 800 420 Z" fill="#1b212c" stroke="#2c3545" stroke-width="1.5" />
+
+                <!-- Connection paths (Overlay tunnels) -->
+                <!-- US to EU -->
+                <path id="path-us-eu" d="M 240 160 Q 380 120 520 130" fill="none" class="connection-line connection-line-active" stroke-width="2"/>
+                <!-- EU to Asia Edge -->
+                <path id="path-eu-asia" d="M 520 130 Q 680 150 820 180" fill="none" class="connection-line connection-line-active" stroke-width="2"/>
+                <!-- US to Hybrid Asia Edge -->
+                <path id="path-us-asia" d="M 240 160 Q 530 50 820 180" fill="none" class="connection-line connection-line-active" stroke-width="2"/>
+
+                <!-- Users indicators -->
+                <!-- User Node US -->
+                <circle cx="130" cy="180" r="6" fill="var(--accent-blue)" />
+                <text x="130" y="200" fill="var(--text-muted)" font-size="10" text-anchor="middle">Users (US-West)</text>
+                <!-- User Node EU -->
+                <circle cx="480" cy="90" r="6" fill="var(--accent-blue)" />
+                <text x="480" y="75" fill="var(--text-muted)" font-size="10" text-anchor="middle">Users (London)</text>
+                
+                <!-- Cluster Nodes on Map -->
+                <!-- US East Cluster Node -->
+                <g id="node-us-east" class="svg-cluster" onclick="inspectCluster('us-east')">
+                    <circle cx="240" cy="160" r="10" class="svg-cluster-circle" fill="var(--accent-green)" stroke="#ffffff" stroke-width="2" id="circle-us-east"/>
+                    <circle cx="240" cy="160" r="20" fill="none" stroke="var(--accent-green)" stroke-width="1" class="live-user-dot" id="ping-us-east"/>
+                    <text x="240" y="140" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">us-east-1 (AWS)</text>
+                </g>
+
+                <!-- EU West Cluster Node -->
+                <g id="node-eu-west" class="svg-cluster" onclick="inspectCluster('eu-west')">
+                    <circle cx="520" cy="130" r="10" class="svg-cluster-circle" fill="var(--accent-green)" stroke="#ffffff" stroke-width="2" id="circle-eu-west"/>
+                    <circle cx="520" cy="130" r="20" fill="none" stroke="var(--accent-green)" stroke-width="1" class="live-user-dot" id="ping-eu-west"/>
+                    <text x="520" y="110" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">eu-west-1 (AWS)</text>
+                </g>
+
+                <!-- ap-northeast-1 Hybrid Node -->
+                <g id="node-ap-hybrid" class="svg-cluster" onclick="inspectCluster('ap-hybrid')">
+                    <circle cx="820" cy="180" r="10" class="svg-cluster-circle" fill="var(--accent-blue)" stroke="#ffffff" stroke-width="2" id="circle-ap-hybrid"/>
+                    <circle cx="820" cy="180" r="20" fill="none" stroke="var(--accent-blue)" stroke-width="1" class="live-user-dot" id="ping-ap-hybrid"/>
+                    <text x="820" y="160" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">On-Prem Hybrid (Tokyo)</text>
+                </g>
+
+                <!-- Edge node (Retail store K3s) -->
+                <g id="node-edge-retail" class="svg-cluster" onclick="inspectCluster('edge-retail')">
+                    <rect x="740" y="340" width="16" height="16" fill="var(--accent-orange)" stroke="#ffffff" stroke-width="1" id="rect-edge-retail"/>
+                    <text x="748" y="375" fill="#ffffff" font-size="10" text-anchor="middle">Edge K3s Node</text>
+                </g>
+            </svg>
+
+            <!-- Map Legend -->
+            <div class="map-legend">
+                <div class="legend-item">
+                    <div class="legend-icon" style="background-color: var(--accent-green);"></div>
+                    <span>Primary Public Cloud Cluster</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon" style="background-color: var(--accent-blue);"></div>
+                    <span>Private/Hybrid On-Prem Cluster</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon" style="background-color: var(--accent-orange);"></div>
+                    <span>Edge (k3s Store Node)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon" style="background-color: var(--accent-red);"></div>
+                    <span>Cluster Outage State</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Telemetry & Terminal Console -->
+        <div class="panel panel-right">
+            <div class="panel-header">
+                <span>2. Real-Time Telemetry</span>
+            </div>
+            <div class="panel-content">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-title">US Ingress RTT</div>
+                        <div class="metric-value" id="metric-us-latency">24ms</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">EU Ingress RTT</div>
+                        <div class="metric-value" id="metric-eu-latency">14ms</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Global Requests</div>
+                        <div class="metric-value" id="metric-rps">342 rps</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">DB Replication Lag</div>
+                        <div class="metric-value" id="metric-db-lag">0.04s</div>
+                    </div>
+                </div>
+
+                <div class="cluster-node active" id="inspect-panel">
+                    <div class="cluster-header">
+                        <span id="inspect-title">Selected: us-east-1</span>
+                        <span class="status-badge" style="color: var(--accent-green); font-size: 11px;">
+                            <span class="dot dot-green" id="inspect-status-dot"></span> <span id="inspect-status-text">ONLINE</span>
+                        </span>
+                    </div>
+                    <div class="cluster-details" style="margin-top: 8px;">
+                        <span>Type:</span> <span id="inspect-type" style="color: #ffffff;">Managed EKS</span>
+                        <span>Region:</span> <span id="inspect-region" style="color: #ffffff;">us-east-1</span>
+                        <span>Pod Range:</span> <span id="inspect-cidrs" style="color: #ffffff;">10.240.0.0/16</span>
+                        <span>Active Pods:</span> <span id="inspect-pods" style="color: #ffffff;">12 replicas</span>
+                        <span>Sync State:</span> <span id="inspect-sync" style="color: var(--accent-green);">Synchronized</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-weight: bold; font-size: 12px; display: block; margin-bottom: 6px;">GitOps & Federation Sync Console</label>
+                    <div class="terminal" id="terminal-log">
+                        <div class="terminal-line terminal-info">[SYSTEM] Initializing Multi-Cluster Mesh connections...</div>
+                        <div class="terminal-line">[SYSTEM] US-East endpoints discovered: 10.240.1.10, 10.240.1.11</div>
+                        <div class="terminal-line">[SYSTEM] EU-West endpoints discovered: 10.241.1.14, 10.241.1.15</div>
+                        <div class="terminal-line">[SYSTEM] ClusterMesh CA synchronized successfully.</div>
+                        <div class="terminal-line terminal-info">[GSLB] Route targets initialized based on GeoDNS profile.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // System state database
+        const state = {
+            routingMode: 'geodns',
+            fedPolicy: 'replicated',
+            dnsPoisoned: false,
+            clusters: {
+                'us-east': {
+                    name: 'us-east-1 (AWS)',
+                    type: 'Managed EKS',
+                    region: 'us-east-1',
+                    cidr: '10.240.0.0/16',
+                    replicas: 12,
+                    healthy: true,
+                    latency: 24,
+                    syncState: 'Synchronized'
+                },
+                'eu-west': {
+                    name: 'eu-west-1 (AWS)',
+                    type: 'Managed EKS',
+                    region: 'eu-west-1',
+                    cidr: '10.241.0.0/16',
+                    replicas: 12,
+                    healthy: true,
+                    latency: 14,
+                    syncState: 'Synchronized'
+                },
+                'ap-hybrid': {
+                    name: 'On-Prem Hybrid (Tokyo)',
+                    type: 'Talos Bare-Metal',
+                    region: 'ap-northeast-1',
+                    cidr: '10.242.0.0/16',
+                    replicas: 6,
+                    healthy: true,
+                    latency: 124,
+                    syncState: 'Synchronized'
+                },
+                'edge-retail': {
+                    name: 'Edge K3s Node',
+                    type: 'K3s Store node',
+                    region: 'Edge-Branch-44',
+                    cidr: '192.168.1.0/24',
+                    replicas: 2,
+                    healthy: true,
+                    latency: 56,
+                    syncState: 'Synchronized'
+                }
+            },
+            selectedCluster: 'us-east'
+        };
+
+        // DOM elements
+        const termLog = document.getElementById('terminal-log');
+        const fleetHealthDot = document.getElementById('fleet-health-dot');
+        const fleetHealthStatus = document.getElementById('fleet-health-status');
+        const routingLabel = document.getElementById('current-routing-mode-label');
+
+        function logToTerminal(message, type = '') {
+            const line = document.createElement('div');
+            line.classList.add('terminal-line');
+            if (type === 'error') line.classList.add('terminal-err');
+            if (type === 'warn') line.classList.add('terminal-warn');
+            if (type === 'info') line.classList.add('terminal-info');
+            
+            const timestamp = new Date().toLocaleTimeString();
+            line.textContent = `[${timestamp}] ${message}`;
+            termLog.appendChild(line);
+            termLog.scrollTop = termLog.scrollHeight;
+        }
+
+        function setRoutingMode(mode) {
+            state.routingMode = mode;
+            routingLabel.textContent = mode.toUpperCase();
+            logToTerminal(`GSLB Routing changed to: ${mode.toUpperCase()}`, 'info');
+            recalculateTrafficMetrics();
+        }
+
+        function setFedPolicy(policy) {
+            state.fedPolicy = policy;
+            logToTerminal(`Federation Policy updated in Karmada Hub: ${policy.toUpperCase()}`, 'warn');
+        }
+
+        function inspectCluster(id) {
+            state.selectedCluster = id;
+            const c = state.clusters[id];
+            
+            // Highlight panel border
+            const panel = document.getElementById('inspect-panel');
+            panel.className = 'cluster-node ' + (c.healthy ? 'active' : 'offline');
+
+            document.getElementById('inspect-title').textContent = `Selected: ${c.name}`;
+            document.getElementById('inspect-status-dot').className = `dot ${c.healthy ? 'dot-green' : 'dot-red'}`;
+            document.getElementById('inspect-status-text').textContent = c.healthy ? 'ONLINE' : 'DEGRADED';
+            document.getElementById('inspect-type').textContent = c.type;
+            document.getElementById('inspect-region').textContent = c.region;
+            document.getElementById('inspect-cidrs').textContent = c.cidr;
+            document.getElementById('inspect-pods').textContent = `${c.replicas} replicas`;
+            document.getElementById('inspect-sync').textContent = c.syncState;
+            document.getElementById('inspect-sync').style.color = c.healthy ? 'var(--accent-green)' : 'var(--accent-red)';
+            
+            logToTerminal(`Inspecting cluster metrics for: ${c.name}`);
+        }
+
+        function syncFederatedDeployment() {
+            logToTerminal("Executing Karmada sync loop iteration...", 'info');
+            
+            if (state.fedPolicy === 'replicated') {
+                state.clusters['us-east'].replicas = 12;
+                state.clusters['eu-west'].replicas = 12;
+                state.clusters['ap-hybrid'].replicas = 12;
+            } else if (state.fedPolicy === 'weighted') {
+                state.clusters['us-east'].replicas = 18; // 60%
+                state.clusters['eu-west'].replicas = 12; // 40%
+                state.clusters['ap-hybrid'].replicas = 4;
+            }
+
+            // Sync verification log
+            for (let id in state.clusters) {
+                const c = state.clusters[id];
+                if (c.healthy) {
+                    c.syncState = 'Synchronized';
+                    logToTerminal(`Cluster ${c.name} applied policy successfully. Pods: ${c.replicas}`, 'info');
+                } else {
+                    c.syncState = 'Out of Sync';
+                    logToTerminal(`Cluster ${c.name} is unreachable. Skipping synchronization.`, 'error');
+                }
+            }
+            inspectCluster(state.selectedCluster);
+        }
+
+        function triggerOutage(id) {
+            const c = state.clusters[id];
+            c.healthy = false;
+            c.syncState = 'Connection Lost';
+            c.replicas = 0;
+            
+            // Visual indicators on SVG Map
+            document.getElementById(`circle-${id}`).setAttribute('fill', 'var(--accent-red)');
+            document.getElementById(`ping-${id}`).style.display = 'none';
+
+            logToTerminal(`!!! ALERT: Connection lost to cluster ${c.name} !!!`, 'error');
+            logToTerminal(`CNI interface reports critical regional blackout. Triggering failover...`, 'warn');
+
+            updateFleetHealth();
+            recalculateTrafficMetrics();
+            inspectCluster(state.selectedCluster);
+        }
+
+        function simulateDnsBlackout() {
+            state.dnsPoisoned = true;
+            logToTerminal("!!! CRITICAL: BGP/DNS hijacking simulation triggered !!!", 'error');
+            logToTerminal("Traffic steering resolving to stale loopbacks. Latency spiking.", 'warn');
+            document.getElementById('metric-us-latency').textContent = 'ERR_TIMEOUT';
+            document.getElementById('metric-eu-latency').textContent = 'ERR_TIMEOUT';
+            document.getElementById('metric-rps').textContent = '0 rps';
+            document.getElementById('fleet-health-dot').className = 'dot dot-red';
+            document.getElementById('fleet-health-status').textContent = 'Fleet Status: DNS BLACKOUT';
+        }
+
+        function restoreAll() {
+            state.dnsPoisoned = false;
+            for (let id in state.clusters) {
+                const c = state.clusters[id];
+                c.healthy = true;
+                c.syncState = 'Synchronized';
+                
+                // Reset SVG map visual indicators
+                const circle = document.getElementById(`circle-${id}`);
+                if (circle) {
+                    circle.setAttribute('fill', id === 'ap-hybrid' ? 'var(--accent-blue)' : 'var(--accent-green)');
+                }
+                const ping = document.getElementById(`ping-${id}`);
+                if (ping) ping.style.display = 'block';
+            }
+            
+            logToTerminal("All systems returned to green. Resetting traffic patterns.", 'info');
+            logToTerminal("ClusterMesh synchronization successfully re-established.", 'info');
+
+            syncFederatedDeployment();
+            updateFleetHealth();
+            recalculateTrafficMetrics();
+            inspectCluster(state.selectedCluster);
+        }
+
+        function updateFleetHealth() {
+            let unhealthyCount = 0;
+            for (let id in state.clusters) {
+                if (!state.clusters[id].healthy) unhealthyCount++;
+            }
+
+            if (unhealthyCount === 0) {
+                fleetHealthDot.className = 'dot dot-green';
+                fleetHealthStatus.textContent = 'Fleet Status: HEALTHY';
+            } else if (unhealthyCount < Object.keys(state.clusters).length) {
+                fleetHealthDot.className = 'dot dot-blue';
+                fleetHealthStatus.textContent = 'Fleet Status: DEGRADED';
+            } else {
+                fleetHealthDot.className = 'dot dot-red';
+                fleetHealthStatus.textContent = 'Fleet Status: TOTAL OUTAGE';
+            }
+        }
+
+        function recalculateTrafficMetrics() {
+            if (state.dnsPoisoned) return;
+
+            let usHealthy = state.clusters['us-east'].healthy;
+            let euHealthy = state.clusters['eu-west'].healthy;
+
+            // Update Latencies and Metrics
+            let rps = 350;
+            if (!usHealthy && !euHealthy) {
+                rps = 0;
+                document.getElementById('metric-us-latency').textContent = 'ERR_DOWN';
+                document.getElementById('metric-eu-latency').textContent = 'ERR_DOWN';
+            } else {
+                if (usHealthy) {
+                    document.getElementById('metric-us-latency').textContent = '24ms';
+                    document.getElementById('path-us-eu').setAttribute('class', 'connection-line connection-line-active');
+                } else {
+                    document.getElementById('metric-us-latency').textContent = 'FAILED (Rerouted)';
+                    document.getElementById('path-us-eu').setAttribute('class', 'connection-line connection-line-inactive');
+                    logToTerminal("Steering 100% of US requests to European active gateway.", 'warn');
+                }
+
+                if (euHealthy) {
+                    document.getElementById('metric-eu-latency').textContent = '14ms';
+                    document.getElementById('path-eu-asia').setAttribute('class', 'connection-line connection-line-active');
+                } else {
+                    document.getElementById('metric-eu-latency').textContent = 'FAILED (Rerouted)';
+                    document.getElementById('path-eu-asia').setAttribute('class', 'connection-line connection-line-inactive');
+                    logToTerminal("Steering 100% of EU requests to US active gateway.", 'warn');
+                }
+            }
+
+            document.getElementById('metric-rps').textContent = `${rps} rps`;
+            document.getElementById('metric-db-lag').textContent = (usHealthy && euHealthy) ? '0.04s' : 'OUT_OF_SYNC';
+        }
+
+        // Loop for generating mock logs to make the simulation feel alive
+        setInterval(() => {
+            if (state.dnsPoisoned) return;
+
+            const events = [
+                "API Server polled node metrics successfully.",
+                "ServiceExport 'payment-gateway' synchronized endpoints.",
+                "Drift correction verification completed. 0 resource mismatches.",
+                "Cilium ClusterMesh agent checked overlay tunnels: OK",
+                "Replicating etcd key spaces across boundaries...",
+                "ArgoCD reconciliation cycle: synced."
+            ];
+
+            // Random log occasionally
+            if (Math.random() > 0.4) {
+                const randomEvent = events[Math.floor(Math.random() * events.length)];
+                logToTerminal(randomEvent);
+            }
+
+            // Fluctuate metrics slightly
+            if (state.clusters['us-east'].healthy) {
+                const usLat = 20 + Math.floor(Math.random() * 8);
+                document.getElementById('metric-us-latency').textContent = `${usLat}ms`;
+            }
+            if (state.clusters['eu-west'].healthy) {
+                const euLat = 12 + Math.floor(Math.random() * 5);
+                document.getElementById('metric-eu-latency').textContent = `${euLat}ms`;
+            }
+            const currentRPS = 300 + Math.floor(Math.random() * 80);
+            if (state.clusters['us-east'].healthy || state.clusters['eu-west'].healthy) {
+                document.getElementById('metric-rps').textContent = `${currentRPS} rps`;
+            }
+
+        }, 4000);
+    </script>
+</body>
+</html>

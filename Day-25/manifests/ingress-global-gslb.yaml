@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: global-api-ingress
+  namespace: production
+  annotations:
+    # Integrates with ExternalDNS to automatically register GSLB targets
+    external-dns.alpha.kubernetes.io/hostname: api.global.company.com
+    # Core settings for K8gb (Kubernetes Global Load Balancer) controller
+    k8gb.io/strategy: roundRobin # Options: roundRobin, geo, failover
+    # Health checks configuration for remote cluster failovers
+    k8gb.io/dns-ttl-seconds: "30"
+    k8gb.io/primary-geotag: "eu-west"
+    k8gb.io/route-to-primary: "true"
+    # Cert-manager dynamic SSL settings
+    cert-manager.io/cluster-issuer: letsencrypt-production
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.global.company.com
+    secretName: global-api-tls
+  rules:
+  - host: api.global.company.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: inventory-svc
+            port:
+              number: 80

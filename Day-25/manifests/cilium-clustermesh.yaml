@@ -1,0 +1,56 @@
+# Cilium Helm Values (values.yaml) for enabling ClusterMesh
+# Apply to kind-east and kind-west with unique cluster IDs and non-overlapping Pod CIDRs.
+
+clustermesh:
+  useAPIServer: true
+  apiserver:
+    # Enable internal etcd apiserver for syncing identity keys
+    enabled: true
+    # Secure connection ports
+    port: 2379
+    tls:
+      auto:
+        method: helm
+        certValidityDuration: 8760h
+  config:
+    # Enabled cluster peers list
+    enabled: true
+    clusters:
+      - name: kind-east
+        address: 192.168.10.100
+        port: 2379
+      - name: kind-west
+        address: 192.168.20.100
+        port: 2379
+
+---
+# Example ConfigMap generated inside kube-system namespace representing external cluster configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cilium-clustermesh-config
+  namespace: kube-system
+data:
+  # Configuration file matching remote cluster ip addresses
+  kind-east: |
+    endpoints:
+    - https://kind-east-clustermesh.internal.company.com:2379
+    tls:
+      ca: |
+        -----BEGIN CERTIFICATE-----
+        MIIBtzCCASwCCQCu49bH+W+TpzANBgkqhkiG9w0BAQsFADAQMQ4wDAYDVQQDDAVj
+        aWxpdW0tY2EwHhcNMjYwNjE2MTI1MzM4WhcNMzYwNjE0MTI1MzM4WjAQMQ4wDAYD
+        VQQDDAVjaWxpdW0tY2EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC6
+        F5w=
+        -----END CERTIFICATE-----
+  kind-west: |
+    endpoints:
+    - https://kind-west-clustermesh.internal.company.com:2379
+    tls:
+      ca: |
+        -----BEGIN CERTIFICATE-----
+        MIIBtzCCASwCCQCu49bH+W+TpzANBgkqhkiG9w0BAQsFADAQMQ4wDAYDVQQDDAVj
+        aWxpdW0tY2EwHhcNMjYwNjE2MTI1MzM4WhcNMzYwNjE0MTI1MzM4WjAQMQ4wDAYD
+        VQQDDAVjaWxpdW0tY2EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC6
+        F5w=
+        -----END CERTIFICATE-----
