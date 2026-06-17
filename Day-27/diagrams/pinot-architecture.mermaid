@@ -42,8 +42,8 @@ graph TB
     minion -->|Read Segment & Compact| s3
     server0 -->|1. Push Segment| s3
     server1 -->|1. Push Segment| s3
-    server0 -->|2. Pull Segment (Offline)| s3
-    server1 -->|2. Pull Segment (Offline)| s3
+    server0 -->|2. Pull Segment - Offline| s3
+    server1 -->|2. Pull Segment - Offline| s3
 
     %% Query execution
     bi -->|Submit Query| broker

@@ -27,8 +27,8 @@ graph TB
     bi_gateway -->|Ingress HTTP:8099| pinot_pods
     airflow_pod -->|Trigger SparkJob via API Server| spark_pods
     
-    spark_pods -->|Egress TCP:9092 (Consume/Produce)| kafka_brokers
-    pinot_pods -->|Egress TCP:9092 (Consume)| kafka_brokers
+    spark_pods -->|Egress TCP:9092 - Consume/Produce| kafka_brokers
+    pinot_pods -->|Egress TCP:9092 - Consume| kafka_brokers
     
     %% Policy enforcement
     netpol_airflow -.->|Enforces| airflow_pod
