@@ -1,116 +1,74 @@
 # 📖 Day 27: Running Data Platforms on Kubernetes
-
 ### 🏷️ PHASE 4 — ADVANCED CLOUD-NATIVE ENGINEERING
 
-Modern enterprises process petabytes of data daily. Traditional data platform infrastructures, built on static VM allocations and hardware silos, suffer from massive resource waste, scaling friction, and high operational complexity.
+Welcome to Day 27 of the **30 Days of Production Kubernetes** course. Today, we step into the role of a Senior Data Platform Architect and Cloud-Native SRE.
 
-Today, elite engineering organizations like Netflix, Uber, LinkedIn, Airbnb, and Databricks run their entire data ecosystems on Kubernetes. This module covers the core architectures, deployment patterns, and operational playbooks required to reliably execute **Stateful Data Platforms on Kubernetes at scale**.
-
----
-
-## 🎯 Learning Objectives
-By the end of this day, you will:
-1. **Understand stateful data platforms** on Kubernetes, including storage classes, volume binding modes, and taints/tolerations.
-2. **Deploy Apache Spark** with dynamic executor scaling and customized JVM overhead parameters.
-3. **Configure Apache Airflow** using the `KubernetesExecutor` to coordinate isolated, on-demand task worker pods.
-4. **Run a production-grade Apache Kafka** cluster using the Strimzi Operator with strict replica pod anti-affinity.
-5. **Set up Apache Pinot** for real-time OLAP querying with sub-second latency directly from Kafka streams.
-6. **Diagnose and mitigate SRE incidents** including volume limits, GC latency loops, memory exhaustion, and DNS query storms.
+Running stateful data platforms on Kubernetes is one of the final frontiers of modern platform engineering. Historically, organizations partitioned analytics platforms into isolated hardware groups. Today, you will learn how to design, deploy, and secure a complete cloud-native data platform featuring Apache Spark, Apache Airflow, Apache Kafka, and Apache Pinot running side-by-side on a unified Kubernetes compute plane.
 
 ---
 
-## 🏗️ Visualizing the Complete Data Platform Ecosystem
+## 🗺️ Day 27 Directory Structure
 
-Below is the multi-service architectural topology. It shows how scheduling, streaming logs, processing, indexing, and orchestration coordinate within a secure cluster boundaries:
-
-```mermaid
-graph TD
-    subgraph StorageLayer ["1. Storage & Persistence"]
-        pvs["Local NVMe PVCs (StatefulSets)"]
-        s3["Deep Storage S3 / MinIO (Object Storage)"]
-    end
-
-    subgraph MessagingLayer ["2. Streaming Log Ingestion"]
-        kafka["Apache Kafka (Strimzi)"]
-    end
-
-    subgraph ProcessingLayer ["3. Batch & Stream Processing"]
-        spark["Apache Spark (SparkOperator)"]
-    end
-
-    subgraph IndexingLayer ["4. Real-Time Analytics OLAP"]
-        pinot["Apache Pinot"]
-    end
-
-    subgraph Orchestration ["5. Workflow Orchestration"]
-        airflow["Apache Airflow (KubernetesExecutor)"]
-    end
-
-    subgraph Consumption ["6. Access & Consumption"]
-        superset["Apache Superset / BI Dashboard"]
-        api["Microservices / Web Apps"]
-    end
-
-    %% Data Flow
-    airflow -->|Trigger Batch Job| spark
-    airflow -->|Orchestrate Pipelines| kafka
-    
-    kafka -->|Real-time Ingest| pinot
-    spark -->|Write Offline Segments| s3
-    pinot -->|Metadata Sync & Segment Pull| s3
-    
-    spark -->|Write Streaming Data| kafka
-    spark -->|Read Raw Data| s3
-    
-    pvs --- kafka
-    pvs --- pinot
-    
-    pinot -->|OLAP Queries| superset
-    pinot -->|Real-time API Queries| api
-```
+Here is how today's learning resources are organized:
+-   [notes/data-platforms-on-k8s.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/notes/data-platforms-on-k8s.md) — Architectural reference guide covering traditional silos vs K8s data infrastructure, Spark dynamic allocation, Airflow executors, Strimzi Kafka brokers, and Pinot components.
+-   [diagrams/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/) — 12 professional diagrams outlining architecture configurations:
+    *   [spark-architecture.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/spark-architecture.mermaid)
+    *   [airflow-architecture.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/airflow-architecture.mermaid)
+    *   [kafka-architecture.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/kafka-architecture.mermaid)
+    *   [pinot-architecture.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/pinot-architecture.mermaid)
+    *   [data-platform-ecosystem.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/data-platform-ecosystem.mermaid)
+    *   [streaming-analytics-pipeline.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/streaming-analytics-pipeline.mermaid)
+    *   [resource-allocation-model.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/resource-allocation-model.mermaid)
+    *   [stateful-storage-architecture.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/stateful-storage-architecture.mermaid)
+    *   [operator-driven-management.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/operator-driven-management.mermaid)
+    *   [production-data-platform-topology.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/production-data-platform-topology.mermaid)
+    *   [end-to-end-analytics-pipeline.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/end-to-end-analytics-pipeline.mermaid)
+    *   [multi-service-platform-architecture.mermaid](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/multi-service-platform-architecture.mermaid)
+-   [manifests/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/) — Production-ready deployment configurations:
+    *   [storageclass-local-nvme.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/storageclass-local-nvme.yaml) — Optimized SSD StorageClass configuration with `WaitForFirstConsumer` binding.
+    *   [spark-operator-rbac.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/spark-operator-rbac.yaml) — ServiceAccount, Role, and RoleBinding for Spark pods.
+    *   [spark-pi-app.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/spark-pi-app.yaml) — SparkApplication CRD with dynamic scaling and node tolerances.
+    *   [airflow-db-statefulset.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/airflow-db-statefulset.yaml) — PostgreSQL database StatefulSet for metadata storage.
+    *   [airflow-k8s-executor.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/airflow-k8s-executor.yaml) — ConfigMap, RBAC, Webserver, and Scheduler utilizing `KubernetesExecutor`.
+    *   [kafka-strimzi-cluster.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/kafka-strimzi-cluster.yaml) — Highly available 3-broker Strimzi cluster with volume claims.
+    *   [kafka-topic.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/kafka-topic.yaml) — Durable topic definition for clickstream ingestion.
+    *   [pinot-cluster.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/pinot-cluster.yaml) — Complete real-time OLAP Pinot Controller, Broker, Server, and Minion pods.
+-   [labs/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/) — Step-by-step engineering labs:
+    *   [Lab 1: Deploy Spark Operator](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/lab-1-deploy-spark.md)
+    *   [Lab 2: Deploy Airflow & Postgres](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/lab-2-deploy-airflow.md)
+    *   [Lab 3: Deploy Kafka Strimzi Cluster](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/lab-3-deploy-kafka.md)
+    *   [Lab 4: Deploy Apache Pinot OLAP](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/lab-4-deploy-pinot.md)
+    *   [Lab 5: Stateful Platform Scaling & Resilience](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/lab-5-platform-scaling-resilience.md)
+-   [spark/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/spark/) — Optimized scripts:
+    *   [spark-pi.py](file:///d:/30_Days_of_Production_Kubernetes/Day-27/spark/spark-pi.py) — Monte Carlo Pi Spark script.
+    *   [spark-defaults.conf](file:///d:/30_Days_of_Production_Kubernetes/Day-27/spark/spark-defaults.conf) — SRE-tuned configurations.
+-   [airflow/k8s_executor_dag.py](file:///d:/30_Days_of_Production_Kubernetes/Day-27/airflow/k8s_executor_dag.py) — Airflow DAG orchestrating isolated `KubernetesPodOperator` pods.
+-   [kafka/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/kafka/) — Streaming client scripts:
+    *   [producer.py](file:///d:/30_Days_of_Production_Kubernetes/Day-27/kafka/producer.py) & [consumer.py](file:///d:/30_Days_of_Production_Kubernetes/Day-27/kafka/consumer.py) — Durable streaming scripts with manual commit and retry flags.
+-   [pinot/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/pinot/) — Ingestion schema and table metadata mapping:
+    *   [user-clicks-schema.json](file:///d:/30_Days_of_Production_Kubernetes/Day-27/pinot/user-clicks-schema.json) & [user-clicks-table-config.json](file:///d:/30_Days_of_Production_Kubernetes/Day-27/pinot/user-clicks-table-config.json)
+-   [production-notes/senior-architect-ops.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/production-notes/senior-architect-ops.md) — Operational guidelines for G1GC tuning, local NVMe mounts, KEDA auto-scalers, and Spot cost optimization.
+-   [troubleshooting/troubleshooting-runbook.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/troubleshooting/troubleshooting-runbook.md) — Runbooks for executor OOMs, scheduler connection locks, Kafka index corruptions, and CoreDNS storms.
+-   [exercises/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/exercises/) — Daily assignments:
+    *   [daily-challenge.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/exercises/daily-challenge.md) — Main unified real-time pipeline challenge.
+    *   [challenge-manifests.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/exercises/challenge-manifests.yaml) — Broken manifest containing 3 deliberate bugs.
+-   [resources/recommended-reading.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/resources/recommended-reading.md) — Core reading links, operators, and best practice engineering blogs.
+-   [cloud-native-data-platform-command-center.html](file:///d:/30_Days_of_Production_Kubernetes/Day-27/cloud-native-data-platform-command-center.html) — Futuristic, interactive single-page HTML simulator. Trigger outages (Broker disks full, OOMs, lag, DNS, crashes), check logs and events, apply hotfixes, and submit RCAs.
 
 ---
 
-## 1. Why Data Platforms Moved to Kubernetes
+## 1. Why Data Platforms Need Kubernetes
 
-Historically, deploying data pipelines on bare-metal Hadoop or static Virtual Machines resulted in substantial operational drawbacks:
+Traditional data workloads run on statically provisioned VM groups (Hadoop, standalone VM pools) are highly inefficient:
+*   **Low utilization**: Sized for peak loads, static data clusters sit idle 70% of the time, resulting in significant overhead.
+*   **Drift and isolation friction**: Different teams require different versions of Java, Scala, or Python, creating environment conflicts on shared virtual machines.
+*   **Slow resizing loops**: Adding physical nodes to handle backlogs takes minutes, stalling workflows.
 
-```
-Traditional Infrastructure (VM Silos)
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│  Spark Cluster   │  │  Kafka Cluster   │  │  Airflow Cluster │
-│ (Peak Provision) │  │ (Peak Provision) │  │  (Static Pool)   │
-├──────────────────┤  ├──────────────────┤  ├──────────────────┤
-│    VM / OS       │  │    VM / OS       │  │    VM / OS       │
-└──────────────────┘  └──────────────────┘  └──────────────────┘
-   Problems: Configuration Drift, Low Hardware Utilization (20-30%)
-   
-                                   ↓
-                                   
-Cloud-Native Kubernetes Data Infrastructure
-┌──────────────────────────────────────────────────────────────┐
-│                      K8s Scheduler API                       │
-│  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────┐  │
-│  │   Spark Pods     │ │    Kafka Pods    │ │ Airflow Pods │  │
-│  │  (Scale to 0)    │ │   (StatefulSet)  │ │ (On-demand)  │  │
-│  └──────────────────┘ └──────────────────┘ └──────────────┘  │
-├──────────────────────────────────────────────────────────────┤
-│               Shared Enterprise Node Pools                   │
-└──────────────────────────────────────────────────────────────┘
-   Benefits: Declarative API, Shared Resource Pools, Fast Scaling
-```
-
-* **Resource Silos**: Because batch processing spikes occur sporadically, sizing VM groups for peak utilization left clusters sitting idle >70% of the time, resulting in high overhead.
-* **Operational Drift**: Configuration changes manually applied to VMs inevitably diverged, causing subtle bugs in production jobs.
-* **Slow Provisioning**: Spawning new VMs to handle queue backups took minutes, whereas Kubernetes schedules containers in seconds.
-
-By adopting Kubernetes, data infrastructure teams treat compute as a **fluid, shared pool**. Stateless pipelines scale down to zero when idle, stateful brokers run side-by-side with isolated namespace policies, and standard deployments eliminate environment discrepancies.
+On Kubernetes, data platforms leverage **elastic pod scheduling**, dynamically scaling stateless batch shufflers (Spark) down to zero when idle, assigning stateful nodes (Kafka/Pinot) to localized AZ NVMe pools, and sharing compute across all workloads.
 
 ---
 
-## 2. Apache Spark on Kubernetes
-
-Apache Spark has a native scheduling backend for Kubernetes. Instead of using standalone cluster managers like YARN or Mesos, Spark applications talk directly to the Kubernetes API server.
+## 2. Apache Spark on Kubernetes Architecture
 
 ```mermaid
 graph TB
@@ -155,15 +113,15 @@ graph TB
     dynamic_alloc -.->|Scale Up / Down Request| apiserver
 ```
 
-* **Driver Pod**: Represents the control coordinator. It connects to the API Server, dynamically requests executor pods, registers their IP addresses, schedules tasks, and collects telemetry.
-* **Executor Pods**: Created dynamically by the control plane. They load dataset splits, process tasks, and write shuffle data to temporary mounts.
-* **Dynamic Resource Allocation**: The Driver monitors the execution queue. If tasks are bottlenecked, it scales up executor count (up to a defined ceiling). If executors remain idle, they are terminated to free up node compute.
+*   **Driver Pod**: Launches the `SparkContext`, requests executor pods from the K8s API server, schedules execution phases, and aggregates outcomes.
+*   **Executor Pods**: Spawned dynamically by the API. They process partition tasks and mount `emptyDir` or local HostPaths for quick shuffle space.
+*   **Dynamic Allocation**: Spark monitors pending task queues, scaling executors up under load and tearing them down when idle.
 
 ---
 
-## 3. Apache Airflow on Kubernetes
+## 3. Apache Airflow on Kubernetes: Kubernetes Executor
 
-Traditional Airflow clusters run continuous daemon workers via Celery or Dask. The **Kubernetes Executor** parses DAG tasks and schedules them as standalone Kubernetes pods.
+The **Kubernetes Executor** eliminates static worker pools by calling the Kubernetes API to launch a dedicated container pod for every single task in a DAG.
 
 ```mermaid
 graph TB
@@ -206,14 +164,14 @@ graph TB
     webserver -->|4. Pull Logs for UI| s3_logs
 ```
 
-* **Worker Lifecycle**: Unlike standard static nodes, worker pods spin up when the task is queued, run a single command (e.g., `airflow tasks run`), write the exit status to the Postgres database, and terminate.
-* **Environment Customization**: Using the `KubernetesPodOperator`, distinct tasks can use completely different container images, environment variables, storage mounts, and resource quotas, facilitating complex dependencies without dependency conflict.
+*   **Worker Lifecycle**: Worker pods spin up, pull configuration parameters, execute the target operator (e.g. `KubernetesPodOperator`), report success/failure status back to the metadata database, and terminate.
+*   **Resource Isolation**: Tasks can run customized images, environment configurations, and compute requests without conflicting with other DAGs in the scheduler queue.
 
 ---
 
-## 4. Apache Kafka on Kubernetes
+## 4. Apache Kafka on Kubernetes: Strimzi Operators
 
-Deploying distributed, partition-replicated commit logs like Apache Kafka requires maintaining stable network identities and resilient volume storage.
+Kafka requires stable persistent identities and fast network I/O, which is managed on Kubernetes using **StatefulSets** and **Operators**.
 
 ```mermaid
 graph TB
@@ -274,15 +232,14 @@ graph TB
     cons -.->|Direct Read via Headless Names| broker0
 ```
 
-* **StatefulSets**: Replaces standard Deployments. It guarantees that pod hostnames (`kafka-0`, `kafka-1`, `kafka-2`) are persistent across rescheduling and attach to the exact same PersistentVolumes.
-* **Headless Service**: Disables cluster-IP load balancing. This gives every broker pod a unique internal DNS record (e.g. `kafka-0.kafka-headless.default.svc.cluster.local`) so that client applications can connect directly to partition leaders.
-* **Operators (e.g. Strimzi)**: Automates broker configuration updates, TLS certificate rotation, rolling partition restarts, and replication verification.
+*   **Stable Network Identifiers**: A headless service maps unique domain records directly to individual brokers (e.g. `kafka-0`), enabling client applications to write directly to partition leaders.
+*   **Operator Reconciliation Loop**: Strimzi automates certificate provisioning, node updates, topic creations (`KafkaTopic`), and sequential broker restarts.
 
 ---
 
-## 5. Apache Pinot on Kubernetes
+## 5. Apache Pinot on Kubernetes: Real-Time Analytics
 
-Apache Pinot is a distributed real-time OLAP datastore designed for low-latency analytical queries on streaming datasets.
+Pinot uses a scattered architecture that is well-suited for Kubernetes namespace structures.
 
 ```mermaid
 graph TB
@@ -341,53 +298,28 @@ graph TB
     broker -->|Merge & Return Results| bi
 ```
 
-* **Controller**: The brain. Manages table metadata, schemas, and coordinate server partition assignments.
-* **Broker**: The router. Accepts queries from client dashboards, checks ZooKeeper to identify which Servers host the required segments, scatters the query, gathers results, and merges them.
-* **Server**: The worker. Consumes records from Kafka, processes query executions locally against memory-mapped segments, and mounts persistent NVMe storage for fast scans.
-* **Minion**: The cleaner. Re-compacts old segments and offloads cold partitions to deep object storage (S3/GCS).
+*   **Controller**: Oversees table creation and schema definitions, coordinating with ZooKeeper.
+*   **Broker**: Translates BI client SQL queries, scatters requests to matching servers, gathers sub-results, and merges them.
+*   **Server**: Ingests directly from Kafka partition segments and maps data to local NVMe SSDs.
+*   **Minion**: Recompacts segments and offloads older datasets to cloud object storage.
 
 ---
 
-## 6. Real-World Production Challenges
+## 6. Production Challenges: Stateful Workloads
 
-Deploying these systems exposes SRE teams to physical hardware and networking limits:
-
-### Stateful Storage & AZ Binding
-A common trap is creating volumes before the pod is scheduled. Using the default `volumeBindingMode: Immediate` binds a PVC to a random Availability Zone (e.g., `us-east-1b`). If the scheduler subsequently schedules the pod in `us-east-1a` due to CPU availability, the pod will remain permanently stuck in `ContainerCreating` with a volume node affinity conflict.
-> **Fix**: Set `volumeBindingMode: WaitForFirstConsumer` on all production storage classes.
-
-### Network Throughput & Topology
-Stateful replication (Kafka replica syncing) and batch shufflers (Spark partitions) move gigabytes of data. If replicas reside in different Availability Zones, cloud providers levy heavy cross-AZ network transfer fees.
-> **Fix**: Write anti-affinity rules to distribute primary brokers across nodes, but configure consumer client connections to leverage topology-aware routing.
-
-### Resource Contention & Evictions
-Running resource-heavy Spark batch jobs alongside latency-sensitive Pinot OLAP brokers can lead to CPU starvation, causing query latencies to spike.
-> **Fix**: Establish namespace limits, configure node selector taints to isolate workloads, and utilize `PriorityClasses` to allow the scheduler to evict batch executors during cluster resource exhaustion.
+Deploying stateful systems on Kubernetes presents challenges:
+1.  **Volume Availability Zone (AZ) Pinning**: If PVCs use `Immediate` binding, volumes can bind to a different AZ than the node scheduled for the pod. **Fix**: Use `volumeBindingMode: WaitForFirstConsumer` on all data StorageClasses.
+2.  **East-West Network Saturation**: Replication traffic across AZs increases cloud costs. **Fix**: Implement node topology spread constraints and topology-aware routing.
+3.  **JVM Garbage Collection (GC) pauses**: GC halts can exceed ZooKeeper session timeouts, causing cluster evictions. **Fix**: Configure G1GC parameters with explicit maximum pauses.
 
 ---
 
-## 7. Interactive Learning Simulator
-To help you visualize these complex orchestration patterns, we have created the **Cloud-Native Data Platform Command Center**.
+## 🏁 Summary of Daily Tasks
 
-[![Simulation UI](https://img.shields.io/badge/Simulation-Interactive_Command_Center-blueviolet?style=for-the-badge)](file:///d:/30_Days_of_Production_Kubernetes/Day-27/cloud-native-data-platform-command-center.html)
-
-Open the [cloud-native-data-platform-command-center.html](file:///d:/30_Days_of_Production_Kubernetes/Day-27/cloud-native-data-platform-command-center.html) file in your browser to interact with:
-* Live Spark Executor pod creation and shutdown.
-* Airflow dynamic worker pod generation.
-* Interactive `kubectl` console simulator.
-* Active failure injection (Disk exhaustion, GC loops, OOM errors, DNS bottlenecks) and matching SRE remediation controls.
-
----
-
-## 📂 Day 27 Workspace Structure
-
-* [manifests/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/) - Production-ready YAML configs (Strimzi, SparkOperator, Airflow, Pinot).
-* [labs/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/) - Step-by-step deploy and operation guides.
-* [spark/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/spark/) - Optimized configurations and Monte Carlo Pi scripts.
-* [airflow/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/airflow/) - Tasks DAGs utilizing Kubernetes Executor.
-* [kafka/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/kafka/) - Streaming python clients.
-* [pinot/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/pinot/) - Live ingestion schemas and tables metadata.
-* [notes/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/notes/data-platforms-on-k8s.md) - Deep architectural references.
-* [production-notes/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/production-notes/senior-architect-ops.md) - Hardening guidelines and post-mortems.
-* [troubleshooting/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/troubleshooting/troubleshooting-runbook.md) - Real SRE debugging scripts.
-* [exercises/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/exercises/daily-challenge.md) - Broken manifests challenge.
+To complete Day 27:
+1.  **Open the Interactive Simulator**: Launch [cloud-native-data-platform-command-center.html](file:///d:/30_Days_of_Production_Kubernetes/Day-27/cloud-native-data-platform-command-center.html) in your browser. Trigger and diagnose each of the four incidents (Broker disks full, OOMs, lag, DNS lookups), run kubectl queries, apply remediations, and submit your SRE RCA reports.
+2.  **Study Deep-Dive Notes**: Review [notes/data-platforms-on-k8s.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/notes/data-platforms-on-k8s.md) to understand storage configurations, scheduling parameters, and namespace isolations.
+3.  **Review the Diagrams**: Examine [diagrams/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/diagrams/) to visualize how shuffles, consensus lookups, and secure network policies flow.
+4.  **Execute the Labs**: Complete [Labs 1 to 5](file:///d:/30_Days_of_Production_Kubernetes/Day-27/labs/) inside your cluster environment using the configurations in [manifests/](file:///d:/30_Days_of_Production_Kubernetes/Day-27/manifests/).
+5.  **Review Production Operations**: Study [production-notes/senior-architect-ops.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/production-notes/senior-architect-ops.md) and [troubleshooting/troubleshooting-runbook.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/troubleshooting/troubleshooting-runbook.md).
+6.  **Complete the Challenge**: Resolve the scheduling, RBAC, and connection bugs inside [exercises/challenge-manifests.yaml](file:///d:/30_Days_of_Production_Kubernetes/Day-27/exercises/challenge-manifests.yaml) and complete the daily assignment in [exercises/daily-challenge.md](file:///d:/30_Days_of_Production_Kubernetes/Day-27/exercises/daily-challenge.md).
