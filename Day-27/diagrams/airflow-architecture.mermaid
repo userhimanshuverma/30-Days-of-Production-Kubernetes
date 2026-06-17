@@ -1,0 +1,38 @@
+graph TB
+    subgraph AirflowControlPlane ["Airflow Infrastructure Pods"]
+        webserver["Airflow Webserver Pod<br>(UI / API)"]
+        scheduler["Airflow Scheduler Pod<br>(DAG Parsing & Loop)"]
+        k8s_executor["KubernetesExecutor Core"]
+    end
+
+    subgraph MetadataStorage ["Metadata Storage"]
+        db["PostgreSQL StatefulSet<br>(Metadata DB)"]
+    end
+
+    subgraph DynamicWorkers ["Dynamic Kubernetes Task Pods"]
+        worker1["Task Worker Pod 1<br>(executes Task A)"]
+        worker2["Task Worker Pod 2<br>(executes Task B)"]
+    end
+
+    subgraph SharedStorage ["Shared Storage & Logging"]
+        pv_dags["DAGs Volume<br>(ReadWriteMany PVC / Git-Sync)"]
+        s3_logs["Remote Object Store<br>(S3 / MinIO for Logs)"]
+    end
+
+    scheduler -->|Read/Write State| db
+    webserver -->|Read/Write State| db
+    scheduler --- k8s_executor
+    
+    k8s_executor -->|1. Call K8s API to spawn| worker1
+    k8s_executor -->|1. Call K8s API to spawn| worker2
+    
+    pv_dags -.->|Mount DAGs| scheduler
+    pv_dags -.->|Mount DAGs| worker1
+    pv_dags -.->|Mount DAGs| worker2
+    
+    worker1 -->|2. Write Task Status| db
+    worker2 -->|2. Write Task Status| db
+    
+    worker1 -->|3. Ship Logs| s3_logs
+    worker2 -->|3. Ship Logs| s3_logs
+    webserver -->|4. Pull Logs for UI| s3_logs

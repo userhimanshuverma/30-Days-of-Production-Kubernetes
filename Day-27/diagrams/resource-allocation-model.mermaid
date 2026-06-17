@@ -1,0 +1,40 @@
+graph TD
+    subgraph PhysicalNode ["Kubernetes Worker Node (e.g., 64 vCPU, 256 GiB RAM)"]
+        subgraph GuaranteedQoS ["Guaranteed QoS Class (Stateful Data Pods)"]
+            subgraph KafkaPod ["Kafka Broker Pod"]
+                k_req_limit["Request == Limit<br>(e.g., 8 vCPU, 32 GiB)"]
+                k_heap["JVM Heap<br>(e.g., 16 GiB)"]
+                k_os_cache["OS Page Cache<br>(e.g., 16 GiB for Filesystem Cache)"]
+            end
+            
+            subgraph PinotServerPod ["Pinot Server Pod"]
+                p_req_limit["Request == Limit<br>(e.g., 16 vCPU, 64 GiB)"]
+                p_heap["JVM Heap<br>(e.g., 20 GiB)"]
+                p_direct["JVM Direct/Off-Heap<br>(e.g., 40 GiB for Segment Mappings)"]
+                p_system["System Overhead<br>(e.g., 4 GiB)"]
+            end
+        end
+
+        subgraph BurstableQoS ["Burstable QoS Class (Stateless Batch Pods)"]
+            subgraph SparkExecutorPod ["Spark Executor Pod"]
+                s_req["Request (e.g., 2 vCPU, 8 GiB)"]
+                s_limit["Limit (e.g., 4 vCPU, 16 GiB)"]
+                s_on_heap["Spark Executor Heap<br>(e.g., 6 GiB)"]
+                s_off_heap["Spark Memory Off-Heap<br>(e.g., 2 GiB for shuffle buffer)"]
+            end
+        end
+
+        node_os["Kubelet & OS Reserve<br>(e.g., 2 vCPU, 4 GiB Reserved)"]
+    end
+
+    %% Internal relationships
+    k_req_limit --- k_heap
+    k_req_limit --- k_os_cache
+    
+    p_req_limit --- p_heap
+    p_req_limit --- p_direct
+    p_req_limit --- p_system
+
+    s_req --- s_limit
+    s_limit --- s_on_heap
+    s_limit --- s_off_heap

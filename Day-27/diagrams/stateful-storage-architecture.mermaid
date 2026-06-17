@@ -1,0 +1,38 @@
+graph TB
+    subgraph StorageClasses ["Storage Provisioning Mechanics"]
+        sc_ebs["StorageClass: ebs-gp3<br>volumeBindingMode: WaitForFirstConsumer<br>provisioner: ebs.csi.aws.com"]
+        sc_local["StorageClass: local-nvme<br>volumeBindingMode: WaitForFirstConsumer<br>provisioner: kubernetes.io/no-provisioner"]
+    end
+
+    subgraph ClusterAZ1 ["Availability Zone 1"]
+        node1["Worker Node A"]
+        pod_broker0["Kafka Broker 0<br>(Scheduled on Node A)"]
+        pvc0["PVC 0<br>(Bound to Broker 0)"]
+        
+        subgraph NVMeDisk ["Direct-Attached Local SSD"]
+            local_pv0["Local PV 0<br>(Mounted at /mnt/disks/ssd0)"]
+        end
+    end
+
+    subgraph ClusterAZ2 ["Availability Zone 2"]
+        node2["Worker Node B"]
+        pod_broker1["Kafka Broker 1<br>(Scheduled on Node B)"]
+        pvc1["PVC 1<br>(Bound to Broker 1)"]
+        
+        subgraph NetworkStorage ["AWS EBS Storage Area"]
+            ebs_pv1["Remote EBS PV 1<br>(Attached over network)"]
+        end
+    end
+
+    %% Wiring
+    sc_local -->|Defines| pvc0
+    pvc0 -->|Dynamic Bind| local_pv0
+    pod_broker0 -->|Mounts /var/lib/kafka/data| pvc0
+    local_pv0 --- node1
+
+    sc_ebs -->|Defines| pvc1
+    pvc1 -->|CSI Provision & Bind| ebs_pv1
+    pod_broker1 -->|Mounts /var/lib/kafka/data| pvc1
+    ebs_pv1 -.->|Attach Command| node2
+    
+    Note over sc_local, sc_ebs: 'WaitForFirstConsumer' ensures PVC binds<br>only AFTER Scheduler selects the node based on AZ and cpu/mem availability.

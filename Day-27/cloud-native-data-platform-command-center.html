@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud-Native Data Platform Command Center — Day 27</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #080c14;
+            --bg-secondary: #0f1626;
+            --bg-tertiary: #17223b;
+            --text-main: #f1f5f9;
+            --text-muted: #64748b;
+            --color-primary: #3b82f6;
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-danger: #ef4444;
+            --color-purple: #8b5cf6;
+            --color-cyan: #06b6d4;
+            --border-glow: rgba(6, 182, 212, 0.25);
+            --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            overflow: hidden;
+            line-height: 1.5;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Layout Grid */
+        .wrapper {
+            display: grid;
+            grid-template-rows: 75px 1fr;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Top Header */
+        header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--color-purple), var(--color-cyan));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .logo-title h1 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-title p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .metrics-bar {
+            display: flex;
+            gap: 28px;
+        }
+
+        .metric-card {
+            text-align: right;
+            border-left: 1px solid var(--bg-tertiary);
+            padding-left: 20px;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        .metric-value.healthy { color: var(--color-success); }
+        .metric-value.degraded { color: var(--color-warning); }
+        .metric-value.critical { color: var(--color-danger); }
+
+        /* Main Workspace Container */
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            height: calc(100vh - 75px);
+            overflow: hidden;
+        }
+
+        /* Sidebar: Platform Controls */
+        .control-sidebar {
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--bg-tertiary);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            border-left: 3px solid var(--color-cyan);
+            padding-left: 8px;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ops-btn {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-main);
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ops-btn:hover {
+            border-color: var(--color-cyan);
+            box-shadow: 0 0 10px var(--border-glow);
+            transform: translateY(-1px);
+        }
+
+        .ops-btn .icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .ops-btn.spark .icon { background-color: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
+        .ops-btn.airflow .icon { background-color: rgba(139, 92, 246, 0.15); color: var(--color-purple); }
+        .ops-btn.kafka .icon { background-color: rgba(16, 185, 129, 0.15); color: var(--color-success); }
+        .ops-btn.pinot .icon { background-color: rgba(6, 182, 212, 0.15); color: var(--color-cyan); }
+
+        .ops-btn .details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ops-btn .title {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .ops-btn .desc {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        /* Center Column: Pipeline & Terminal Split */
+        .workspace-center {
+            display: grid;
+            grid-template-rows: 200px 1.5fr 1fr;
+            overflow: hidden;
+            background-color: var(--bg-primary);
+            border-right: 1px solid var(--bg-tertiary);
+        }
+
+        /* Pipeline Visualizer (Top Center) */
+        .pipeline-container {
+            border-bottom: 1px solid var(--bg-tertiary);
+            background-color: rgba(15, 22, 38, 0.5);
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            position: relative;
+        }
+
+        .pipeline-header {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .pipeline-flow {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            position: relative;
+        }
+
+        .pipeline-node {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 10px 14px;
+            min-width: 110px;
+            text-align: center;
+            z-index: 2;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .pipeline-node.active {
+            border-color: var(--color-success);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+        }
+
+        .pipeline-node.failing {
+            border-color: var(--color-danger);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.25);
+        }
+
+        .pipeline-node .node-name {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pipeline-node .node-status {
+            font-size: 9px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+
+        /* Connecting SVG lines with moving dots */
+        .pipeline-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .pipeline-line {
+            stroke: var(--bg-tertiary);
+            stroke-width: 3;
+            stroke-dasharray: 6 4;
+        }
+
+        .pipeline-line.active {
+            stroke: var(--color-cyan);
+            animation: dash 15s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Kubectl Shell Container */
+        .terminal-container {
+            border-bottom: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 16px;
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .terminal-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .terminal-suggestions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .suggest-btn {
+            background-color: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            color: var(--color-cyan);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 10px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .suggest-btn:hover {
+            background-color: var(--color-cyan);
+            color: var(--bg-primary);
+        }
+
+        .terminal-body {
+            background-color: #03050a;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            flex-grow: 1;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            overflow-y: auto;
+            color: #38bdf8;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal-output {
+            white-space: pre-wrap;
+            margin-bottom: 8px;
+            flex-grow: 1;
+        }
+
+        .terminal-input-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .prompt {
+            color: var(--color-success);
+            font-weight: bold;
+        }
+
+        .terminal-input-field {
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            flex-grow: 1;
+        }
+
+        /* Split view: Logs and Events */
+        .logs-events-split {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 12px;
+            border-right: 1px solid var(--bg-tertiary);
+        }
+
+        .pane:last-child {
+            border-right: none;
+        }
+
+        .pane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .pane-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .logs-stream {
+            background-color: #020408;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: #cbd5e1;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        .log-entry.error { color: var(--color-danger); }
+        .log-entry.warn { color: var(--color-warning); }
+        .log-entry.info { color: var(--color-success); }
+        .log-entry.spark { color: #f59e0b; }
+        .log-entry.airflow { color: #8b5cf6; }
+
+        .events-table-container {
+            background-color: #020408;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .events-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            text-align: left;
+        }
+
+        .events-table th, .events-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+
+        .events-table th {
+            color: var(--text-muted);
+            background-color: var(--bg-secondary);
+            font-weight: 700;
+        }
+
+        .events-table tr.warning-row {
+            color: var(--color-warning);
+            background-color: rgba(245, 158, 11, 0.03);
+        }
+
+        .events-table tr.danger-row {
+            color: var(--color-danger);
+            background-color: rgba(239, 68, 68, 0.03);
+        }
+
+        /* Right Sidebar: Mitigation & RCA */
+        .ops-sidebar {
+            background-color: var(--bg-secondary);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .mitigate-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .action-card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .action-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .action-title {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .action-desc {
+            font-size: 9px;
+            color: var(--text-muted);
+        }
+
+        .action-btn {
+            background-color: var(--color-primary);
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            font-size: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: opacity 0.15s ease;
+        }
+
+        .action-btn:hover {
+            opacity: 0.9;
+        }
+
+        .action-btn:disabled {
+            background-color: var(--bg-tertiary);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        /* RCA Dashboard */
+        .rca-container {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .rca-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .rca-form-group label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .rca-select {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-main);
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            outline: none;
+        }
+
+        .rca-submit-btn {
+            background: linear-gradient(135deg, var(--color-success), #059669);
+            color: #fff;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 4px;
+        }
+
+        .rca-submit-btn:hover {
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Meter charts */
+        .charts-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .chart-box {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .chart-label {
+            font-size: 9px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .chart-gauge {
+            height: 8px;
+            background-color: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 6px 0;
+        }
+
+        .gauge-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--color-cyan);
+            transition: width 0.5s ease, background-color 0.5s ease;
+        }
+
+        .chart-val {
+            font-size: 13px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--bg-secondary);
+            border-left: 4px solid var(--color-primary);
+            padding: 12px 18px;
+            border-radius: 6px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 100;
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast-title {
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .toast-body {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <!-- Header -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">k8s</div>
+            <div class="logo-title">
+                <h1>Cloud-Native Data Platform Command Center</h1>
+                <p>Interactive Production Operations & SRE Live Simulator</p>
+            </div>
+        </div>
+        <div class="metrics-bar">
+            <div class="metric-card">
+                <div class="metric-label">Active Outage</div>
+                <div class="metric-value critical" id="metric-outage">None</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Cluster Health SLA</div>
+                <div class="metric-value healthy" id="metric-sla">100.0%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Kafka Data rate</div>
+                <div class="metric-value" id="metric-msg-rate" style="color: var(--color-cyan);">0 msg/s</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Spark CPU Cores</div>
+                <div class="metric-value" id="metric-spark-cpu" style="color: var(--color-warning);">0 Cores</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="main-container">
+        <!-- Sidebar Controls -->
+        <div class="control-sidebar">
+            <div>
+                <h3 class="sidebar-section-title">Submit Operations</h3>
+                <div class="btn-group">
+                    <button class="ops-btn spark" onclick="submitSparkJob()">
+                        <div class="icon">SP</div>
+                        <div class="details">
+                            <span class="title">Submit Spark ETL Application</span>
+                            <span class="desc">Triggers dynamic executor scaling and batch math</span>
+                        </div>
+                    </button>
+                    <button class="ops-btn airflow" onclick="triggerAirflowDag()">
+                        <div class="icon">AF</div>
+                        <div class="details">
+                            <span class="title">Trigger Airflow Task DAG</span>
+                            <span class="desc">Orchestrates task pods using KubernetesExecutor</span>
+                        </div>
+                    </button>
+                    <button class="ops-btn kafka" id="btn-kafka-traffic" onclick="toggleKafkaTraffic()">
+                        <div class="icon">KF</div>
+                        <div class="details">
+                            <span class="title" id="lbl-kafka-traffic">Generate Kafka Telemetry Traffic</span>
+                            <span class="desc">Starts clickstream ingestion simulator</span>
+                        </div>
+                    </button>
+                    <button class="ops-btn pinot" onclick="submitPinotConfigs()">
+                        <div class="icon">PT</div>
+                        <div class="details">
+                            <span class="title">Register Pinot Schema & Table</span>
+                            <span class="desc">Links user-clicks stream topic to OLAP servers</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="sidebar-section-title">Simulate Incidents</h3>
+                <div class="btn-group">
+                    <button class="ops-btn" style="border-left: 3px solid var(--color-danger);" onclick="triggerOutage('disk')">
+                        <span class="title">1. Broker Disk Space Saturation</span>
+                        <span class="desc">Kafka broker disk fills up, freezing writes</span>
+                    </button>
+                    <button class="ops-btn" style="border-left: 3px solid var(--color-danger);" onclick="triggerOutage('oom')">
+                        <span class="title">2. Spark Executor OOMKilled</span>
+                        <span class="desc">JVM off-heap overhead limits violated</span>
+                    </button>
+                    <button class="ops-btn" style="border-left: 3px solid var(--color-danger);" onclick="triggerOutage('lag')">
+                        <span class="title">3. Pinot Real-Time Ingestion Lag</span>
+                        <span class="desc">GC suspension pauses consumer thread</span>
+                    </button>
+                    <button class="ops-btn" style="border-left: 3px solid var(--color-danger);" onclick="triggerOutage('dns')">
+                        <span class="title">4. CoreDNS Throttling Timeout</span>
+                        <span class="desc">Pinot lookup query storm crashes CoreDNS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Terminal & Logs Workspace -->
+        <div class="workspace-center">
+            <!-- Pipeline Visualizer -->
+            <div class="pipeline-container">
+                <div class="pipeline-header">
+                    <span>Active Telemetry Data Ingestion Pipeline Topology</span>
+                    <span style="font-family: var(--font-mono);" id="pipeline-overall-status">Stable</span>
+                </div>
+                <div class="pipeline-flow">
+                    <svg class="pipeline-svg">
+                        <line x1="12%" y1="50%" x2="40%" y2="50%" class="pipeline-line" id="line-prod-kafka"></line>
+                        <line x1="40%" y1="50%" x2="68%" y2="25%" class="pipeline-line" id="line-kafka-spark"></line>
+                        <line x1="40%" y1="50%" x2="68%" y2="75%" class="pipeline-line" id="line-kafka-pinot"></line>
+                    </svg>
+                    
+                    <div class="pipeline-node" id="node-prod">
+                        <div class="node-name">Producer.py</div>
+                        <div class="node-status" id="node-status-prod">STOPPED</div>
+                    </div>
+                    
+                    <div class="pipeline-node" id="node-kafka">
+                        <div class="node-name">Kafka Cluster</div>
+                        <div class="node-status" id="node-status-kafka">3/3 brokers</div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="pipeline-node" id="node-spark">
+                            <div class="node-name">Spark App</div>
+                            <div class="node-status" id="node-status-spark">IDLE</div>
+                        </div>
+                        <div class="pipeline-node" id="node-pinot">
+                            <div class="node-name">Pinot OLAP</div>
+                            <div class="node-status" id="node-status-pinot">STANDBY</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kubectl Console Panel -->
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span class="terminal-title">Kubectl Command shell</span>
+                    <span style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">default-namespace</span>
+                </div>
+                <div class="terminal-suggestions">
+                    <button class="suggest-btn" onclick="runConsoleCmd('kubectl get pods')">kubectl get pods</button>
+                    <button class="suggest-btn" onclick="runConsoleCmd('kubectl describe statefulset production-kafka')">kubectl describe sts production-kafka</button>
+                    <button class="suggest-btn" onclick="runConsoleCmd('kubectl top nodes')">kubectl top nodes</button>
+                    <button class="suggest-btn" onclick="runConsoleCmd('kubectl get events --sort-by=.metadata.creationTimestamp')">kubectl get events</button>
+                </div>
+                <div class="terminal-body" id="terminal-body">
+                    <div class="terminal-output" id="terminal-output">K8s API client connected. Submit cluster operations or run commands to query resources.</div>
+                    <div class="terminal-input-row">
+                        <span class="prompt">k8s-platform-shell:~$</span>
+                        <input type="text" class="terminal-input-field" id="terminal-input" placeholder="Type a kubectl command..." autocomplete="off" onkeydown="handleCommand(event)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs & Events Split Screen -->
+            <div class="logs-events-split">
+                <!-- Live Logs -->
+                <div class="pane">
+                    <div class="pane-header">
+                        <span class="pane-title">Container Stdout log stream</span>
+                    </div>
+                    <div class="logs-stream" id="logs-stream">
+                        <div class="log-entry info">[system] live logging interface initialized. logs from active jobs scroll here.</div>
+                    </div>
+                </div>
+
+                <!-- Events Table -->
+                <div class="pane">
+                    <div class="pane-header">
+                        <span class="pane-title">K8s Cluster Event Auditor</span>
+                    </div>
+                    <div class="events-table-container">
+                        <table class="events-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 15%;">Type</th>
+                                    <th style="width: 20%;">Reason</th>
+                                    <th style="width: 30%;">Object</th>
+                                    <th style="width: 35%;">Message</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-body">
+                                <tr>
+                                    <td colspan="4" style="color: var(--text-muted); text-align: center;">No alert-level events. Platform healthy.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar: Mitigation and Post-Mortem -->
+        <div class="ops-sidebar">
+            <div>
+                <h3 class="sidebar-section-title">Observability Metrics</h3>
+                <div class="charts-container">
+                    <div class="chart-box">
+                        <div class="chart-label">Broker Write IOPS</div>
+                        <div class="chart-val" id="chart-val-iops">340 IOPS</div>
+                        <div class="chart-gauge"><div class="gauge-bar" id="gauge-iops" style="width: 25%"></div></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-label">Consumer Lag</div>
+                        <div class="chart-val" id="chart-val-lag">0 events</div>
+                        <div class="chart-gauge"><div class="gauge-bar" id="gauge-lag" style="width: 0%"></div></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-label">Pinot Query SLA</div>
+                        <div class="chart-val" id="chart-val-latency">12 ms</div>
+                        <div class="chart-gauge"><div class="gauge-bar" id="gauge-latency" style="width: 12%"></div></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-label">Mem Alloc Limit</div>
+                        <div class="chart-val" id="chart-val-mem">48.2%</div>
+                        <div class="chart-gauge"><div class="gauge-bar" id="gauge-mem" style="width: 48%"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="sidebar-section-title">Remediation Controls</h3>
+                <div class="mitigate-actions">
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Online PVC Expansion</span>
+                            <span class="action-desc">Resizes Broker disk from 100Gi to 200Gi</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-disk" disabled onclick="applyMitigation('disk')">Expand</button>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Tune Spark Memory Overhead</span>
+                            <span class="action-desc">Increases spark.executor.memoryOverhead to 2g</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-oom" disabled onclick="applyMitigation('oom')">Re-submit</button>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Tune JVM Garbage Collection</span>
+                            <span class="action-desc">Adjust server heap & enable G1GC options</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-lag" disabled onclick="applyMitigation('lag')">Optimize</button>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-info">
+                            <span class="action-title">Configure NodeLocal DNS</span>
+                            <span class="action-desc">Deploys DNS caching loopback daemonset</span>
+                        </div>
+                        <button class="action-btn" id="btn-fix-dns" disabled onclick="applyMitigation('dns')">Configure</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="sidebar-section-title">Root Cause Analysis (RCA)</h3>
+                <div class="rca-container">
+                    <div class="rca-form-group">
+                        <label>Symptom</label>
+                        <select class="rca-select" id="rca-symptom">
+                            <option value="">-- Select --</option>
+                            <option value="write_freeze">Brokers freeze writes, container logs report no disk space</option>
+                            <option value="exit_137">Executor pods fail with Exit Code 137 immediately during partition sort</option>
+                            <option value="lag_climb">Ingestion lag increases, server CPU flatlines during segment flush</option>
+                            <option value="timeout_504">Pinot queries return 504 gateway timeout, API logs show host resolution fails</option>
+                        </select>
+                    </div>
+                    <div class="rca-form-group">
+                        <label>Root Cause</label>
+                        <select class="rca-select" id="rca-cause">
+                            <option value="">-- Select --</option>
+                            <option value="pv_limit">PersistentVolumeClaim size limit reached on write-heavy Kafka directory</option>
+                            <option value="jvm_overhead">JVM default off-heap memory ratio (10%) exceeded by PySpark tasks</option>
+                            <option value="gc_freeze">Long GC pauses in Pinot Server JVM exceed Zookeeper session timeouts</option>
+                            <option value="dns_storm">CoreDNS CPU throttling caused by broker cluster host lookup queries</option>
+                        </select>
+                    </div>
+                    <button class="rca-submit-btn" onclick="submitRcaReport()">Submit SRE RCA Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Alert -->
+<div class="toast" id="toast-alert">
+    <div class="toast-title" id="toast-title" style="color: var(--color-danger)">[ALERT] PagerDuty Incident</div>
+    <div class="toast-body" id="toast-body">Data pipeline degradation detected. Check active alerts.</div>
+</div>
+
+<script>
+    // System State
+    let activeIncident = null;
+    let sla = 100.0;
+    let dataIngestionRate = 0;
+    let totalIngested = 0;
+    let sparkCores = 0;
+    let kafkaTrafficRunning = false;
+    let pinotRegistered = false;
+    
+    // Command History for terminal
+    let commandHistory = [];
+    
+    // Intervals
+    let statsInterval = null;
+    let logInterval = null;
+    let dataInterval = null;
+
+    // Initialize Simulator
+    window.onload = function() {
+        startSystemLoops();
+        writeLog("[system] Command center dashboard online. All systems initialized.", "info");
+    };
+
+    function startSystemLoops() {
+        // Observability Stats Loop
+        statsInterval = setInterval(() => {
+            if (activeIncident) {
+                sla = Math.max(20.0, sla - (activeIncident === 'disk' ? 0.8 : 0.4));
+            } else {
+                sla = Math.min(100.0, sla + 0.2);
+            }
+            
+            document.getElementById("metric-sla").innerText = sla.toFixed(1) + "%";
+            let slaEl = document.getElementById("metric-sla");
+            if (sla > 90) {
+                slaEl.className = "metric-value healthy";
+            } else if (sla > 70) {
+                slaEl.className = "metric-value degraded";
+            } else {
+                slaEl.className = "metric-value critical";
+            }
+
+            // Update gauges dynamically
+            updateGauges();
+        }, 1000);
+
+        // Core data loop
+        dataInterval = setInterval(() => {
+            if (kafkaTrafficRunning && activeIncident !== 'disk') {
+                dataIngestionRate = Math.floor(Math.random() * 200) + 400;
+                if (activeIncident === 'lag') {
+                    // Lag builds up because consumer is frozen
+                    let currentLag = parseInt(document.getElementById("chart-val-lag").innerText) || 0;
+                    currentLag += dataIngestionRate;
+                    document.getElementById("chart-val-lag").innerText = currentLag + " events";
+                }
+            } else {
+                dataIngestionRate = 0;
+            }
+            document.getElementById("metric-msg-rate").innerText = dataIngestionRate + " msg/s";
+        }, 800);
+    }
+
+    function updateGauges() {
+        let iopsGauge = document.getElementById("gauge-iops");
+        let lagGauge = document.getElementById("gauge-lag");
+        let latencyGauge = document.getElementById("gauge-latency");
+        let memGauge = document.getElementById("gauge-mem");
+
+        let iopsVal = document.getElementById("chart-val-iops");
+        let lagVal = document.getElementById("chart-val-lag");
+        let latencyVal = document.getElementById("chart-val-latency");
+        let memVal = document.getElementById("chart-val-mem");
+
+        if (activeIncident === 'disk') {
+            iopsGauge.style.width = "100%";
+            iopsGauge.style.backgroundColor = "var(--color-danger)";
+            iopsVal.innerText = "15000 IOPS (SATURATED)";
+            iopsVal.style.color = "var(--color-danger)";
+        } else if (kafkaTrafficRunning) {
+            iopsGauge.style.width = "45%";
+            iopsGauge.style.backgroundColor = "var(--color-cyan)";
+            iopsVal.innerText = "4500 IOPS";
+            iopsVal.style.color = "var(--text-main)";
+        } else {
+            iopsGauge.style.width = "10%";
+            iopsGauge.style.backgroundColor = "var(--color-cyan)";
+            iopsVal.innerText = "120 IOPS";
+            iopsVal.style.color = "var(--text-main)";
+        }
+
+        if (activeIncident === 'lag') {
+            lagGauge.style.width = "90%";
+            lagGauge.style.backgroundColor = "var(--color-danger)";
+            lagVal.style.color = "var(--color-danger)";
+        } else {
+            if (!activeIncident && parseInt(lagVal.innerText) > 0) {
+                // Drain lag if issue resolved
+                let lag = parseInt(lagVal.innerText) - 500;
+                if (lag < 0) lag = 0;
+                lagVal.innerText = lag + " events";
+                lagGauge.style.width = Math.min(100, (lag / 10000) * 100) + "%";
+                lagGauge.style.backgroundColor = "var(--color-warning)";
+            } else if (!activeIncident) {
+                lagGauge.style.width = "0%";
+                lagVal.innerText = "0 events";
+                lagVal.style.color = "var(--text-main)";
+            }
+        }
+
+        if (activeIncident === 'dns') {
+            latencyGauge.style.width = "100%";
+            latencyGauge.style.backgroundColor = "var(--color-danger)";
+            latencyVal.innerText = "5000 ms (TIMEOUT)";
+            latencyVal.style.color = "var(--color-danger)";
+        } else if (pinotRegistered && kafkaTrafficRunning) {
+            let lat = Math.floor(Math.random() * 8) + 12;
+            latencyGauge.style.width = lat + "%";
+            latencyGauge.style.backgroundColor = "var(--color-success)";
+            latencyVal.innerText = lat + " ms";
+            latencyVal.style.color = "var(--color-success)";
+        } else {
+            latencyGauge.style.width = "3%";
+            latencyGauge.style.backgroundColor = "var(--text-muted)";
+            latencyVal.innerText = "0 ms";
+            latencyVal.style.color = "var(--text-muted)";
+        }
+
+        if (activeIncident === 'oom') {
+            memGauge.style.width = "100%";
+            memGauge.style.backgroundColor = "var(--color-danger)";
+            memVal.innerText = "99.8% (EXHAUSTED)";
+            memVal.style.color = "var(--color-danger)";
+        } else if (sparkCores > 0) {
+            memGauge.style.width = "82%";
+            memGauge.style.backgroundColor = "var(--color-warning)";
+            memVal.innerText = "82.5%";
+            memVal.style.color = "var(--text-main)";
+        } else {
+            memGauge.style.width = "40%";
+            memGauge.style.backgroundColor = "var(--color-cyan)";
+            memVal.innerText = "40.2%";
+            memVal.style.color = "var(--text-main)";
+        }
+    }
+
+    // Interactive Button Actions
+    function toggleKafkaTraffic() {
+        kafkaTrafficRunning = !kafkaTrafficRunning;
+        let btn = document.getElementById("btn-kafka-traffic");
+        let lbl = document.getElementById("lbl-kafka-traffic");
+        let node = document.getElementById("node-prod");
+        let line = document.getElementById("line-prod-kafka");
+
+        if (kafkaTrafficRunning) {
+            lbl.innerText = "Stop Kafka Traffic";
+            btn.style.borderColor = "var(--color-success)";
+            node.className = "pipeline-node active";
+            document.getElementById("node-status-prod").innerText = "PRODUCING";
+            line.className = "pipeline-line active";
+            writeLog("[producer] Starting telemetry log stream. Shipping 500 events/sec to bootstrap endpoint.", "info");
+            
+            // Connect path to Pinot if registered
+            if (pinotRegistered) {
+                document.getElementById("line-kafka-pinot").className = "pipeline-line active";
+            }
+        } else {
+            lbl.innerText = "Generate Kafka Traffic";
+            btn.style.borderColor = "var(--bg-tertiary)";
+            node.className = "pipeline-node";
+            document.getElementById("node-status-prod").innerText = "STOPPED";
+            line.className = "pipeline-line";
+            document.getElementById("line-kafka-pinot").className = "pipeline-line";
+            writeLog("[producer] Log stream paused by operator request.", "warn");
+        }
+    }
+
+    function submitSparkJob() {
+        if (activeIncident === 'oom') {
+            writeLog("[spark-submit] Request rejected. Insufficient memory space to schedule executors.", "error");
+            return;
+        }
+
+        writeLog("[spark-operator] Registering new batch SparkApplication: spark-etl-job", "info");
+        document.getElementById("node-spark").className = "pipeline-node active";
+        document.getElementById("node-status-spark").innerText = "SCHEDULING";
+        
+        setTimeout(() => {
+            if (activeIncident === 'oom') {
+                document.getElementById("node-spark").className = "pipeline-node failing";
+                document.getElementById("node-status-spark").innerText = "OOMKILLED";
+                return;
+            }
+            sparkCores = 16;
+            document.getElementById("metric-spark-cpu").innerText = "16 Cores";
+            document.getElementById("node-status-spark").innerText = "8 EXECUTORS";
+            document.getElementById("line-kafka-spark").className = "pipeline-line active";
+            writeLog("[spark-driver] Driver active. Requesting 8 executor pods on node group: spot-nodes.", "info");
+            writeLog("[spark-executors] Task allocations complete. Processing Kafka offsets user-clicks [0-5].", "info");
+            
+            // Auto complete Spark after 15 seconds
+            setTimeout(() => {
+                if (activeIncident !== 'oom') {
+                    sparkCores = 0;
+                    document.getElementById("metric-spark-cpu").innerText = "0 Cores";
+                    document.getElementById("node-spark").className = "pipeline-node";
+                    document.getElementById("node-status-spark").innerText = "COMPLETED";
+                    document.getElementById("line-kafka-spark").className = "pipeline-line";
+                    writeLog("[spark-driver] Job completed successfully. Releasing executor container assets.", "info");
+                }
+            }, 15000);
+        }, 3000);
+    }
+
+    function triggerAirflowDag() {
+        writeLog("[airflow-scheduler] Parsing DAG file k8s_executor_etl_pipeline.py", "airflow");
+        writeLog("[airflow-scheduler] Task state set to QUEUED. Dynamic worker requests pending API authorization.", "airflow");
+        
+        setTimeout(() => {
+            writeLog("[airflow-k8s-executor] Dynamic pod launch: k8sexecutoretlpipeline-extractrawmetadata-x1y2", "airflow");
+            
+            setTimeout(() => {
+                writeLog("[airflow-worker-pod] Telemetry task finished. Status code 0.", "airflow");
+                writeLog("[airflow-scheduler] Task state set to SUCCESS. Reaping worker pod.", "airflow");
+            }, 5000);
+        }, 2500);
+    }
+
+    function submitPinotConfigs() {
+        pinotRegistered = true;
+        document.getElementById("node-pinot").className = "pipeline-node active";
+        document.getElementById("node-status-pinot").innerText = "CONSUMING";
+        writeLog("[pinot-controller] Submitted schema: userClicks. Adding Table userClicks_REALTIME.", "pinot");
+        writeLog("[pinot-server] Real-time consumer thread active. Binding stream configs.", "pinot");
+        
+        if (kafkaTrafficRunning) {
+            document.getElementById("line-kafka-pinot").className = "pipeline-line active";
+        }
+    }
+
+    // Incident Simulation Trigger
+    function triggerOutage(type) {
+        if (activeIncident) {
+            writeLog(`[pagerduty] Outage simulation already active: ${activeIncident}. Resolve it first.`, "warn");
+            return;
+        }
+
+        activeIncident = type;
+        document.getElementById("metric-outage").innerText = type.toUpperCase();
+        document.getElementById("metric-outage").className = "metric-value critical";
+        
+        // Show PagerDuty Alert
+        let toast = document.getElementById("toast-alert");
+        let tTitle = document.getElementById("toast-title");
+        let tBody = document.getElementById("toast-body");
+
+        tTitle.innerText = `[ALERT] PagerDuty Triggered (${type})`;
+        
+        if (type === 'disk') {
+            document.getElementById("node-kafka").className = "pipeline-node failing";
+            document.getElementById("node-status-kafka").innerText = "DISK FULL";
+            tBody.innerText = "Kafka broker disk space hit 99% usage. Cluster writes suspended.";
+            writeLog("[kafka-broker-0] Disk partition /var/lib/kafka/data is full. Pausing replication and write loops.", "error");
+            document.getElementById("btn-fix-disk").removeAttribute("disabled");
+            addClusterEvent("Danger", "DiskFull", "StatefulSet/production-kafka", "Volume claims capacity exhausted. Cannot save logs.");
+        } else if (type === 'oom') {
+            document.getElementById("node-spark").className = "pipeline-node failing";
+            document.getElementById("node-status-spark").innerText = "OOMKILLED";
+            tBody.innerText = "Spark executor pod crashed with Exit Code 137.";
+            writeLog("[spark-executor-2] Container exited with exit code 137 (OOMKilled) by kernel cgroup.", "error");
+            document.getElementById("btn-fix-oom").removeAttribute("disabled");
+            addClusterEvent("Warning", "OOMKilled", "Pod/spark-pi-dynamic-exec-2", "System memory allocation exceeded. Pod container reaped.");
+        } else if (type === 'lag') {
+            tBody.innerText = "Apache Pinot real-time consumer lag exceeded threshold (50,000 events).";
+            writeLog("[pinot-server-0] Critical consumer freeze. JVM Garbage Collection duration: 12.4s.", "error");
+            document.getElementById("btn-fix-lag").removeAttribute("disabled");
+            addClusterEvent("Warning", "GCThresholdExceeded", "StatefulSet/pinot-server", "Zookeeper session expired. Real-time consumption thread blocked.");
+        } else if (type === 'dns') {
+            tBody.innerText = "CoreDNS lookups failing with 504 errors.";
+            writeLog("[coredns] DNS timeout error. Query rate hit limit (12,000 req/s). Pinot Broker queries dropping.", "error");
+            document.getElementById("btn-fix-dns").removeAttribute("disabled");
+            addClusterEvent("Warning", "DNSLookupFailed", "Pod/pinot-broker-5c12-efab", "DNS queries timing out. Network sockets exhausted.");
+        }
+
+        toast.className = "toast show";
+        setTimeout(() => {
+            toast.className = "toast";
+        }, 5000);
+    }
+
+    // Apply Remediation Control
+    function applyMitigation(type) {
+        if (activeIncident !== type) return;
+
+        if (type === 'disk') {
+            writeLog("[kubectl] Expanding PVC data-production-kafka-0 to 200Gi...", "info");
+            setTimeout(() => {
+                writeLog("[csi-driver] AWS EBS gp3 volume resize success. Resizing filesystem.", "info");
+                writeLog("[kafka-broker-0] Disk space restored. Resuming partition replication.", "info");
+                document.getElementById("node-kafka").className = "pipeline-node";
+                document.getElementById("node-status-kafka").innerText = "3/3 brokers";
+                resolveIncident();
+            }, 3000);
+        } else if (type === 'oom') {
+            writeLog("[kubectl] Setting spark.executor.memoryOverhead=2g and resubmitting...", "info");
+            setTimeout(() => {
+                writeLog("[spark-operator] Rescheduling spark-pi-dynamic on spot node pool.", "info");
+                document.getElementById("node-spark").className = "pipeline-node active";
+                document.getElementById("node-status-spark").innerText = "8 EXECUTORS";
+                resolveIncident();
+            }, 3000);
+        } else if (type === 'lag') {
+            writeLog("[kubectl] Applying optimized G1GC options and restarting Pinot servers...", "info");
+            setTimeout(() => {
+                writeLog("[pinot-server-0] Rejoined cluster. GC pauses reduced below 20ms.", "info");
+                resolveIncident();
+            }, 3000);
+        } else if (type === 'dns') {
+            writeLog("[kubectl] Deploying NodeLocal DNSCache DaemonSet to cluster nodes...", "info");
+            setTimeout(() => {
+                writeLog("[coredns] Query storm resolved. DNS lookups cached locally on host.", "info");
+                resolveIncident();
+            }, 3000);
+        }
+    }
+
+    function resolveIncident() {
+        let prevIncident = activeIncident;
+        activeIncident = null;
+        document.getElementById("metric-outage").innerText = "NONE";
+        document.getElementById("metric-outage").className = "metric-value healthy";
+        
+        document.getElementById("btn-fix-" + prevIncident).setAttribute("disabled", "true");
+        writeLog("[system] Incident successfully mitigated. Monitoring cluster SLA recovery.", "info");
+    }
+
+    // RCA Report submission
+    function submitRcaReport() {
+        let symptom = document.getElementById("rca-symptom").value;
+        let cause = document.getElementById("rca-cause").value;
+
+        if (!symptom || !cause) {
+            writeLog("[rca-auditor] Please select both Symptom and Root Cause to submit.", "warn");
+            return;
+        }
+
+        // Validate matching combos
+        let valid = false;
+        if (symptom === 'write_freeze' && cause === 'pv_limit') valid = true;
+        if (symptom === 'exit_137' && cause === 'jvm_overhead') valid = true;
+        if (symptom === 'lag_climb' && cause === 'gc_freeze') valid = true;
+        if (symptom === 'timeout_504' && cause === 'dns_storm') valid = true;
+
+        if (valid) {
+            writeLog("✅ SRE RCA Report Approved! Root cause analysis is correct. Cluster SLA restored to 100%.", "info");
+            sla = 100.0;
+            document.getElementById("metric-sla").innerText = "100.0%";
+            document.getElementById("metric-sla").className = "metric-value healthy";
+        } else {
+            writeLog("❌ RCA Report REJECTED. Mismatched symptom and root cause analysis. Please study the logs and troubleshooting guide.", "error");
+        }
+    }
+
+    // CLI Shell Command Handler
+    function handleCommand(event) {
+        if (event.key === 'Enter') {
+            let input = document.getElementById("terminal-input");
+            let cmd = input.value.trim();
+            if (cmd) {
+                runConsoleCmd(cmd);
+                input.value = '';
+            }
+        }
+    }
+
+    function runConsoleCmd(cmd) {
+        let out = document.getElementById("terminal-output");
+        writeLog(`$ ${cmd}`, "info");
+
+        let response = "";
+        
+        if (cmd === 'kubectl get pods') {
+            response = `NAME                                          READY   STATUS      RESTARTS   AGE
+production-kafka-zookeeper-0                  1/1     Running     0          15m
+production-kafka-zookeeper-1                  1/1     Running     0          15m
+production-kafka-zookeeper-2                  1/1     Running     0          15m
+production-kafka-kafka-0                      1/1     ${activeIncident === 'disk' ? 'Running' : 'Running'}     0          14m
+production-kafka-kafka-1                      1/1     Running     0          14m
+production-kafka-kafka-2                      1/1     Running     0          14m
+pinot-controller-5c67-ab12                    1/1     Running     0          12m
+pinot-broker-5c12-efab                        1/1     Running     0          12m
+pinot-server-0                                1/1     Running     0          12m
+pinot-server-1                                1/1     Running     0          12m
+pinot-minion-8a3b-1234                        1/1     Running     0          12m
+airflow-scheduler-7b56d8f89-abcde             1/1     Running     0          8m
+airflow-webserver-5fd9b8c67-12345             1/1     Running     0          8m
+${activeIncident === 'oom' ? 'spark-pi-dynamic-exec-2                    0/1     OOMKilled   0          1m\n' : ''}${sparkCores > 0 ? 'spark-pi-dynamic-driver                     1/1     Running     0          30s\nspark-pi-dynamic-exec-1                     1/1     Running     0          25s' : ''}`;
+        } 
+        else if (cmd.startsWith('kubectl describe statefulset production-kafka')) {
+            response = `Name:               production-kafka-kafka
+Namespace:          default
+Selector:           strimzi.io/cluster=production-kafka,strimzi.io/kind=Kafka,strimzi.io/name=production-kafka-kafka
+Replicas:           3 desired | 3 total
+...
+Volume Claims:
+  Name:          kafka-data
+  StorageClass:  local-nvme
+  Capacity:      100Gi
+  Access Modes:  [ReadWriteOnce]`;
+        } 
+        else if (cmd === 'kubectl top nodes') {
+            response = `NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+worker-node-a    2840m        71%    24800Mi         77%
+worker-node-b    1150m        28%    12400Mi         38%
+worker-node-c    3410m        85%    28120Mi         87%`;
+        } 
+        else if (cmd.includes('get events')) {
+            response = `LAST SEEN   TYPE      REASON             OBJECT                            MESSAGE
+12m         Normal    Scheduled          pod/production-kafka-kafka-0      Successfully assigned default/production-kafka-kafka-0 to worker-node-a
+5m          Normal    VolumeExpanded     pvc/data-production-kafka-0       CSI volume expanded
+${activeIncident === 'disk' ? '1m          Warning   DiskFull           pod/production-kafka-kafka-0      Log directory write failure: No space left on device\n' : ''}${activeIncident === 'oom' ? '45s         Warning   OOMKilled          pod/spark-pi-dynamic-exec-2       Container limits exceeded. Process exited 137\n' : ''}`;
+        }
+        else {
+            response = `Command recognized. Executing '${cmd}' inside API sandbox...
+No syntax errors detected.`;
+        }
+
+        out.innerText = response;
+        
+        // Auto scroll terminal
+        let body = document.getElementById("terminal-body");
+        body.scrollTop = body.scrollHeight;
+    }
+
+    // Logger util
+    function writeLog(text, style) {
+        let stream = document.getElementById("logs-stream");
+        let entry = document.createElement("div");
+        entry.className = "log-entry " + (style || '');
+        
+        let time = new Date().toLocaleTimeString();
+        entry.innerText = `[${time}] ${text}`;
+        
+        stream.appendChild(entry);
+        stream.scrollTop = stream.scrollHeight;
+    }
+
+    function addClusterEvent(type, reason, object, message) {
+        let body = document.getElementById("events-body");
+        
+        // Remove empty placeholder row if present
+        if (body.rows.length === 1 && body.rows[0].cells.length === 1) {
+            body.deleteRow(0);
+        }
+
+        let row = body.insertRow(0);
+        if (type === 'Warning') {
+            row.className = "warning-row";
+        } else if (type === 'Danger') {
+            row.className = "danger-row";
+        }
+
+        row.insertCell(0).innerText = type;
+        row.insertCell(1).innerText = reason;
+        row.insertCell(2).innerText = object;
+        row.insertCell(3).innerText = message;
+    }
+</script>
+</body>
+</html>

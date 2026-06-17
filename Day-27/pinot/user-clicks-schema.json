@@ -1,0 +1,39 @@
+{
+  "schemaName": "userClicks",
+  "dimensionFieldSpecs": [
+    {
+      "name": "event_id",
+      "dataType": "STRING"
+    },
+    {
+      "name": "user_id",
+      "dataType": "STRING"
+    },
+    {
+      "name": "page_url",
+      "dataType": "STRING"
+    },
+    {
+      "name": "platform",
+      "dataType": "STRING"
+    }
+  ],
+  "metricFieldSpecs": [
+    {
+      "name": "duration_ms",
+      "dataType": "INT"
+    },
+    {
+      "name": "revenue_usd",
+      "dataType": "DOUBLE"
+    }
+  ],
+  "dateTimeFieldSpecs": [
+    {
+      "name": "timestamp",
+      "dataType": "LONG",
+      "format": "1:MILLISECONDS:EPOCH",
+      "granularity": "1:MILLISECONDS"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+graph TB
+    subgraph K8sSecurityIsolation ["Kubernetes Security & Network Boundaries"]
+        
+        subgraph Namespace_Airflow ["Namespace: airflow-system"]
+            airflow_pod["Airflow Web/Sched Pods"]
+            netpol_airflow["NetPol: Allow egress to db & ingress to web"]
+        end
+
+        subgraph Namespace_Kafka ["Namespace: kafka-system"]
+            kafka_brokers["Kafka Broker Pods (StatefulSet)"]
+            netpol_kafka["NetPol: Allow ingress from analytics on 9092"]
+        end
+
+        subgraph Namespace_Analytics ["Namespace: analytics-system"]
+            pinot_pods["Pinot Controllers/Brokers/Servers"]
+            spark_pods["Spark Dynamic Executor Pods"]
+            netpol_analytics["NetPol: Allow ingress from BI on 8099"]
+        end
+
+        subgraph Namespace_Gateway ["Namespace: external-gateway"]
+            bi_gateway["Ingress Controller / BI Tool"]
+        end
+
+    end
+
+    %% Network flows
+    bi_gateway -->|Ingress HTTP:8099| pinot_pods
+    airflow_pod -->|Trigger SparkJob via API Server| spark_pods
+    
+    spark_pods -->|Egress TCP:9092 (Consume/Produce)| kafka_brokers
+    pinot_pods -->|Egress TCP:9092 (Consume)| kafka_brokers
+    
+    %% Policy enforcement
+    netpol_airflow -.->|Enforces| airflow_pod
+    netpol_kafka -.->|Enforces| kafka_brokers
+    netpol_analytics -.->|Enforces| pinot_pods
+    netpol_analytics -.->|Enforces| spark_pods

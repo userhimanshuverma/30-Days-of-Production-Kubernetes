@@ -1,0 +1,182 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinot-controller
+  namespace: default
+spec:
+  ports:
+    - name: console
+      port: 9000
+      targetPort: 9000
+  selector:
+    app: pinot-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinot-controller
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-controller
+  template:
+    metadata:
+      labels:
+        app: pinot-controller
+    spec:
+      containers:
+        - name: controller
+          image: apachepinot/pinot:0.9.3
+          args: [
+            "StartController",
+            "-zkAddress", "production-kafka-zookeeper-client:2181",
+            "-clusterName", "PinotCluster",
+            "-controllerPort", "9000"
+          ]
+          ports:
+            - containerPort: 9000
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinot-broker
+  namespace: default
+spec:
+  ports:
+    - name: query
+      port: 8099
+      targetPort: 8099
+  selector:
+    app: pinot-broker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinot-broker
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-broker
+  template:
+    metadata:
+      labels:
+        app: pinot-broker
+    spec:
+      containers:
+        - name: broker
+          image: apachepinot/pinot:0.9.3
+          args: [
+            "StartBroker",
+            "-zkAddress", "production-kafka-zookeeper-client:2181",
+            "-clusterName", "PinotCluster"
+          ]
+          ports:
+            - containerPort: 8099
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinot-server
+  namespace: default
+spec:
+  ports:
+    - name: data
+      port: 8098
+      targetPort: 8098
+  selector:
+    app: pinot-server
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pinot-server
+  namespace: default
+spec:
+  serviceName: pinot-server
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pinot-server
+  template:
+    metadata:
+      labels:
+        app: pinot-server
+    spec:
+      containers:
+        - name: server
+          image: apachepinot/pinot:0.9.3
+          args: [
+            "StartServer",
+            "-zkAddress", "production-kafka-zookeeper-client:2181",
+            "-clusterName", "PinotCluster"
+          ]
+          ports:
+            - containerPort: 8098
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+          volumeMounts:
+            - name: pinot-server-data
+              mountPath: /opt/pinot/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pinot-server-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-nvme
+        resources:
+          requests:
+            storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinot-minion
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinot-minion
+  template:
+    metadata:
+      labels:
+        app: pinot-minion
+    spec:
+      containers:
+        - name: minion
+          image: apachepinot/pinot:0.9.3
+          args: [
+            "StartMinion",
+            "-zkAddress", "production-kafka-zookeeper-client:2181",
+            "-clusterName", "PinotCluster"
+          ]
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"

@@ -1,0 +1,43 @@
+graph TD
+    subgraph StorageLayer ["1. Storage & Persistence"]
+        pvs["Local NVMe PVCs (StatefulSets)"]
+        s3["Deep Storage S3 / MinIO (Object Storage)"]
+    end
+
+    subgraph MessagingLayer ["2. Streaming Log Ingestion"]
+        kafka["Apache Kafka (Strimzi)"]
+    end
+
+    subgraph ProcessingLayer ["3. Batch & Stream Processing"]
+        spark["Apache Spark (SparkOperator)"]
+    end
+
+    subgraph IndexingLayer ["4. Real-Time Analytics OLAP"]
+        pinot["Apache Pinot"]
+    end
+
+    subgraph Orchestration ["5. Workflow Orchestration"]
+        airflow["Apache Airflow (KubernetesExecutor)"]
+    end
+
+    subgraph Consumption ["6. Access & Consumption"]
+        superset["Apache Superset / BI Dashboard"]
+        api["Microservices / Web Apps"]
+    end
+
+    %% Data Flow
+    airflow -->|Trigger Batch Job| spark
+    airflow -->|Orchestrate Pipelines| kafka
+    
+    kafka -->|Real-time Ingest| pinot
+    spark -->|Write Offline Segments| s3
+    pinot -->|Metadata Sync & Segment Pull| s3
+    
+    spark -->|Write Streaming Data| kafka
+    spark -->|Read Raw Data| s3
+    
+    pvs --- kafka
+    pvs --- pinot
+    
+    pinot -->|OLAP Queries| superset
+    pinot -->|Real-time API Queries| api

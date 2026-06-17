@@ -1,0 +1,48 @@
+graph TD
+    subgraph Ingestion ["Data Ingestion Source"]
+        clicks["IoT / User Clickstream Event"]
+    end
+
+    subgraph KafkaBroker ["Streaming Buffer: Kafka"]
+        topic["Kafka Topic: user-events"]
+    end
+
+    subgraph RealTimePath ["Path A: Real-Time Stream (Sub-second Latency)"]
+        pinot_rt["Pinot Server (Real-time Segment Consumer)"]
+    end
+
+    subgraph BatchPath ["Path B: Batch ETL & Deep Storage (Lambda Architecture)"]
+        spark_job["Spark Batch Job (ETL)"]
+        s3_parquet["Deep Storage (S3 Parquet/Delta)"]
+        pinot_off["Pinot Server (Offline Segment Pull)"]
+    end
+
+    subgraph OrchestrationLayer ["Orchestration Core"]
+        airflow_dag["Airflow DAG Scheduler"]
+    end
+
+    subgraph QueryServing ["Query Serving Layer"]
+        pinot_broker["Pinot Broker (Scatter-Gather)"]
+        superset["Grafana / Superset / BI Dashboard"]
+    end
+
+    %% Ingestion Flow
+    clicks -->|1. Produce event| topic
+    
+    %% Real-time flow
+    topic -->|2a. Real-time Ingestion Stream| pinot_rt
+    
+    %% Batch flow
+    airflow_dag -->|3. Trigger Job| spark_job
+    spark_job -->|4a. Consume raw batch| topic
+    spark_job -->|4b. Transform & Write Parquet| s3_parquet
+    airflow_dag -->|5. Trigger segment push| s3_parquet
+    s3_parquet -->|6. Offline segment load| pinot_off
+    
+    %% Queries
+    superset -->|7. Send SQL query| pinot_broker
+    pinot_broker -->|8. Query real-time data| pinot_rt
+    pinot_broker -->|8. Query historical data| pinot_off
+    pinot_rt -->|9. Sub-result| pinot_broker
+    pinot_off -->|9. Sub-result| pinot_broker
+    pinot_broker -->|10. Combined Query Results| superset

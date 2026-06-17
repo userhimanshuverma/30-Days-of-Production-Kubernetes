@@ -1,0 +1,56 @@
+graph TB
+    subgraph StrimziControl ["Operator Control"]
+        operator["Strimzi Kafka Operator Pod<br>(Reconciliation Loop)"]
+        crd["Kafka CRD / KafkaTopic CRD"]
+    end
+
+    subgraph KafkaCluster ["Kafka StatefulSet"]
+        broker0["Kafka Broker Pod 0"]
+        broker1["Kafka Broker Pod 1"]
+        broker2["Kafka Broker Pod 2"]
+        
+        svc_headless["Headless Service<br>(broker-discovery)"]
+    end
+
+    subgraph MetadataConsensus ["ZooKeeper / KRaft Controllers"]
+        zk0["ZooKeeper Pod 0"]
+        zk1["ZooKeeper Pod 1"]
+        zk2["ZooKeeper Pod 2"]
+    end
+
+    subgraph PersistentStorage ["Persistent Storage Layer"]
+        pv0["PV 0 (NVMe/SSD)"]
+        pv1["PV 1 (NVMe/SSD)"]
+        pv2["PV 2 (NVMe/SSD)"]
+    end
+
+    subgraph Clients ["Client Applications"]
+        prod["Producers"]
+        cons["Consumers"]
+        bootstrap_svc["Bootstrap ClusterIP/LB Service"]
+    end
+
+    crd -->|Apply Spec| operator
+    operator -->|1. Reconcile StatefulSet| KafkaCluster
+    operator -->|2. Reconcile ZooKeeper| MetadataConsensus
+
+    broker0 --- pv0
+    broker1 --- pv1
+    broker2 --- pv2
+
+    broker0 -->|Metadata Sync| zk0
+    broker1 -->|Metadata Sync| zk1
+    broker2 -->|Metadata Sync| zk2
+    
+    broker0 --- svc_headless
+    broker1 --- svc_headless
+    broker2 --- svc_headless
+
+    prod --> bootstrap_svc
+    cons --> bootstrap_svc
+    bootstrap_svc -->|Route Initial Connection| broker0
+    bootstrap_svc -->|Route Initial Connection| broker1
+    bootstrap_svc -->|Route Initial Connection| broker2
+
+    prod -.->|Direct Write via Headless Names| broker0
+    cons -.->|Direct Read via Headless Names| broker0

@@ -1,0 +1,40 @@
+graph TB
+    subgraph ClientSpace ["User / Orchestrator Space"]
+        submit["spark-submit / SparkApplication CRD"]
+    end
+
+    subgraph KubernetesCluster ["Kubernetes Control Plane"]
+        apiserver["K8s API Server"]
+        scheduler["K8s Scheduler"]
+    end
+
+    subgraph DataNamespace ["Target Namespace (e.g., spark-jobs)"]
+        driver["Spark Driver Pod<br>(runs SparkContext)"]
+        
+        subgraph Executors ["Dynamic Executor Pod Group"]
+            exec1["Spark Executor Pod 1"]
+            exec2["Spark Executor Pod 2"]
+            execN["Spark Executor Pod N"]
+        end
+
+        shuffle1["Shuffle Temp Disk<br>(emptyDir / HostPath)"]
+        shuffle2["Shuffle Temp Disk<br>(emptyDir / HostPath)"]
+        
+        dynamic_alloc["Dynamic Allocation Manager"]
+    end
+
+    submit -->|1. Post Manifest / CRD| apiserver
+    apiserver -->|2. Schedule Pod| scheduler
+    scheduler -->|3. Start Driver| driver
+    driver -->|4. Request Executor Pods| apiserver
+    apiserver -->|5. Spawn Pods| Executors
+    
+    driver -->|6. Orchestrate Tasks| exec1
+    driver -->|6. Orchestrate Tasks| exec2
+    driver -->|6. Orchestrate Tasks| execN
+    
+    exec1 --- shuffle1
+    exec2 --- shuffle2
+    
+    dynamic_alloc -.->|Monitor Queue Lag| driver
+    dynamic_alloc -.->|Scale Up / Down Request| apiserver

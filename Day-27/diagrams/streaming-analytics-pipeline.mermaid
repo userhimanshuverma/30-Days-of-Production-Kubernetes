@@ -1,0 +1,29 @@
+sequenceDiagram
+    autonumber
+    actor User as Web Client
+    participant API as Ingestion Service
+    participant Kafka as Kafka Broker Pod
+    participant PinotServer as Pinot Server Pod
+    participant ZooKeeper as ZooKeeper Pod
+    participant PinotBroker as Pinot Broker Pod
+    participant Dashboard as Grafana / Superset
+
+    User->>API: Click / Action Event
+    API->>Kafka: Produce Event to "user-clicks"
+    
+    Note over PinotServer, Kafka: Pinot Server consumes Kafka stream directly
+    PinotServer->>Kafka: Poll for message offset
+    Kafka-->>PinotServer: Event Byte Stream
+    PinotServer->>PinotServer: Index & Build Real-time Segment in memory
+    
+    Note over PinotServer, ZooKeeper: Metadata Update
+    PinotServer->>ZooKeeper: Publish Segment Metadata / State update
+    
+    Dashboard->>PinotBroker: POST /query (Fetch real-time metrics)
+    PinotBroker->>ZooKeeper: Check segment routing tables
+    ZooKeeper-->>PinotBroker: Route: Partition 0 -> Server 0, Partition 1 -> Server 1
+    
+    PinotBroker->>PinotServer: Query Sub-segments (In-memory + Historical)
+    PinotServer-->>PinotBroker: Aggregated JSON fragment
+    PinotBroker->>PinotBroker: Scatter-Gather Merge
+    PinotBroker-->>Dashboard: Final Query Response (Latency < 50ms)

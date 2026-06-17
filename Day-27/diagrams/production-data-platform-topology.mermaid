@@ -1,0 +1,40 @@
+graph TB
+    subgraph RegionalCluster ["AWS Region: us-east-1 (Kubernetes Cluster)"]
+        
+        subgraph AZ_A ["Availability Zone: us-east-1a"]
+            node_a["Worker Node Group A"]
+            zk_0["ZooKeeper-0 (StatefulSet)"]
+            kafka_0["Kafka-0 (StatefulSet)"]
+            pinot_ctrl_0["Pinot-Controller-0"]
+            pinot_srv_0["Pinot-Server-0"]
+            airflow_sched_0["Airflow-Scheduler-0"]
+        end
+
+        subgraph AZ_B ["Availability Zone: us-east-1b"]
+            node_b["Worker Node Group B"]
+            zk_1["ZooKeeper-1 (StatefulSet)"]
+            kafka_1["Kafka-1 (StatefulSet)"]
+            pinot_ctrl_1["Pinot-Controller-1"]
+            pinot_srv_1["Pinot-Server-1"]
+            airflow_web_0["Airflow-Webserver-0"]
+        end
+
+        subgraph AZ_C ["Availability Zone: us-east-1c"]
+            node_c["Worker Node Group C"]
+            zk_2["ZooKeeper-2 (StatefulSet)"]
+            kafka_2["Kafka-2 (StatefulSet)"]
+            pinot_ctrl_2["Pinot-Controller-2"]
+            pinot_srv_2["Pinot-Server-2"]
+            airflow_db["Postgres-0 (StatefulSet)"]
+        end
+
+    end
+
+    %% Affinity / Anti-Affinity rules represented by cross-AZ separation
+    zk_0 -.->|Pod Anti-Affinity| zk_1
+    zk_1 -.->|Pod Anti-Affinity| zk_2
+    kafka_0 -.->|Pod Anti-Affinity| kafka_1
+    kafka_1 -.->|Pod Anti-Affinity| kafka_2
+    
+    %% Note on topology spread
+    Note over RegionalCluster: All deployments utilize topologySpreadConstraints on topology.kubernetes.io/zone<br>to ensure zero single points of failure at the zone level.

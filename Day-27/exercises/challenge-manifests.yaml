@@ -1,0 +1,133 @@
+# =====================================================================
+# BROKEN Day 27 Challenge Manifests
+# Fix the scheduling, RBAC, and selector issues to deploy.
+# =====================================================================
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: dynamic-challenge-storage
+# BUG 1: volumeBindingMode is set to "Immediate". 
+# In a multi-AZ cluster, this forces volumes to bind to random AZs before the scheduler chooses 
+# which node runs the pod, causing "volume node affinity conflict" scheduling errors.
+# FIX: Change to "WaitForFirstConsumer"
+volumeBindingMode: Immediate
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Delete
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: challenge-airflow-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: challenge-airflow-role
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: challenge-airflow-rb
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: challenge-airflow-sa
+    namespace: default
+roleRef:
+  kind: Role
+  name: challenge-airflow-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: challenge-airflow-scheduler
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: challenge-scheduler
+  template:
+    metadata:
+      labels:
+        app: challenge-scheduler
+    spec:
+      # BUG 2: Mismatched serviceAccountName. 
+      # The pod references "challenge-airflow-scheduler-serviceaccount" which does not exist.
+      # FIX: Change to "challenge-airflow-sa"
+      serviceAccountName: challenge-airflow-scheduler-serviceaccount
+      containers:
+        - name: scheduler
+          image: apache/airflow:2.2.3
+          args: ["scheduler"]
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: "KubernetesExecutor"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: challenge-kafka-discovery
+  namespace: default
+spec:
+  clusterIP: None
+  ports:
+    - port: 9092
+      name: broker
+  # BUG 3: Mismatched service selector.
+  # The service uses selector "app: cluster-kafka" but the StatefulSet pods are labeled "app: production-kafka-broker".
+  # This results in an empty service endpoint list, making the cluster unreachable.
+  # FIX: Change selector to "app: production-kafka-broker"
+  selector:
+    app: cluster-kafka
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: challenge-kafka
+  namespace: default
+spec:
+  serviceName: challenge-kafka-discovery
+  replicas: 1
+  selector:
+    matchLabels:
+      app: production-kafka-broker
+  template:
+    metadata:
+      labels:
+        app: production-kafka-broker
+    spec:
+      containers:
+        - name: broker
+          image: strimzi/kafka:0.26.0-kafka-3.0.0
+          command: [
+            "sh", "-c",
+            "bin/kafka-server-start.sh config/server.properties"
+          ]
+          ports:
+            - containerPort: 9092
+              name: broker
+          volumeMounts:
+            - name: kafka-data
+              mountPath: /var/lib/kafka/data
+  volumeClaimTemplates:
+    - metadata:
+        name: kafka-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: dynamic-challenge-storage
+        resources:
+          requests:
+            storage: 5Gi

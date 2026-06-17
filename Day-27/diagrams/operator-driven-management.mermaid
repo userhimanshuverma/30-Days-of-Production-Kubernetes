@@ -1,0 +1,35 @@
+graph TD
+    user["Platform Engineer / CI/CD"]
+    crd_spec["Kafka / SparkApplication Spec<br>(Custom Resource YAML)"]
+    
+    subgraph ControlPlane ["Kubernetes Control Plane"]
+        apiserver["K8s API Server"]
+        etcd["etcd Database"]
+    end
+
+    subgraph OperatorPod ["Operator Pod (Strimzi / Spark)"]
+        watcher["Controller Watcher<br>(Informers/Listers)"]
+        reconcile["Reconciliation Loop<br>(Observe -> Analyze -> Act)"]
+    end
+
+    subgraph ManagedResources ["Managed Cluster State"]
+        sts["StatefulSet / Deployment"]
+        svc["Services (ClusterIP & Headless)"]
+        cm["ConfigMaps / Secrets"]
+        pods["Pod Instances"]
+    end
+
+    user -->|1. kubectl apply| crd_spec
+    crd_spec -->|2. Register CR| apiserver
+    apiserver -->|3. Persist State| etcd
+    
+    watcher -->|4. Watch events for CRD| apiserver
+    watcher -->|5. Trigger reconcile| reconcile
+    
+    reconcile -->|6. Observe Actual State| ManagedResources
+    reconcile -->|7. Compare with Desired Spec| reconcile
+    reconcile -->|8. Mutate / Align Resources| ManagedResources
+    
+    sts -->|9. Manage Pod Lifecycle| pods
+    
+    reconcile -->|10. Update Custom Resource Status| apiserver

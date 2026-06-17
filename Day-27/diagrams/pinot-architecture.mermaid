@@ -1,0 +1,54 @@
+graph TB
+    subgraph PinotCluster ["Apache Pinot Architecture"]
+        controller["Pinot Controller Pods<br>(State/Schema Management)"]
+        broker["Pinot Broker Pods<br>(Query Routing & Scatter-Gather)"]
+        
+        subgraph ServerGroup ["Pinot Servers (StatefulSet)"]
+            server0["Pinot Server Pod 0<br>(Real-time / Offline Segment Processing)"]
+            server1["Pinot Server Pod 1"]
+        end
+
+        minion["Pinot Minion Pods<br>(Segment Compaction Tasks)"]
+    end
+
+    subgraph Coordination ["Coordination Store"]
+        zk["ZooKeeper StatefulSet"]
+    end
+
+    subgraph DeepStorage ["Deep Storage (S3 / GCS / MinIO)"]
+        s3["Object Storage Bucket"]
+    end
+
+    subgraph IngestionSource ["Ingestion Layer"]
+        kafka["Kafka Topics"]
+    end
+
+    subgraph QueryClients ["Analytics Clients"]
+        bi["Superset / BI / SQL Clients"]
+    end
+
+    %% Coordination lines
+    controller -->|Read/Write Metadata| zk
+    broker -->|Watch Routing Table| zk
+    server0 -->|Register Node| zk
+    server1 -->|Register Node| zk
+    
+    %% Ingest lines
+    server0 -->|Real-time Consumer| kafka
+    server1 -->|Real-time Consumer| kafka
+
+    %% Ingestion backup / Offloading
+    controller -->|Trigger Segment Offloading| minion
+    minion -->|Read Segment & Compact| s3
+    server0 -->|1. Push Segment| s3
+    server1 -->|1. Push Segment| s3
+    server0 -->|2. Pull Segment (Offline)| s3
+    server1 -->|2. Pull Segment (Offline)| s3
+
+    %% Query execution
+    bi -->|Submit Query| broker
+    broker -->|Scatter Query| server0
+    broker -->|Scatter Query| server1
+    server0 -->|Segment Local Results| broker
+    server1 -->|Segment Local Results| broker
+    broker -->|Merge & Return Results| bi
