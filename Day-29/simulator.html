@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes FinOps Command Center</title>
+  <!-- Premium Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #0a0e1a;
+      --bg-card: rgba(16, 22, 42, 0.7);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --primary: #00f2fe;
+      --secondary: #4facfe;
+      --accent-pink: #f35588;
+      --accent-green: #10b981;
+      --accent-orange: #f59e0b;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-family: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 10% 20%, rgba(0, 242, 254, 0.05) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(79, 172, 254, 0.05) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border-card);
+      background: rgba(10, 14, 26, 0.8);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #0a0e1a;
+      font-size: 1.25rem;
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+    }
+
+    .logo-text h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: linear-gradient(to right, #ffffff, var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .badge-bar {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .mode-badge {
+      background: rgba(0, 242, 254, 0.1);
+      border: 1px solid rgba(0, 242, 254, 0.2);
+      color: var(--primary);
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--primary);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.8); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.8); opacity: 0.5; }
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 2rem;
+    }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #ffffff;
+      border-bottom: 1px solid var(--border-card);
+      padding-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .value-display {
+      color: var(--primary);
+      font-family: var(--font-mono);
+      font-weight: bold;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+    }
+
+    .toggle-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-card);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-green);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--primary);
+    }
+
+    .metric-card.wasted::before { background: var(--accent-pink); }
+    .metric-card.savings::before { background: var(--accent-green); }
+    .metric-card.score::before { background: var(--accent-orange); }
+
+    .metric-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+    }
+
+    .metric-delta {
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .delta-up { color: var(--accent-pink); }
+    .delta-down { color: var(--accent-green); }
+
+    .visualizer-container {
+      display: grid;
+      grid-template-rows: 1.5fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .card-large {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .cluster-map {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      padding: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      min-height: 240px;
+      align-content: flex-start;
+    }
+
+    .node-box {
+      border: 1px solid var(--border-card);
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      width: calc(33.33% - 1rem);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .node-box.spot {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.02);
+    }
+
+    .node-header {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .node-type-label {
+      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    .node-box.spot .node-type-label {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent-green);
+    }
+
+    .pod-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .pod-block {
+      height: 35px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .pod-block:hover {
+      transform: scale(1.05);
+    }
+
+    .pod-block.running {
+      background: rgba(0, 242, 254, 0.2);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .pod-block.throttled {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: var(--accent-orange);
+      color: var(--accent-orange);
+      animation: pulse 1s infinite;
+    }
+
+    .pod-block.oom {
+      background: rgba(243, 85, 136, 0.2);
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+    }
+
+    .pod-block.pause {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: var(--text-muted);
+    }
+
+    .node-bar-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin-top: auto;
+    }
+
+    .node-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .node-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+
+    .log-panel {
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 12px;
+      border: 1px solid var(--border-card);
+      font-family: var(--font-mono);
+      padding: 1rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      height: 160px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .log-entry {
+      line-height: 1.4;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .log-time {
+      color: var(--primary);
+    }
+
+    .log-alert { color: var(--accent-pink); }
+    .log-warn { color: var(--accent-orange); }
+    .log-success { color: var(--accent-green); }
+
+    .btn {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      color: #0a0e1a;
+      font-weight: bold;
+      border: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: var(--font-family);
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 242, 254, 0.5);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0, 242, 254, 0.05);
+      box-shadow: none;
+    }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* SVG Live chart decoration */
+    .chart-container {
+      height: 120px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.01);
+      border-radius: 8px;
+      padding: 0.5rem;
+      position: relative;
+    }
+
+    .grid-lines line {
+      stroke: rgba(255, 255, 255, 0.05);
+      stroke-width: 1;
+    }
+
+    .chart-line {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 3;
+      transition: d 0.5s ease;
+    }
+
+    .chart-fill {
+      fill: url(#chart-gradient);
+      opacity: 0.15;
+      transition: d 0.5s ease;
+    }
+
+    .workload-selector {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    .workload-btn {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 0.6rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .workload-btn.active {
+      background: rgba(0, 242, 254, 0.1);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    @media (max-width: 1200px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .dashboard-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">k8s</div>
+      <div class="logo-text">
+        <h1>FinOps Command Center</h1>
+        <p>Kubernetes Cost & Performance Simulator</p>
+      </div>
+    </div>
+    <div class="badge-bar">
+      <div class="mode-badge">
+        <div class="live-dot"></div>
+        Live Simulation
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- LEFT PANEL: CONTROLS -->
+    <section class="panel">
+      <h2 class="panel-title">Workload Presets</h2>
+      <div class="workload-selector">
+        <button class="workload-btn active" onclick="selectPreset('api')">API Gateway</button>
+        <button class="workload-btn" onclick="selectPreset('billing')">Legacy Billing</button>
+        <button class="workload-btn" onclick="selectPreset('batch')">Batch Process</button>
+        <button class="workload-btn" onclick="selectPreset('ai')">AI training</button>
+      </div>
+
+      <h2 class="panel-title">Resource Controls</h2>
+
+      <div class="control-group">
+        <label>
+          Traffic Load (RPS)
+          <span class="value-display" id="val-rps">300</span>
+        </label>
+        <input type="range" id="control-rps" min="50" max="1000" step="50" value="300" oninput="updateSimulation()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          CPU Requests (Cores)
+          <span class="value-display" id="val-cpu-req">2.0 Cores</span>
+        </label>
+        <input type="range" id="control-cpu-req" min="0.1" max="4" step="0.1" value="2.0" oninput="updateSimulation()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          CPU Limits (Cores)
+          <span class="value-display" id="val-cpu-lim">2.0 Cores</span>
+        </label>
+        <input type="range" id="control-cpu-lim" min="0.1" max="4" step="0.1" value="2.0" oninput="updateSimulation()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          Memory Requests (GiB)
+          <span class="value-display" id="val-mem-req">4.0 GiB</span>
+        </label>
+        <input type="range" id="control-mem-req" min="0.1" max="8" step="0.1" value="4.0" oninput="updateSimulation()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          Memory Limits (GiB)
+          <span class="value-display" id="val-mem-lim">4.0 GiB</span>
+        </label>
+        <input type="range" id="control-mem-lim" min="0.1" max="8" step="0.1" value="4.0" oninput="updateSimulation()">
+      </div>
+
+      <h2 class="panel-title">Scheduler Policies</h2>
+
+      <div class="toggle-container">
+        <span>Horizontal Pod Autoscaler (HPA)</span>
+        <label class="switch">
+          <input type="checkbox" id="toggle-hpa" onchange="updateSimulation()">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-container">
+        <span>Karpenter Node Consolidation</span>
+        <label class="switch">
+          <input type="checkbox" id="toggle-consolidation" onchange="updateSimulation()">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label>
+          Spot Nodes Ratio (%)
+          <span class="value-display" id="val-spot">0%</span>
+        </label>
+        <input type="range" id="control-spot" min="0" max="100" step="10" value="0" oninput="updateSimulation()">
+      </div>
+
+      <div class="action-row">
+        <button class="btn" onclick="autoOptimize()">Auto Optimize</button>
+        <button class="btn btn-secondary" onclick="resetSimulation()">Reset</button>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: DASHBOARDS & VISUALIZERS -->
+    <section class="visualizer-container">
+      <div>
+        <!-- TOP ROW: METRIC CARDS -->
+        <div class="dashboard-grid">
+          <div class="metric-card">
+            <span class="metric-label">Monthly Cluster Bill</span>
+            <div class="metric-value" id="card-bill">$4,320</div>
+            <div class="metric-delta" id="card-bill-delta">
+              <span class="delta-up">▲ Raw On-Demand Pricing</span>
+            </div>
+          </div>
+          <div class="metric-card wasted">
+            <span class="metric-label">Wasted Resource Slack</span>
+            <div class="metric-value" id="card-waste">$3,150</div>
+            <div class="metric-delta" id="card-waste-delta">
+              <span class="delta-up">▲ 72% unused request capacity</span>
+            </div>
+          </div>
+          <div class="metric-card savings">
+            <span class="metric-label">Spot Instance Savings</span>
+            <div class="metric-value" id="card-savings">$0</div>
+            <div class="metric-delta" id="card-savings-delta">
+              <span class="delta-down">▼ 0% Spot Nodes allocated</span>
+            </div>
+          </div>
+          <div class="metric-card score">
+            <span class="metric-label">Cluster Efficiency Score</span>
+            <div class="metric-value" id="card-efficiency">28%</div>
+            <div class="metric-delta" id="card-efficiency-delta">
+              <span class="delta-up">⚠️ High slack warning</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- MAIN MAP CARD -->
+        <div class="card-large">
+          <h2 class="panel-title">
+            Node Allocation Map & Bin Packing
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);" id="replica-count">Replicas: 8</span>
+          </h2>
+          
+          <div class="cluster-map" id="cluster-map">
+            <!-- Dynamically populated node boxes -->
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM ROW: LIVE CHARTS & TERMINAL LOGS -->
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem;">
+        <!-- API PERFORMANCE GRAPH -->
+        <div class="card-large">
+          <h2 class="panel-title">API Latency Curve (p95)</h2>
+          <div class="chart-container">
+            <svg width="100%" height="100%" viewBox="0 0 400 100" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.5"/>
+                  <stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <g class="grid-lines">
+                <line x1="0" y1="25" x2="400" y2="25" />
+                <line x1="0" y1="50" x2="400" y2="50" />
+                <line x1="0" y1="75" x2="400" y2="75" />
+              </g>
+              <!-- Chart Line -->
+              <path class="chart-fill" id="chart-fill" d="M0,100 L400,100 L400,100 L0,100 Z" />
+              <path class="chart-line" id="chart-line" d="M0,100 L400,100" />
+            </svg>
+            <div style="position: absolute; bottom: 5px; right: 10px; font-family: var(--font-mono); font-size: 0.7rem; color: var(--primary);" id="latency-label">12ms</div>
+          </div>
+        </div>
+
+        <!-- TERMINAL LOGS -->
+        <div class="card-large">
+          <h2 class="panel-title">System & FinOps Event Log</h2>
+          <div class="log-panel" id="log-panel">
+            <!-- Dynamic logger -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      // Simulation state variables
+      let rps = 300;
+      let cpuReq = 2.0;
+      let cpuLim = 2.0;
+      let memReq = 4.0;
+      let memLim = 4.0;
+      let hpaEnabled = false;
+      let consolidationEnabled = false;
+      let spotRatio = 0;
+      let replicas = 8;
+      
+      // Preset variables
+      const presets = {
+        api: { rps: 300, cpuReq: 2.0, cpuLim: 2.0, memReq: 4.0, memLim: 4.0, hpa: false, consolidation: false, spot: 0 },
+        billing: { rps: 150, cpuReq: 4.0, cpuLim: 4.0, memReq: 8.0, memLim: 8.0, hpa: false, consolidation: false, spot: 0 },
+        batch: { rps: 600, cpuReq: 1.0, cpuLim: 2.0, memReq: 2.0, memLim: 4.0, hpa: true, consolidation: true, spot: 100 },
+        ai: { rps: 80, cpuReq: 3.5, cpuLim: 4.0, memReq: 6.0, memLim: 8.0, hpa: false, consolidation: true, spot: 50 }
+      };
+
+      // Latency history array for graph visualization
+      let latencyHistory = [12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12];
+
+      function initLogs() {
+        const panel = document.getElementById('log-panel');
+        panel.innerHTML = '';
+        log("FinOps Command Center initialised. Listening to Kubernetes cluster...", 'success');
+      }
+
+      function log(message, type = '') {
+        const panel = document.getElementById('log-panel');
+        const now = new Date();
+        const timeStr = now.toTimeString().split(' ')[0];
+        
+        let typeClass = '';
+        if (type === 'alert') typeClass = 'log-alert';
+        else if (type === 'warn') typeClass = 'log-warn';
+        else if (type === 'success') typeClass = 'log-success';
+
+        panel.innerHTML += `<div class="log-entry"><span class="log-time">[${timeStr}]</span> <span class="${typeClass}">${message}</span></div>`;
+        panel.scrollTop = panel.scrollHeight;
+      }
+
+      function selectPreset(name) {
+        // Toggle active button
+        document.querySelectorAll('.workload-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+
+        const preset = presets[name];
+        
+        // Load settings into inputs
+        document.getElementById('control-rps').value = preset.rps;
+        document.getElementById('control-cpu-req').value = preset.cpuReq;
+        document.getElementById('control-cpu-lim').value = preset.cpuLim;
+        document.getElementById('control-mem-req').value = preset.memReq;
+        document.getElementById('control-mem-lim').value = preset.memLim;
+        document.getElementById('toggle-hpa').checked = preset.hpa;
+        document.getElementById('toggle-consolidation').checked = preset.consolidation;
+        document.getElementById('control-spot').value = preset.spot;
+
+        log(`Loaded preset workload: ${event.target.innerText}`);
+        updateSimulation();
+      }
+
+      function updateSimulation() {
+        // Retrieve values
+        rps = parseInt(document.getElementById('control-rps').value);
+        cpuReq = parseFloat(document.getElementById('control-cpu-req').value);
+        cpuLim = parseFloat(document.getElementById('control-cpu-lim').value);
+        memReq = parseFloat(document.getElementById('control-mem-req').value);
+        memLim = parseFloat(document.getElementById('control-mem-lim').value);
+        hpaEnabled = document.getElementById('toggle-hpa').checked;
+        consolidationEnabled = document.getElementById('toggle-consolidation').checked;
+        spotRatio = parseInt(document.getElementById('control-spot').value);
+
+        // Display current values in control panel labels
+        document.getElementById('val-rps').innerText = `${rps} RPS`;
+        document.getElementById('val-cpu-req').innerText = `${cpuReq.toFixed(1)} Cores`;
+        document.getElementById('val-cpu-lim').innerText = `${cpuLim.toFixed(1)} Cores`;
+        document.getElementById('val-mem-req').innerText = `${memReq.toFixed(1)} GiB`;
+        document.getElementById('val-mem-lim').innerText = `${memLim.toFixed(1)} GiB`;
+        document.getElementById('val-spot').innerText = `${spotRatio}%`;
+
+        // Limits validation
+        if (cpuLim < cpuReq) {
+          cpuLim = cpuReq;
+          document.getElementById('control-cpu-lim').value = cpuLim;
+          document.getElementById('val-cpu-lim').innerText = `${cpuLim.toFixed(1)} Cores`;
+          log("CPU Limit was adjusted up to match CPU Request.", 'warn');
+        }
+        if (memLim < memReq) {
+          memLim = memReq;
+          document.getElementById('control-mem-lim').value = memLim;
+          document.getElementById('val-mem-lim').innerText = `${memLim.toFixed(1)} GiB`;
+          log("Memory Limit was adjusted up to match Memory Request.", 'warn');
+        }
+
+        // 1. Calculate Replicas based on Traffic Load & HPA
+        let baselineReplicas = Math.ceil(rps / 100);
+        if (hpaEnabled) {
+          replicas = baselineReplicas;
+          // Constrain replicas between 2 and 15
+          replicas = Math.max(2, Math.min(15, replicas));
+        } else {
+          // Fixed replica size when HPA is disabled (based on preset initial states)
+          replicas = 8; 
+        }
+        document.getElementById('replica-count').innerText = `Replicas: ${replicas}`;
+
+        // 2. Performance degradation triggers (Throttling / OOMKills)
+        let actualCpuLoadPerPod = (rps * 0.15) / replicas; // CPU cores needed per pod based on traffic
+        let isThrottling = false;
+        let isOOMKilled = false;
+        let currentLatency = 12; // Baseline latency in milliseconds
+
+        // CPU throttling calculation: If load exceeds limits, performance drops significantly
+        if (actualCpuLoadPerPod > cpuLim) {
+          isThrottling = true;
+          currentLatency = 12 + Math.pow((actualCpuLoadPerPod - cpuLim) * 12, 2.5); // Exponential latency spike
+        }
+
+        // Memory load simulation: Traffic spikes increase memory buffer
+        let actualMemLoadPerPod = 0.5 + (rps * 0.002);
+        if (actualMemLoadPerPod > memLim) {
+          isOOMKilled = true;
+        }
+
+        // Update latency charts
+        updateLatencyChart(currentLatency);
+
+        // 3. Compute cost calculation
+        // On-Demand pricing: $45 per node per core monthly. Spot pricing: $12 per node per core monthly.
+        let baseCoreCost = 45;
+        let blendedCorePrice = baseCoreCost - ((baseCoreCost - 12) * (spotRatio / 100));
+        
+        // Total requested capacity driving scheduling footprint
+        let totalRequestedCpu = replicas * cpuReq;
+        let totalRequestedMem = replicas * memReq;
+
+        // Simulate nodes needed: Assuming standard VMs of 4 Cores / 16Gi
+        let coresPerNode = 4;
+        let memPerNode = 16;
+        
+        let nodesRequired = Math.ceil(totalRequestedCpu / coresPerNode);
+        let nodesByMem = Math.ceil(totalRequestedMem / memPerNode);
+        nodesRequired = Math.max(nodesRequired, nodesByMem, 1);
+
+        // Apply Karpenter consolidation savings
+        if (consolidationEnabled && !hpaEnabled) {
+          // Consolidation can compress pods onto fewer nodes
+          let optimizedNodes = Math.ceil((replicas * (actualCpuLoadPerPod + 0.1)) / coresPerNode);
+          if (optimizedNodes < nodesRequired) {
+            log(`Karpenter consolidation triggered: compressed pods from ${nodesRequired} nodes to ${optimizedNodes} nodes.`, 'success');
+            nodesRequired = Math.max(optimizedNodes, 1);
+          }
+        }
+
+        let totalMonthlyCost = nodesRequired * coresPerNode * blendedCorePrice;
+        let actualCoresConsumed = replicas * actualCpuLoadPerPod;
+        let actualMemConsumed = replicas * actualMemLoadPerPod;
+
+        // Calculate efficiency score: (Actual consumed / Requested size in the system)
+        let totalAllocatedCores = nodesRequired * coresPerNode;
+        let efficiencyScore = Math.round(((actualCoresConsumed + (actualMemConsumed / 4)) / (totalAllocatedCores + (nodesRequired * memPerNode / 4))) * 100);
+        efficiencyScore = Math.max(5, Math.min(99, efficiencyScore));
+
+        // Calculate Slack (waste) cost
+        let wasteCost = totalMonthlyCost * (1 - (efficiencyScore / 100));
+        let spotSavings = (nodesRequired * coresPerNode * baseCoreCost) - totalMonthlyCost;
+
+        // Update UI metric cards
+        document.getElementById('card-bill').innerText = `$${Math.round(totalMonthlyCost)}`;
+        document.getElementById('card-waste').innerText = `$${Math.round(wasteCost)}`;
+        document.getElementById('card-savings').innerText = `$${Math.round(spotSavings)}`;
+        document.getElementById('card-efficiency').innerText = `${efficiencyScore}%`;
+
+        // Update card metrics visual indicator deltas
+        const wasteDelta = document.getElementById('card-waste-delta');
+        const scoreDelta = document.getElementById('card-efficiency-delta');
+        const billDelta = document.getElementById('card-bill-delta');
+
+        if (efficiencyScore < 40) {
+          scoreDelta.innerHTML = '<span class="delta-up" style="color: var(--accent-pink);">⚠️ Highly Inefficient</span>';
+          wasteDelta.innerHTML = `<span class="delta-up" style="color: var(--accent-pink);">▲ Wasting $${Math.round(wasteCost)}/mo</span>`;
+        } else if (efficiencyScore >= 40 && efficiencyScore < 75) {
+          scoreDelta.innerHTML = '<span class="delta-up" style="color: var(--accent-orange);">⚡ Burstable Buffer</span>';
+          wasteDelta.innerHTML = `<span class="delta-up" style="color: var(--accent-orange);">▲ Moderate slack</span>`;
+        } else {
+          scoreDelta.innerHTML = '<span class="delta-down" style="color: var(--accent-green);">🟢 Optimized Bin-Packing</span>';
+          wasteDelta.innerHTML = `<span class="delta-down" style="color: var(--accent-green);">▼ Minimal Waste</span>`;
+        }
+
+        if (spotRatio > 0) {
+          document.getElementById('card-savings-delta').innerHTML = `<span class="delta-down" style="color: var(--accent-green);">▼ Saved with Spot Nodes</span>`;
+          billDelta.innerHTML = `<span class="delta-down" style="color: var(--accent-green);">▼ Blended Rate Active</span>`;
+        } else {
+          document.getElementById('card-savings-delta').innerHTML = `<span>No Spot configured</span>`;
+          billDelta.innerHTML = `<span class="delta-up" style="color: var(--accent-pink);">▲ Raw On-Demand Pricing</span>`;
+        }
+
+        // 4. Update the Node map grid
+        renderNodeMap(nodesRequired, replicas, isThrottling, isOOMKilled);
+
+        // Logger events depending on state
+        if (isOOMKilled) {
+          log("💀 CRITICAL: Container terminated via OOMKilled (Exit Code 137). Limit of " + memLim + "GiB exceeded.", 'alert');
+        } else if (isThrottling) {
+          log(`⚠️ PERFORMANCE WARNING: CPU Throttling detected! Latency spiked to ${Math.round(currentLatency)}ms (CFS limits binding).`, 'warn');
+        }
+      }
+
+      function renderNodeMap(nodes, podCount, throttled, oom) {
+        const container = document.getElementById('cluster-map');
+        container.innerHTML = '';
+
+        let podsScheduled = 0;
+        let spotThreshold = Math.round(nodes * (spotRatio / 100));
+
+        for (let i = 1; i <= nodes; i++) {
+          const isSpot = i <= spotThreshold;
+          const nodeClass = isSpot ? 'node-box spot' : 'node-box';
+          const nodeType = isSpot ? 'Spot Node' : 'On-Demand';
+          
+          let podBlocks = '';
+          // Distribute pods evenly among nodes
+          let podsInThisNode = Math.ceil((podCount - podsScheduled) / (nodes - i + 1));
+          podsScheduled += podsInThisNode;
+
+          for (let p = 0; p < podsInThisNode; p++) {
+            let stateClass = 'running';
+            let label = 'POD';
+            if (oom) {
+              stateClass = 'oom';
+              label = 'OOM';
+            } else if (throttled) {
+              stateClass = 'throttled';
+              label = 'LAG';
+            }
+            podBlocks += `<div class="pod-block ${stateClass}">${label}</div>`;
+          }
+
+          // If overprovisioning buffer pods are active, add them to empty space
+          if (consolidationEnabled && podCount < (nodes * 3) && !isSpot) {
+            podBlocks += '<div class="pod-block pause">BUFF</div>';
+          }
+
+          const fillPercent = Math.min(100, Math.round(((podsInThisNode + (consolidationEnabled ? 1 : 0)) / 4) * 100));
+
+          container.innerHTML += `
+            <div class="${nodeClass}">
+              <div class="node-header">
+                <span>ip-10-0-12-${i}</span>
+                <span class="node-type-label">${nodeType}</span>
+              </div>
+              <div class="pod-grid">
+                ${podBlocks}
+              </div>
+              <div class="node-bar-container">
+                <span style="font-size: 0.65rem; color: var(--text-muted)">Allocation: ${fillPercent}%</span>
+                <div class="node-bar">
+                  <div class="node-bar-fill" style="width: ${fillPercent}%"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      function updateLatencyChart(newLatency) {
+        latencyHistory.push(newLatency);
+        latencyHistory.shift();
+
+        document.getElementById('latency-label').innerText = `${Math.round(newLatency)}ms`;
+
+        // Build SVG path
+        let points = [];
+        let fillPoints = [];
+        
+        let width = 400;
+        let height = 100;
+        let step = width / (latencyHistory.length - 1);
+
+        for (let i = 0; i < latencyHistory.length; i++) {
+          let x = i * step;
+          // Scale latency: max out at 500ms for graph bounds
+          let scaledVal = Math.min(90, (latencyHistory[i] / 500) * 80);
+          let y = height - 10 - scaledVal; // Inverted for SVG coordinates
+          points.push(`${x},${y}`);
+        }
+
+        const linePath = `M${points.join(' L')}`;
+        const fillPath = `${linePath} L${width},${height} L0,${height} Z`;
+
+        document.getElementById('chart-line').setAttribute('d', linePath);
+        document.getElementById('chart-fill').setAttribute('d', fillPath);
+
+        // Adjust line color based on performance
+        const chartLine = document.getElementById('chart-line');
+        if (newLatency > 150) {
+          chartLine.style.stroke = 'var(--accent-pink)';
+        } else if (newLatency > 50) {
+          chartLine.style.stroke = 'var(--accent-orange)';
+        } else {
+          chartLine.style.stroke = 'var(--primary)';
+        }
+      }
+
+      function autoOptimize() {
+        log("Executing one-click FinOps auto-optimization loop...", 'success');
+        
+        // Optimise requests: CPU to 0.5 Cores, RAM to 1.5GiB
+        document.getElementById('control-cpu-req').value = 0.6;
+        document.getElementById('control-cpu-lim').value = 1.2; // Keep overhead margin
+        document.getElementById('control-mem-req').value = 1.2;
+        document.getElementById('control-mem-lim').value = 2.4;
+        
+        // Enable Autoscaling & Karpenter Consolidation
+        document.getElementById('toggle-hpa').checked = true;
+        document.getElementById('toggle-consolidation').checked = true;
+        
+        // Allocate Spot instances
+        document.getElementById('control-spot').value = 80;
+
+        log("Successfully scaled down CPU requests: 2.0 -> 0.6 Cores.", 'success');
+        log("Successfully scaled down Memory requests: 4.0 -> 1.2 GiB.", 'success');
+        log("HPA Enabled (Dynamic Replica Scaling active).", 'success');
+        log("Node consolidation active. 80% Spot nodes provisioned.", 'success');
+
+        updateSimulation();
+      }
+
+      function resetSimulation() {
+        document.getElementById('control-rps').value = 300;
+        document.getElementById('control-cpu-req').value = 2.0;
+        document.getElementById('control-cpu-lim').value = 2.0;
+        document.getElementById('control-mem-req').value = 4.0;
+        document.getElementById('control-mem-lim').value = 4.0;
+        document.getElementById('toggle-hpa').checked = false;
+        document.getElementById('toggle-consolidation').checked = false;
+        document.getElementById('control-spot').value = 0;
+        
+        initLogs();
+        updateSimulation();
+      }
+
+      // Initialise page
+      window.onload = function() {
+        initLogs();
+        updateSimulation();
+      };
+    </script>
+  </body>
+</html>

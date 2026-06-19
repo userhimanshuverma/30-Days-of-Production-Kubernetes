@@ -1,0 +1,20 @@
+graph TD
+    subgraph Traffic Loop
+        A[External Users / Clients] -->|Traffic Spikes| B[Service Endpoint]
+    end
+    subgraph Horizontal Pod Autoscaler
+        B -->|Metrics collected| C[Prometheus / Metrics Server]
+        C -->|CPU/Memory/Custom Metric| D{HPA evaluation}
+        D -->|Target exceeded| E[Increase replicas in Deployment]
+        E --> F[Create new Pods]
+    end
+    subgraph Karpenter / Node Autoscaler
+        F -->|Pods cannot schedule| G[Pods marked PENDING]
+        G -->|Watches API Server| H[Karpenter Controller]
+        H -->|Calculates exact required shape| I[Call Cloud API to launch Nodes]
+        I --> J[Nodes join cluster]
+        J --> K[Pods scheduled and run]
+    end
+    style F fill:#ffe6cc,stroke:#d79b00
+    style G fill:#ffcccc,stroke:#cc0000,stroke-width:2px
+    style K fill:#d5e8d4,stroke:#82b366,stroke-width:2px

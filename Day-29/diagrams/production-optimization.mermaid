@@ -1,0 +1,19 @@
+graph TD
+    subgraph Workload Namespace
+        APP[Microservice Pods] -->|Logs & Traces| O1[Opentelemetry Collector]
+        APP -->|CPU/Memory metrics| O2[Kubelet Summary API]
+    end
+    subgraph Control Loop
+        PROM[Prometheus / Mimir] -->|Scrapes| O2
+        PROM -->|Scrapes| O1
+        VPA[VPA in Recommendation Mode] -->|Analyzes Prometheus data| PROM
+        KEDA[KEDA Event-driven Autoscaler] -->|Scales replicas based on Queue/HTTP| APP
+        KARP[Karpenter Node Autoscaler] -->|Watches pending pods & consolidates nodes| APP
+    end
+    subgraph GitOps Pipeline
+        VPA -->|Recommends changes| PR[PR Creator Bot]
+        PR -->|Auto-proposes new specs| GIT[GitHub Repository]
+        GIT -->|ArgoCD / Flux syncs| APP
+    end
+    style Control Loop fill:#fcfcfc,stroke:#ccc
+    style GitOps Pipeline fill:#f5fdf5,stroke:#82b366

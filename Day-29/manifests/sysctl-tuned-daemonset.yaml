@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-kernel-tuner
+  namespace: kube-system
+  labels:
+    app: node-kernel-tuner
+    tier: infrastructure
+spec:
+  selector:
+    matchLabels:
+      app: node-kernel-tuner
+  template:
+    metadata:
+      labels:
+        app: node-kernel-tuner
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      - operator: Exists
+        effect: NoExecute
+      initContainers:
+      - name: sysctl-tuner
+        image: alpine:3.18
+        securityContext:
+          privileged: true # Privileged access is required to modify node-level kernel settings
+        command:
+        - sh
+        - -c
+        - |
+          echo "Current network socket max backlogs:"
+          sysctl net.core.somaxconn
+          
+          echo "Applying performance optimizations..."
+          # Increase maximum number of open files
+          sysctl -w fs.file-max=2097152
+          # Increase max connection backlog for high throughput
+          sysctl -w net.core.somaxconn=32768
+          # Increase max incoming packet queue
+          sysctl -w net.core.netdev_max_backlog=16384
+          # Max TCP send/receive buffer sizes (16MB)
+          sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
+          sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
+          # Enable TCP BBR congestion control (requires modprobe tcp_bbr on host first)
+          # sysctl -w net.core.default_qdisc=fq
+          # sysctl -w net.ipv4.tcp_congestion_control=bbr
+          
+          echo "Optimizations successfully applied:"
+          sysctl net.core.somaxconn net.core.netdev_max_backlog
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+      containers:
+      - name: pause
+        image: registry.k8s.io/pause:3.9
+        resources:
+          requests:
+            cpu: 5m
+            memory: 8Mi
+          limits:
+            cpu: 10m
+            memory: 16Mi

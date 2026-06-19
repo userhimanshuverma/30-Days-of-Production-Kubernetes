@@ -1,0 +1,14 @@
+graph LR
+    A[Code Push] --> B[CI/CD dry run checks]
+    B -->|Check resource request size| C{Is Request within limits?}
+    C -->|No| D[Reject Build / Alert SRE]
+    C -->|Yes| E[Deploy to Staging]
+    E --> F[Performance Benchmarking / Load Test]
+    F --> G[Extract actual cost metrics / Kubecost]
+    G --> H[Deploy to Production]
+    H --> I[Continuous Prometheus & Kubecost scraping]
+    I --> J[FinOps Dashboard updates]
+    I -->|Budget anomaly detected| K[Alert Slack / PagerDuty]
+    style C fill:#fff2cc,stroke:#d6b656
+    style K fill:#f8cecc,stroke:#b85450
+    style J fill:#d5e8d4,stroke:#82b366

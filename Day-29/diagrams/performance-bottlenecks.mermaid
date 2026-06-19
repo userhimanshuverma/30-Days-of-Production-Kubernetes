@@ -1,0 +1,16 @@
+graph TD
+    A[Performance Degradation] --> B{CPU or Memory?}
+    B -->|CPU Limit Too Low| C[CPU Throttling]
+    B -->|CPU Request Too Low| D[No CPU Shares / Slow Threading]
+    B -->|Memory Limit Too Low| E[OOMKill - Exit Code 137]
+    B -->|Memory Request Too Low| F[Node Pressure / Eviction]
+    C --> G[Increased API Latency]
+    D --> G
+    E --> H[Service Downtime / Pod Restarts]
+    F --> I[Pod Status: Failed / Evicted]
+    style C fill:#ffe599,stroke:#d6b656
+    style E fill:#f8cecc,stroke:#b85450,stroke-width:2px
+    style F fill:#f8cecc,stroke:#b85450
+    style I fill:#f8cecc,stroke:#b85450
+    style H fill:#f8cecc,stroke:#b85450
+    style G fill:#f8cecc,stroke:#b85450

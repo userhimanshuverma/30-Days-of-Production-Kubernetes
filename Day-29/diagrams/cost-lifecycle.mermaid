@@ -1,0 +1,18 @@
+graph TD
+    subgraph Inform Phase [1. Inform: Cost Visibility]
+        A[Cost Allocation / Tagging] --> B[Kubecost Dashboards]
+        B --> C[Showback & Chargeback Reports]
+    end
+    subgraph Optimize Phase [2. Optimize: Cost Savings]
+        C --> D[Identify Waste & Slack]
+        D --> E[Right-size Workloads]
+        E --> F[Adopt Spot Instances & RIs]
+    end
+    subgraph Operate Phase [3. Operate: Continuous Tracking]
+        F --> G[Autoscaling & Consolidation Policies]
+        G --> H[Automated Governance & Budgets]
+        H --> A
+    end
+    style Inform Phase fill:#dae8fc,stroke:#6c8ebf
+    style Optimize Phase fill:#fff2cc,stroke:#d6b656
+    style Operate Phase fill:#d5e8d4,stroke:#82b366

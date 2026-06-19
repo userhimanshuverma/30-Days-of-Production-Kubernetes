@@ -1,0 +1,25 @@
+graph TD
+    subgraph Total Node Capacity [Total Physical Node Capacity]
+        subgraph Reserved [Reserved by Kube/OS]
+            KR[Kube-Reserved]
+            SR[System-Reserved]
+            ET[Eviction Threshold]
+        end
+        subgraph Allocatable [Allocatable for Pods]
+            subgraph Pod1 [Pod 1: Optimized]
+                R1[Requests: 1 Core]
+                U1[Actual: 800m]
+                L1[Limits: 1.2 Cores]
+            end
+            subgraph Pod2 [Pod 2: Overprovisioned]
+                R2[Requests: 4 Cores]
+                U2[Actual: 100m]
+                L2[Limits: 4 Cores]
+                W2[Slack Waste: 3.9 Cores]
+            end
+        end
+    end
+    style Reserved fill:#fcedc9,stroke:#333
+    style Pod1 fill:#dcf3e8,stroke:#333
+    style Pod2 fill:#fcdbdb,stroke:#333
+    style W2 fill:#ff6961,stroke:#333,stroke-width:2px

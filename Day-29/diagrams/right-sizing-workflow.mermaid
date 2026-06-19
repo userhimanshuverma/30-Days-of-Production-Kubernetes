@@ -1,0 +1,15 @@
+graph LR
+    A[Collect Metrics] -->|Prometheus / Metrics Server| B[Analyze actual vs requested]
+    B -->|VPA Recommendations / Kubecost| C{Is Slack Waste > 20%?}
+    C -->|No| D[Keep Configuration]
+    C -->|Yes| E[Recommend Resize]
+    E --> F{Apply Strategy?}
+    F -->|Auto| G[VPA Auto-updates Pods]
+    F -->|Manual/GitOps| H[Create PR to git repository]
+    G --> I[Pod restarts with new size]
+    H --> J[Engineer reviews and merges]
+    J --> I
+    I --> K[Verify Performance & Cost Savings]
+    style C fill:#fff2cc,stroke:#d6b656
+    style G fill:#dae8fc,stroke:#6c8ebf
+    style H fill:#d5e8d4,stroke:#82b366

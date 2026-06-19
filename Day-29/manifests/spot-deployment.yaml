@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: batch-processing-worker
+  namespace: default
+  labels:
+    app: batch-worker
+    finops-tier: tier-3 # Low priority, completely stateless/interruptible
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: batch-worker
+  template:
+    metadata:
+      labels:
+        app: batch-worker
+    spec:
+      # Pod disruption budget and graceful shutdown are critical for Spot workloads
+      terminationGracePeriodSeconds: 60 # Give the worker 60 seconds to finish its current job
+      tolerations:
+      - key: "kubernetes.azure.com/scalesetpriority"
+        operator: "Equal"
+        value: "spot"
+        effect: "NoSchedule"
+      - key: "sku"
+        operator: "Equal"
+        value: "spot"
+        effect: "NoSchedule"
+      - key: "karpenter.sh/capacity-type"
+        operator: "Equal"
+        value: "spot"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          # Prefer Spot capacity, fallback to On-Demand if unavailable
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - arm64
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: karpenter.sh/capacity-type
+                operator: In
+                values:
+                - spot
+              - key: eks.amazonaws.com/capacityType
+                operator: In
+                values:
+                - SPOT
+              - key: cloud.google.com/gke-spot
+                operator: In
+                values:
+                - "true"
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: karpenter.sh/capacity-type
+                operator: In
+                values:
+                - on-demand
+      containers:
+      - name: worker
+        image: alpine:latest
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          trap "echo 'SIGTERM received, flushing queues and saving checkpoints...'; sleep 10; exit 0" SIGTERM SIGINT
+          echo "Worker started. Listening for tasks..."
+          while true; do
+            echo "Processing batch job context at $(date)..."
+            sleep 15
+          done
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: batch-worker-pdb
+  namespace: default
+spec:
+  # Spot nodes can go down rapidly. A PDB ensures Kubernetes only drains nodes
+  # if at least 60% of our workers are healthy, protecting our baseline processing.
+  minAvailable: 60%
+  selector:
+    matchLabels:
+      app: batch-worker

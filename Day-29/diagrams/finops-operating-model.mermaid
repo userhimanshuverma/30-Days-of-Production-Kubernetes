@@ -1,0 +1,16 @@
+graph LR
+    subgraph Engineering [Platform & App Teams]
+        ENG[Builds, scales, and operates workloads]
+    end
+    subgraph Finance [Finance & Procurement]
+        FIN[Budgets, tracks, and purchases commitments]
+    end
+    subgraph Product [Product & Business Owners]
+        PROD[Defines features, customer SLA, unit cost goals]
+    end
+    ENG <-->|Cost metrics vs App Performance| FIN
+    FIN <-->|Budget alignment vs Margins| PROD
+    PROD <-->|Feature costs vs Revenue| ENG
+    style Engineering fill:#d5e8d4,stroke:#82b366
+    style Finance fill:#f8cecc,stroke:#b85450
+    style Product fill:#dae8fc,stroke:#6c8ebf

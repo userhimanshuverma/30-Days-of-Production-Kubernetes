@@ -1,0 +1,16 @@
+graph TD
+    A[Workload Code Commit] --> B[Pod Spec defined with Requests/Limits]
+    B --> C{Scheduler assigns Pods to Nodes}
+    C -->|Fits on existing node| D[Increase Node Utilization]
+    C -->|No node has capacity| E[Pending Pod state]
+    E --> F[Cluster Autoscaler / Karpenter triggers]
+    F --> G[Provision New Cloud Node]
+    G --> H[Increased Compute Cost]
+    D --> I[Better Bin-Packing/Higher Efficiency]
+    H --> J[Cloud Invoice / Bill]
+    I --> K[Lower Per-Pod Unit Cost]
+    J --> L[FinOps Chargeback to Team]
+    K --> L
+    style H fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style I fill:#d4f0f0,stroke:#333,stroke-width:2px
+    style L fill:#cbe3db,stroke:#333,stroke-width:2px

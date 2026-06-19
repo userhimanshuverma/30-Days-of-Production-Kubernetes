@@ -1,0 +1,22 @@
+graph TD
+    A[Kubernetes Efficiency Framework] --> B[Request & Limit Tuning]
+    A --> C[Spot Instance Strategy]
+    A --> D[Node Consolidation]
+    A --> E[Modern CPU Architectures]
+    
+    B --> B1[Right-size CPU/Mem with VPA]
+    B --> B2[Align Limits to prevent throttling]
+    
+    C --> C1[Stateless / Batch Workloads]
+    C --> C2[Spot interruption handlers]
+    
+    D --> D1[Bin packing via Karpenter]
+    D --> D2[Scale down to zero off-hours]
+    
+    E --> E1[ARM64/Graviton adoption]
+    E --> E2[AMD64 EPYC instance classes]
+    
+    style B fill:#dae8fc,stroke:#6c8ebf
+    style C fill:#d5e8d4,stroke:#82b366
+    style D fill:#ffe6cc,stroke:#d79b00
+    style E fill:#e1d5e7,stroke:#9673a6

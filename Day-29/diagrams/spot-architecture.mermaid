@@ -1,0 +1,14 @@
+graph TD
+    A[Workload allows Spot] --> B[Karpenter schedules on Spot Node]
+    B --> C[Workload running at 70-90% discount]
+    C --> D{Cloud Provider needs capacity}
+    D -->|Capacity Reclaim| E[Spot Interruption Warning - 2 mins]
+    E --> F[Spot Interruption Handler detects event]
+    F --> G[Cordon & Drain Node]
+    G --> H[SIGTERM sent to Pods]
+    H -->|Graceful exit / 30s-60s| I[Worker finishes task & shuts down]
+    G --> J[Reschedule remaining pods on other Nodes]
+    J --> K[Karpenter spins up new On-Demand or Spot Node if needed]
+    style E fill:#f8cecc,stroke:#b85450,stroke-width:2px
+    style I fill:#d5e8d4,stroke:#82b366
+    style K fill:#dae8fc,stroke:#6c8ebf

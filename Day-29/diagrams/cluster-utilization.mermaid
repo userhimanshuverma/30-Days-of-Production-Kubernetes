@@ -1,0 +1,13 @@
+graph TD
+    subgraph Bad: Fragmented Cluster [Fragmented Nodes: 3 Nodes @ 20% Utilization]
+        N1[Node 1: CPU Reserved 80%, Actual 10%]
+        N2[Node 2: CPU Reserved 70%, Actual 15%]
+        N3[Node 3: CPU Reserved 60%, Actual 20%]
+    end
+    subgraph Good: Bin-Packed Cluster [Optimized Cluster: 1 Node @ 70% Utilization]
+        N_opt[Node 1: Pods Consolidated, 2 Nodes Decommissioned]
+    end
+    style N1 fill:#f8cecc,stroke:#b85450
+    style N2 fill:#f8cecc,stroke:#b85450
+    style N3 fill:#f8cecc,stroke:#b85450
+    style N_opt fill:#d5e8d4,stroke:#82b366,stroke-width:2px
