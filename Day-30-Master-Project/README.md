@@ -176,8 +176,8 @@ Log collection, shipping, indexing, and visualization.
 
 ```mermaid
 graph TD
-    Pod1[FastAPI Container stdout] -->|Written to node disk| File[/var/log/pods/*.log]
-    Pod2[Postgres Container stdout] -->|Written to node disk| File
+    Pod1[FastAPI Container stdout] -->|Written to node disk| File["/var/log/pods/*.log"]
+    Pod2[Postgres Container stdout] -->|Written to node disk| File["/var/log/pods/*.log"]
     
     subgraph Shipping [Log Aggregator]
         Promtail[Promtail DaemonSet]
