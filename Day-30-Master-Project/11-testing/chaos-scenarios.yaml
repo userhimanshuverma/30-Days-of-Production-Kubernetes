@@ -1,0 +1,42 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: fastapi-pod-failure
+  namespace: ai-services
+spec:
+  action: pod-failure
+  mode: one
+  duration: '60s'
+  selector:
+    namespaces:
+      - ai-services
+    labelSelectors:
+      app: fastapi-ai-service
+  scheduler:
+    cron: '*/5 * * * *'
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: database-network-latency
+  namespace: ai-services
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - ai-services
+    labelSelectors:
+      app: fastapi-ai-service
+  direction: to
+  target:
+    namespaces:
+      - databases
+    labelSelectors:
+      cnpg.io/cluster: postgres-ha
+  delay:
+    latency: '250ms'
+    jitter: '50ms'
+  duration: '5m'
+  scheduler:
+    cron: '*/10 * * * *'

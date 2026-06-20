@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: databases
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-ha
+  namespace: databases
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnativepg/postgresql:15
+
+  # Storage configuration
+  storage:
+    size: 10Gi
+    storageClass: standard
+
+  # PostgreSQL internal settings
+  postgresql:
+    parameters:
+      shared_buffers: "256MB"
+      max_connections: "200"
+      work_mem: "8MB"
+
+  # High availability failover options
+  failoverDelay: 10
+  
+  # Automated backup destination definition
+  backup:
+    barmanObjectStore:
+      destinationPath: "s3://production-k8s-backups/postgres/"
+      endpointURL: "http://minio.storage.svc.cluster.local:9000"
+      s3Credentials:
+        name: aws-creds
+        key: aws-secret-key
+      wal:
+        compression: gzip
+        encryption: AES256
+      data:
+        compression: gzip
+        encryption: AES256
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi

@@ -1,0 +1,60 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fastapi-ai-service-alerts
+  namespace: monitoring
+  labels:
+    role: alert-rules
+spec:
+  groups:
+    - name: fastapi-ai-service.rules
+      rules:
+        - alert: FastAPIHttpHighErrorRate
+          expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 2
+          for: 2m
+          labels:
+            severity: critical
+            tier: application
+          annotations:
+            summary: "High HTTP error rate on {{ $labels.instance }}"
+            description: "HTTP 5xx error rate is {{ $value }}% which is above the 2% threshold."
+
+        - alert: FastAPIHighLatencyP95
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.500
+          for: 5m
+          labels:
+            severity: warning
+            tier: application
+          annotations:
+            summary: "High latency detected on {{ $labels.instance }}"
+            description: "p95 request duration is {{ $value }}s, exceeding the 500ms SLA."
+
+        - alert: FastAPICpuThrottlingSpike
+          expr: sum(rate(container_cpu_cfs_throttled_seconds_total{container="fastapi-ai-service"}[5m])) by (pod) > 0.05
+          for: 3m
+          labels:
+            severity: warning
+            tier: infrastructure
+          annotations:
+            summary: "CPU Throttling detected on pod {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} is experiencing significant CPU CFS throttling, check limits."
+
+        - alert: DatabaseConnectionSpike
+          expr: pg_stat_database_numbackends > 150
+          for: 1m
+          labels:
+            severity: warning
+            tier: database
+          annotations:
+            summary: "Database connection count spike on Postgres"
+            description: "Database connection count is {{ $value }} on database cluster, scaling threshold reached."
+
+        - alert: ContainerCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total[5m]) * 60 > 2
+          for: 2m
+          labels:
+            severity: critical
+            tier: infrastructure
+          annotations:
+            summary: "Container is restarting frequently"
+            description: "Container in pod {{ $labels.pod }} has restarted {{ $value }} times per minute, potential CrashLoopBackOff."

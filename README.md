@@ -44,7 +44,25 @@ Welcome to the premier open-source repository designed to take you from Kubernet
 ### Phase 5: Real Production Systems
 * [Day 28 — Designing Production-Grade Kubernetes Architecture](Day-28/README.md)
 * [Day 29 — Cost Optimization and Performance Engineering](Day-29/README.md)
-* [Day 30 — Master Project: Deploy and Operate a Production Platform](Day-30/README.md)
+* [Day 30 — Master Project: Build a Real Production-Grade Cloud-Native Platform](Day-30-Master-Project/README.md)
+
+---
+
+## 🗂️ Global SRE Reference Manuals
+In addition to the 30-day curriculum, this repository provides global reference folders containing SRE templates, configs, and guides:
+
+| Category | Reference Guide | Description |
+| :--- | :--- | :--- |
+| **AI & Compute** | [gpu-sharing-manifest.yaml](ai-infra/gpu-scheduling/gpu-sharing-manifest.yaml) | NVIDIA MPS GPU-sharing templates. |
+| **Architecture** | [ha-topology.md](architecture/control-plane/ha-topology.md) \| [cni-comparison.md](architecture/networking/cni-comparison.md) | etcd consensus and CNI comparisons (Cilium vs Calico). |
+| **Storage** | [csi-provisioning.md](architecture/storage/csi-provisioning.md) | CSI dynamics and Dynamic PV provisioning lifecycles. |
+| **Case Studies** | [oom-postmortem.md](case-studies/OutOfMemory/oom-postmortem.md) | Incident post-mortem resolving JVM cgroup memory leaks. |
+| **Quick Ref** | [kubectl-pro-cheatsheet.md](cheatsheets/kubectl-pro-cheatsheet.md) \| [kubernetes-glossary.md](glossary/kubernetes-glossary.md) | Advanced jsonpath commands and structural terms. |
+| **CI/CD** | [argo-drift-prevention.md](ci-cd/argocd/argo-drift-prevention.md) \| [harden-github-actions.md](ci-cd/github-actions/harden-github-actions.md) | ArgoCD reconciliation and hardened GHA setups. |
+| **Templates** | [production-deployment-template.yaml](templates/manifests/production-deployment-template.yaml) \| [boilerplate-chart/](helm/charts/boilerplate-chart/) | Hardened Deployment template and reusable Helm setups. |
+| **Career** | [sre-k8s-interview-questions.md](interview-prep/sre-k8s-interview-questions.md) | Scenario-based interview prep sheet. |
+| **Telemetry** | [prometheus-scraping.md](observability/prometheus/prometheus-scraping.md) \| [otel-collector-scaling.md](observability/otel/otel-collector-scaling.md) | Cardinality reductions and OTel tail-sampling guides. |
+| **Security** | [pod-security-standards.yaml](security/policies/pod-security-standards.yaml) \| [sopps-pgp-secrets.md](security/secrets/sopps-pgp-secrets.md) | Namespace PSA labels and SOPS PGP encrypt guides. |
 
 ---
 
@@ -52,7 +70,7 @@ Welcome to the premier open-source repository designed to take you from Kubernet
 * **Local Cluster**: [Kind](https://kind.sigs.k8s.io/) or [Minikube](https://minikube.sigs.k8s.io/)
 * **Cluster Management**: kubectl, k9s (Terminal UI)
 * **Shell Helpers**: kubectx and kubens
-* **Static Analysis and Linting**: yamllint, kubeconform, 	rivy
+* **Static Analysis and Linting**: yamllint, kubeconform, trivy
 
 ---
 

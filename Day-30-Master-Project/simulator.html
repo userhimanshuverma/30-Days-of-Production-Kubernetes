@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Cloud-Native Platform Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #070913;
+      --bg-card: rgba(13, 17, 34, 0.7);
+      --border-card: rgba(0, 242, 254, 0.15);
+      --primary: #00f2fe;
+      --secondary: #4facfe;
+      --accent-pink: #ff3366;
+      --accent-green: #00ff88;
+      --accent-orange: #ff9900;
+      --text-main: #e2e8f0;
+      --text-muted: #64748b;
+      --font-family: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 5% 5%, rgba(0, 242, 254, 0.08) 0%, transparent 40%),
+                        radial-gradient(circle at 95% 95%, rgba(255, 51, 102, 0.08) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border-card);
+      background: rgba(7, 9, 19, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #070913;
+      font-size: 1.4rem;
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.5);
+    }
+
+    .logo-text h1 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: linear-gradient(to right, #ffffff, var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .status-badge-bar {
+      display: flex;
+      gap: 1.25rem;
+    }
+
+    .status-badge {
+      background: rgba(0, 242, 254, 0.06);
+      border: 1px solid rgba(0, 242, 254, 0.2);
+      color: var(--primary);
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+    }
+
+    .status-badge.active-region {
+      border-color: rgba(0, 255, 136, 0.3);
+      color: var(--accent-green);
+      background: rgba(0, 255, 136, 0.05);
+    }
+
+    .status-badge.sync-state {
+      border-color: rgba(255, 153, 0, 0.3);
+      color: var(--accent-orange);
+      background: rgba(255, 153, 0, 0.05);
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-green);
+    }
+
+    .live-dot.warn {
+      background-color: var(--accent-orange);
+      box-shadow: 0 0 10px var(--accent-orange);
+    }
+
+    .live-dot.fail {
+      background-color: var(--accent-pink);
+      box-shadow: 0 0 10px var(--accent-pink);
+    }
+
+    main {
+      flex: 1;
+      padding: 1.5rem;
+      max-width: 1750px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 1.5rem;
+    }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 1.25rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      height: fit-content;
+    }
+
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffffff;
+      border-bottom: 1px solid rgba(0, 242, 254, 0.1);
+      padding-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .value-display {
+      color: var(--primary);
+      font-family: var(--font-mono);
+      font-weight: bold;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.6);
+    }
+
+    .toggle-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.01);
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .25s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .25s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-green);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      color: #070913;
+      font-weight: bold;
+      border: none;
+      padding: 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font-family);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 242, 254, 0.25);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 242, 254, 0.4);
+    }
+
+    .btn-fail {
+      background: rgba(255, 51, 102, 0.15);
+      border: 1px solid var(--accent-pink);
+      color: var(--accent-pink);
+      box-shadow: none;
+      font-size: 0.75rem;
+    }
+
+    .btn-fail:hover {
+      background: var(--accent-pink);
+      color: #070913;
+      box-shadow: 0 4px 15px rgba(255, 51, 102, 0.3);
+    }
+
+    .btn-action {
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid var(--accent-green);
+      color: var(--accent-green);
+      box-shadow: none;
+      font-size: 0.75rem;
+      grid-column: span 2;
+    }
+
+    .btn-action:hover {
+      background: var(--accent-green);
+      color: #070913;
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+    }
+
+    .dashboard-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 100%;
+      background: var(--primary);
+    }
+
+    .metric-card.waste::before { background: var(--accent-orange); }
+    .metric-card.fail::before { background: var(--accent-pink); }
+    .metric-card.success::before { background: var(--accent-green); }
+
+    .metric-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+    }
+
+    .cluster-layout-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 1.5rem;
+    }
+
+    .layout-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .region-container {
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .region-title {
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .node-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+
+    .node-box {
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.01);
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: all 0.25s ease;
+    }
+
+    .node-box.active {
+      border-color: rgba(0, 242, 254, 0.25);
+      background: rgba(0, 242, 254, 0.02);
+    }
+
+    .node-box.karpenter {
+      border-color: rgba(16, 185, 129, 0.25);
+      background: rgba(16, 185, 129, 0.02);
+    }
+
+    .node-name {
+      font-size: 0.7rem;
+      font-weight: bold;
+      font-family: var(--font-mono);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .pod-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      min-height: 40px;
+    }
+
+    .pod-block {
+      width: 28px;
+      height: 28px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.55rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .pod-block:hover::after {
+      content: attr(data-title);
+      position: absolute;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.6rem;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .pod-block.running {
+      background: rgba(0, 255, 136, 0.15);
+      border-color: var(--accent-green);
+      color: var(--accent-green);
+    }
+
+    .pod-block.pending {
+      background: rgba(255, 153, 0, 0.15);
+      border-color: var(--accent-orange);
+      color: var(--accent-orange);
+      animation: flash 1s infinite alternate;
+    }
+
+    .pod-block.throttled {
+      background: rgba(255, 153, 0, 0.25);
+      border-color: var(--accent-orange);
+      color: var(--accent-orange);
+    }
+
+    .pod-block.failed {
+      background: rgba(255, 51, 102, 0.2);
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+      animation: shake 0.3s infinite alternate;
+    }
+
+    @keyframes flash {
+      0% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes shake {
+      0% { transform: translate(1px, 1px) rotate(0deg); }
+      100% { transform: translate(-1px, -1px) rotate(1deg); }
+    }
+
+    .trace-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      background: rgba(0,0,0,0.25);
+      border-radius: 8px;
+    }
+
+    .trace-span {
+      display: grid;
+      grid-template-columns: 120px 1fr 60px;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.7rem;
+      font-family: var(--font-mono);
+    }
+
+    .trace-bar-bg {
+      height: 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .trace-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 6px;
+      transition: width 0.5s ease;
+    }
+
+    .trace-bar-fill.error {
+      background: var(--accent-pink);
+    }
+
+    .chart-container {
+      height: 130px;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      padding: 0.5rem;
+      position: relative;
+    }
+
+    .log-panel {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      height: 155px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .log-entry {
+      line-height: 1.4;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .log-time { color: var(--primary); }
+    .log-success { color: var(--accent-green); }
+    .log-warn { color: var(--accent-orange); }
+    .log-error { color: var(--accent-pink); }
+
+    .bottom-layout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .alert-banner {
+      background: rgba(255, 51, 102, 0.1);
+      border: 1px solid rgba(255, 51, 102, 0.25);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      color: var(--accent-pink);
+      font-size: 0.75rem;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: alert-pulse 1.5s infinite;
+    }
+
+    @keyframes alert-pulse {
+      0% { opacity: 0.8; }
+      50% { opacity: 1; border-color: rgba(255, 51, 102, 0.6); }
+      100% { opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">k8s</div>
+      <div class="logo-text">
+        <h1>Cloud-Native Platform Simulator</h1>
+        <p>Day 30 Master Project Command Center</p>
+      </div>
+    </div>
+    <div class="status-badge-bar">
+      <div class="status-badge active-region" id="region-badge">
+        <div class="live-dot"></div>
+        ACTIVE REGION: US-EAST-1 (PROD)
+      </div>
+      <div class="status-badge sync-state" id="gitops-badge">
+        GITOPS SYNC: Synced
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- CONTROL PANEL -->
+    <section class="panel">
+      <h2 class="panel-title">Workload Traffic</h2>
+      <div class="control-group">
+        <label>
+          Simulated Load (RPS)
+          <span class="value-display" id="val-rps">150</span>
+        </label>
+        <input type="range" id="control-rps" min="50" max="1000" step="50" value="150" oninput="changeRps()">
+      </div>
+
+      <div class="control-group">
+        <label>
+          Manual Pod Replicas
+          <span class="value-display" id="val-replicas">3</span>
+        </label>
+        <input type="range" id="control-replicas" min="1" max="10" step="1" value="3" oninput="changeReplicas()">
+      </div>
+
+      <h2 class="panel-title">Autoscaler Policies</h2>
+      <div class="toggle-container">
+        <span>Horizontal Pod Autoscaler (HPA)</span>
+        <label class="switch">
+          <input type="checkbox" id="toggle-hpa" onchange="toggleHpa()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-container">
+        <span>Karpenter Node Consolidation</span>
+        <label class="switch">
+          <input type="checkbox" id="toggle-karpenter" onchange="toggleKarpenter()">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <h2 class="panel-title">Inject Failure</h2>
+      <div class="btn-grid">
+        <button class="btn btn-fail" onclick="injectFailure('db')">Database Down</button>
+        <button class="btn btn-fail" onclick="injectFailure('kafka')">Kafka Outage</button>
+        <button class="btn btn-fail" onclick="injectFailure('tls')">SSL Cert Expired</button>
+        <button class="btn btn-fail" onclick="injectFailure('throttling')">CPU Throttling</button>
+      </div>
+
+      <h2 class="panel-title">SRE Commands</h2>
+      <div class="btn-grid">
+        <button class="btn btn-action" style="grid-column:span 2" onclick="runGitOpsBuild()">Run GitOps CI/CD Build</button>
+        <button class="btn btn-action" style="grid-column:span 2" onclick="runFailover()">Trigger DNS Failover to US-West-2</button>
+        <button class="btn" style="grid-column:span 2; background: linear-gradient(135deg, var(--accent-green), #00bb66); color: #070913" onclick="resolveFailures()">Heal System / Clear Failures</button>
+      </div>
+    </section>
+
+    <!-- RIGHT DASHBOARDS -->
+    <section class="dashboard-container">
+      <div class="alert-banner" id="active-alert-banner" style="display:none">
+        <span>⚠️ ALERT ACTIVE: <span id="alert-message">DatabaseConnectionSpike</span></span>
+        <button class="btn btn-fail" style="padding:0.2rem 0.5rem; font-size:0.6rem;" onclick="resolveFailures()">Acknowledge & Heal</button>
+      </div>
+
+      <!-- METRIC CARD HEADER -->
+      <div class="metric-grid">
+        <div class="metric-card success" id="card-rps-border">
+          <span class="metric-label">Ingress Requests</span>
+          <div class="metric-value" id="metric-rps">150 RPS</div>
+        </div>
+        <div class="metric-card" id="card-latency-border">
+          <span class="metric-label">p95 API Latency</span>
+          <div class="metric-value" id="metric-latency">14 ms</div>
+        </div>
+        <div class="metric-card waste" id="card-bill-border">
+          <span class="metric-label">Monthly Compute Bill</span>
+          <div class="metric-value" id="metric-bill">$1,800</div>
+        </div>
+        <div class="metric-card success" id="card-efficiency-border">
+          <span class="metric-label">Bin-Pack Efficiency</span>
+          <div class="metric-value" id="metric-efficiency">82%</div>
+        </div>
+      </div>
+
+      <!-- LAYOUT SECTION -->
+      <div class="cluster-layout-grid">
+        <!-- TOPOLOGY MAP -->
+        <div class="layout-card">
+          <h2 class="panel-title">Cluster Topology Map</h2>
+          
+          <div class="region-container" id="region-east">
+            <div class="region-title">
+              <span>Region: US-East-1 (Active)</span>
+              <span id="nodes-count-east">3 Nodes</span>
+            </div>
+            
+            <div class="node-grid" id="node-grid-east">
+              <!-- Dynamically populated nodes -->
+            </div>
+          </div>
+
+          <div class="region-container" id="region-west" style="opacity: 0.5">
+            <div class="region-title">
+              <span>Region: US-West-2 (Standby)</span>
+              <span>Replica Group</span>
+            </div>
+            <div class="node-grid">
+              <div class="node-box">
+                <div class="node-name">control-plane-west</div>
+                <div class="pod-grid">
+                  <div class="pod-block running" data-title="PostgreSQL Standby Node">DB</div>
+                  <div class="pod-block running" data-title="cert-manager Standby">CM</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DISTRIBUTED TRACING -->
+        <div class="layout-card">
+          <h2 class="panel-title">Distributed Request Tracing Spans</h2>
+          <div class="trace-container">
+            <div class="trace-span">
+              <span>Ingress Gateway</span>
+              <div class="trace-bar-bg"><div class="trace-bar-fill" id="span-ingress" style="width:100%"></div></div>
+              <span id="dur-ingress">22ms</span>
+            </div>
+            <div class="trace-span">
+              <span>Auth Service</span>
+              <div class="trace-bar-bg"><div class="trace-bar-fill" id="span-auth" style="width:15%"></div></div>
+              <span id="dur-auth">3ms</span>
+            </div>
+            <div class="trace-span">
+              <span>FastAPI Inference</span>
+              <div class="trace-bar-bg"><div class="trace-bar-fill" id="span-fastapi" style="width:75%"></div></div>
+              <span id="dur-fastapi">17ms</span>
+            </div>
+            <div class="trace-span">
+              <span>PostgreSQL Write</span>
+              <div class="trace-bar-bg"><div class="trace-bar-fill" id="span-db" style="width:40%"></div></div>
+              <span id="dur-db">8ms</span>
+            </div>
+            <div class="trace-span">
+              <span>Kafka Event Publish</span>
+              <div class="trace-bar-bg"><div class="trace-bar-fill" id="span-kafka" style="width:20%"></div></div>
+              <span id="dur-kafka">4ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM ROW GRAPH & LOGS -->
+      <div class="bottom-layout-grid">
+        <!-- SVG GRAPH -->
+        <div class="layout-card">
+          <h2 class="panel-title">Performance Metrics Stream</h2>
+          <div class="chart-container">
+            <svg width="100%" height="100%" viewBox="0 0 500 100" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="rps-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.4"/>
+                  <stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+                <line x1="0" y1="25" x2="500" y2="25"/>
+                <line x1="0" y1="50" x2="500" y2="50"/>
+                <line x1="0" y1="75" x2="500" y2="75"/>
+              </g>
+              <path fill="url(#rps-gradient)" id="graph-fill" d="M0,100 L500,100 L500,100 L0,100 Z"/>
+              <path fill="none" stroke="var(--primary)" stroke-width="2.5" id="graph-line" d="M0,100 L500,100"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- TERMINAL WINDOW -->
+        <div class="layout-card">
+          <h2 class="panel-title">Stdout Console & Event Logs</h2>
+          <div class="log-panel" id="log-terminal">
+            <!-- Autogenerated entries -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // State variables
+    let rps = 150;
+    let replicas = 3;
+    let hpaEnabled = false;
+    let karpenterEnabled = false;
+    let activeRegion = "US-East-1";
+    let gitopsStatus = "Synced";
+    let activeFailure = null;
+    let dataPoints = Array(20).fill(150);
+
+    const logTerminal = document.getElementById("log-terminal");
+
+    function log(message, type = "info") {
+      const time = new Date().toISOString().split("T")[1].slice(0, 8);
+      let classType = "";
+      if (type === "success") classType = "log-success";
+      else if (type === "warn") classType = "log-warn";
+      else if (type === "error") classType = "log-error";
+
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+      entry.innerHTML = `<span class="log-time">[${time}]</span><span class="${classType}">${message}</span>`;
+      logTerminal.appendChild(entry);
+      logTerminal.scrollTop = logTerminal.scrollHeight;
+
+      // Restrict rows
+      while (logTerminal.children.length > 50) {
+        logTerminal.removeChild(logTerminal.firstChild);
+      }
+    }
+
+    function changeRps() {
+      rps = parseInt(document.getElementById("control-rps").value);
+      document.getElementById("val-rps").innerText = rps;
+      log(`External traffic load shifted to: ${rps} RPS`, "info");
+      updateSimulation();
+    }
+
+    function changeReplicas() {
+      replicas = parseInt(document.getElementById("control-replicas").value);
+      document.getElementById("val-replicas").innerText = replicas;
+      log(`Manual scaling action triggered. Replicas: ${replicas}`, "info");
+      updateSimulation();
+    }
+
+    function toggleHpa() {
+      hpaEnabled = document.getElementById("toggle-hpa").checked;
+      log(`HPA configuration status toggled: ${hpaEnabled ? 'ENABLED' : 'DISABLED'}`, hpaEnabled ? 'success' : 'warn');
+      if (hpaEnabled) {
+        document.getElementById("control-replicas").disabled = true;
+      } else {
+        document.getElementById("control-replicas").disabled = false;
+      }
+      updateSimulation();
+    }
+
+    function toggleKarpenter() {
+      karpenterEnabled = document.getElementById("toggle-karpenter").checked;
+      log(`Karpenter Node Consolidation logic state: ${karpenterEnabled ? 'ENABLED' : 'DISABLED'}`, karpenterEnabled ? 'success' : 'warn');
+      updateSimulation();
+    }
+
+    function runGitOpsBuild() {
+      gitopsStatus = "OutOfSync";
+      document.getElementById("gitops-badge").innerText = "GITOPS SYNC: OutOfSync";
+      document.getElementById("gitops-badge").className = "status-badge sync-state";
+      log("Git Commit detected on branch 'main'. GitHub Actions triggered.", "info");
+      log("Docker build completed. Tag pushed: ghcr.io/fastapi-ai-service:build-sha", "success");
+      log("GitOps application manifest updated. ArgoCD detecting drift...", "warn");
+
+      setTimeout(() => {
+        gitopsStatus = "Synced";
+        document.getElementById("gitops-badge").innerText = "GITOPS SYNC: Synced";
+        document.getElementById("gitops-badge").className = "status-badge";
+        log("ArgoCD Reconciliation trigger synced: rolling update initialized on Pods.", "success");
+        updateSimulation();
+      }, 4000);
+    }
+
+    function runFailover() {
+      activeRegion = "US-West-2";
+      document.getElementById("region-badge").innerText = "ACTIVE REGION: US-WEST-2 (DR)";
+      document.getElementById("region-badge").className = "status-badge active-region";
+      document.getElementById("region-east").style.opacity = "0.5";
+      document.getElementById("region-west").style.opacity = "1";
+      log("CRITICAL: SRE DNS Shift triggered. Active target pointed to US-West-2.", "warn");
+      log("Standby PostgreSQL promoted to primary status successfully.", "success");
+      updateSimulation();
+    }
+
+    function injectFailure(type) {
+      activeFailure = type;
+      document.getElementById("active-alert-banner").style.display = "flex";
+      
+      let msg = "";
+      if (type === 'db') msg = "DatabaseConnectionTimeout / PostgresMasterUnreachable";
+      else if (type === 'kafka') msg = "KafkaBrokerConnectionFailed / QueueFull";
+      else if (type === 'tls') msg = "SSLHandshakeFailed / CertificateExpired";
+      else if (type === 'throttling') msg = "CFSThrottlingDetected / LatencyLimitExceeded";
+      
+      document.getElementById("alert-message").innerText = msg;
+      log(`CRITICAL Incident injected: ${msg}`, "error");
+      updateSimulation();
+    }
+
+    function resolveFailures() {
+      activeFailure = null;
+      document.getElementById("active-alert-banner").style.display = "none";
+      log("Clearing all failures. System self-healing loop initiated.", "success");
+      updateSimulation();
+    }
+
+    function updateSimulation() {
+      // 1. Check Autoscaling loop
+      if (hpaEnabled && !activeFailure) {
+        // scale based on RPS
+        const targetReplicas = Math.min(10, Math.max(3, Math.ceil(rps / 100)));
+        if (targetReplicas !== replicas) {
+          replicas = targetReplicas;
+          document.getElementById("control-replicas").value = replicas;
+          document.getElementById("val-replicas").innerText = replicas;
+          log(`Autoscaling Action: HPA updated replica count to ${replicas}`, "success");
+        }
+      }
+
+      // Calculate efficiency
+      let efficiency = 85;
+      if (karpenterEnabled) {
+        efficiency = 94;
+      } else if (replicas < 4) {
+        efficiency = 52;
+      }
+
+      // Calculate Node structures based on replicas
+      let nodesRequired = 3;
+      if (replicas > 6) {
+        nodesRequired = 4;
+      }
+
+      // Cost calculation
+      let monthlyBill = nodesRequired * 600;
+      if (activeFailure === 'db') monthlyBill += 1200; // fail loop increases compute charges
+
+      document.getElementById("metric-rps").innerText = `${rps} RPS`;
+      document.getElementById("metric-bill").innerText = `$${monthlyBill}`;
+      document.getElementById("metric-efficiency").innerText = `${efficiency}%`;
+
+      // Determine Latency
+      let latency = 12;
+      if (activeFailure === 'db') latency = 1800;
+      else if (activeFailure === 'throttling') latency = 540;
+      else if (activeFailure === 'kafka') latency = 95;
+      else if (rps > 600 && replicas < 4) latency = 450; // overload latency
+
+      document.getElementById("metric-latency").innerText = `${latency} ms`;
+
+      // Color bounds based on thresholds
+      if (latency > 500) {
+        document.getElementById("card-latency-border").className = "metric-card fail";
+      } else if (latency > 150) {
+        document.getElementById("card-latency-border").className = "metric-card waste";
+      } else {
+        document.getElementById("card-latency-border").className = "metric-card success";
+      }
+
+      // 2. Render Node boxes & Pod grids
+      const nodeGrid = document.getElementById("node-grid-east");
+      nodeGrid.innerHTML = "";
+
+      for (let i = 1; i <= nodesRequired; i++) {
+        const node = document.createElement("div");
+        node.className = "node-box active";
+        if (i === 4) node.className = "node-box karpenter";
+
+        let nodeName = `worker-node-${i}`;
+        if (i === 4) nodeName = `karpenter-spot-${i}`;
+
+        // Populate pods on this node
+        let podsHtml = "";
+        
+        // Add basic service components on Node 1
+        if (i === 1) {
+          podsHtml += `<div class="pod-block running" data-title="cert-manager API">CM</div>`;
+          podsHtml += `<div class="pod-block running" data-title="Ingress Controller">ING</div>`;
+          
+          let dbClass = "running";
+          if (activeFailure === 'db') dbClass = "failed";
+          podsHtml += `<div class="pod-block ${dbClass}" data-title="PostgreSQL Master">PG</div>`;
+        }
+
+        // Add Kafka on Node 2
+        if (i === 2) {
+          let kClass = "running";
+          if (activeFailure === 'kafka') kClass = "failed";
+          podsHtml += `<div class="pod-block ${kClass}" data-title="Kafka broker broker-1">KF</div>`;
+        }
+
+        // Distribute FastAPI Pods across nodes
+        let podsPerNode = Math.ceil(replicas / nodesRequired);
+        for (let p = 0; p < podsPerNode; p++) {
+          let podState = "running";
+          if (activeFailure === 'throttling') podState = "throttled";
+          else if (activeFailure === 'db') podState = "failed";
+          
+          podsHtml += `<div class="pod-block ${podState}" data-title="FastAPI AI inference container replica">AI</div>`;
+        }
+
+        node.innerHTML = `
+          <div class="node-name">${nodeName}</div>
+          <div class="pod-grid">${podsHtml}</div>
+        `;
+        nodeGrid.appendChild(node);
+      }
+
+      document.getElementById("nodes-count-east").innerText = `${nodesRequired} Nodes`;
+
+      // 3. Render trace bars
+      let ingWidth = 100;
+      let dbWidth = 40;
+      let kWidth = 20;
+
+      if (activeFailure === 'db') {
+        dbWidth = 100;
+        document.getElementById("span-db").className = "trace-bar-fill error";
+        document.getElementById("dur-db").innerText = "TIMEOUT";
+        document.getElementById("dur-fastapi").innerText = "1800ms";
+      } else {
+        document.getElementById("span-db").className = "trace-bar-fill";
+        document.getElementById("dur-db").innerText = "8ms";
+        document.getElementById("dur-fastapi").innerText = "17ms";
+      }
+
+      if (activeFailure === 'kafka') {
+        kWidth = 100;
+        document.getElementById("span-kafka").className = "trace-bar-fill error";
+        document.getElementById("dur-kafka").innerText = "500ms";
+      } else {
+        document.getElementById("span-kafka").className = "trace-bar-fill";
+        document.getElementById("dur-kafka").innerText = "4ms";
+      }
+
+      document.getElementById("span-db").style.width = `${dbWidth}%`;
+      document.getElementById("span-kafka").style.width = `${kWidth}%`;
+
+      // 4. Update data array and SVG chart path
+      dataPoints.push(latency);
+      dataPoints.shift();
+
+      const line = document.getElementById("graph-line");
+      const fill = document.getElementById("graph-fill");
+
+      let pathStr = "M";
+      let fillStr = "M0,100 ";
+
+      for (let idx = 0; idx < dataPoints.length; idx++) {
+        const x = (idx / (dataPoints.length - 1)) * 500;
+        // scale latency (max 2000) to height 100 (inverted)
+        const y = 100 - (dataPoints[idx] / 2000) * 90;
+        pathStr += `${x},${y} `;
+        fillStr += `${x},${y} `;
+      }
+
+      fillStr += "L500,100 L0,100 Z";
+      line.setAttribute("d", pathStr);
+      fill.setAttribute("d", fillStr);
+    }
+
+    // Periodic generator for logging output
+    setInterval(() => {
+      if (activeFailure === 'db') {
+        log("PostgreSQL Connection lost! Retry sequence: 5s...", "error");
+        log("FastAPI app /ready check returned: 503 Service Unavailable", "error");
+      } else if (activeFailure === 'kafka') {
+        log("Failed to write event payload back to topic broker cluster.", "warn");
+        log("Inference record warning: Kafka queue is backed up.", "warn");
+      } else if (activeFailure === 'throttling') {
+        log("Container CPU CFS quota exhausted. Thread throttling detected.", "warn");
+      } else {
+        log(`FastAPI transaction committed - /predict returned HTTP 200 OK. RPS: ${rps}`, "success");
+      }
+
+      // Karpenter console prints
+      if (karpenterEnabled && Math.random() > 0.7) {
+        log("Karpenter Consolidation loop: checking underutilized instances...", "info");
+      }
+    }, 2000);
+
+    // Initial load
+    updateSimulation();
+    log("Platform Command Center initialization sequence completed successfully.", "success");
+    log("All primary Kubernetes control plane services: healthy.", "success");
+  </script>
+</body>
+</html>

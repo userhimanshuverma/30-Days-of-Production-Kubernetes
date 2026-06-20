@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-sharing-workload
+  namespace: ai-infra
+  labels:
+    app: gpu-sharing-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gpu-sharing-app
+  template:
+    metadata:
+      labels:
+        app: gpu-sharing-app
+    spec:
+      containers:
+        - name: cuda-inference
+          image: nvidia/cuda:11.8.0-base-ubuntu22.04
+          command: ["sleep", "infinity"]
+          env:
+            # Enable NVIDIA Multi-Process Service (MPS) for GPU sharing
+            - name: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE
+              value: "50" # Restrict this container to 50% of the total GPU threads
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+          resources:
+            limits:
+              nvidia.com/gpu: "1" # Request a single physical GPU to share via time-slicing
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+              nvidia.com/gpu: "1"
+      nodeSelector:
+        accelerator: nvidia-gpu # Ensure scheduling on GPU-enabled nodes
